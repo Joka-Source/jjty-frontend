@@ -11,7 +11,7 @@ export default function NotFound() {
       </header>
 
       <main className="not-found" aria-labelledby="not-found-title">
-        <p className="eyebrow">404 / Recovery route</p>
+        <p className="eyebrow recovery-eyebrow">404 / Recovery route</p>
         <h1 id="not-found-title">This path is not ready.</h1>
         <p>
           Nothing was downloaded or changed. The launch contract remains available

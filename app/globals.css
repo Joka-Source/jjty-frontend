@@ -148,6 +148,10 @@ a:focus-visible {
   padding: clamp(72px, 12vw, 150px) 0;
 }
 
+.not-found .recovery-eyebrow {
+  color: #b33625;
+}
+
 .not-found h1 {
   max-width: 900px;
   margin: 24px 0 0;
