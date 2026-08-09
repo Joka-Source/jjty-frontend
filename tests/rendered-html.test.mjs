@@ -1,25 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { fetchFromWorker } from "./worker-fixture.mjs";
 
 async function render() {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
-  const { default: worker } = await import(workerUrl.href);
-
-  return worker.fetch(
-    new Request("http://localhost/", {
-      headers: { accept: "text/html" },
-    }),
-    {
-      ASSETS: {
-        fetch: async () => new Response("Not found", { status: 404 }),
-      },
-    },
-    {
-      waitUntil() {},
-      passThroughOnException() {},
-    },
-  );
+  return fetchFromWorker("/");
 }
 
 test("renders the truthful JJTY launch contract", async () => {
@@ -70,4 +54,28 @@ test("ships production metadata without starter markers", async () => {
   assert.match(html, /name="twitter:card" content="summary_large_image"/i);
   assert.match(html, /name="twitter:image" content="https:\/\/jjty\.in\/og\.png"/i);
   assert.doesNotMatch(html, /Starter Project|Your site is taking shape/i);
+});
+
+test("keeps the pre-cutover release out of search indexes", async () => {
+  const response = await render();
+  const html = await response.text();
+
+  assert.match(
+    response.headers.get("x-robots-tag") ?? "",
+    /\bnoindex\b/i,
+  );
+  assert.match(html, /<meta name="robots" content="[^"]*noindex/i);
+  assert.match(html, /<meta name="googlebot" content="[^"]*noindex/i);
+});
+
+test("publishes an explicit deny-all robots policy", async () => {
+  const response = await fetchFromWorker("/robots.txt");
+  const body = await response.text();
+
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type") ?? "", /^text\/plain\b/i);
+  assert.match(response.headers.get("x-robots-tag") ?? "", /\bnoindex\b/i);
+  assert.match(body, /^User-Agent: \*$/im);
+  assert.match(body, /^Disallow: \/$/im);
+  assert.doesNotMatch(body, /^Allow:/im);
 });

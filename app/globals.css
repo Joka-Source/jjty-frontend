@@ -135,6 +135,44 @@ a:focus-visible {
   text-transform: uppercase;
 }
 
+.recovery-header {
+  grid-template-columns: 1fr auto;
+}
+
+.not-found {
+  display: grid;
+  width: var(--page);
+  min-height: calc(100vh - 84px);
+  align-content: center;
+  margin: 0 auto;
+  padding: clamp(72px, 12vw, 150px) 0;
+}
+
+.not-found h1 {
+  max-width: 900px;
+  margin: 24px 0 0;
+  color: var(--river);
+  font-family: var(--display);
+  font-size: clamp(3.8rem, 8vw, 8rem);
+  font-weight: 400;
+  letter-spacing: -0.055em;
+  line-height: 0.91;
+}
+
+.not-found > p:not(.eyebrow) {
+  max-width: 620px;
+  margin: 30px 0 0;
+  color: var(--ink-soft);
+  font-family: var(--display);
+  font-size: clamp(1.15rem, 2vw, 1.45rem);
+  line-height: 1.5;
+}
+
+.not-found .button {
+  width: max-content;
+  margin-top: 38px;
+}
+
 .hero {
   width: var(--page);
   min-height: calc(100vh - 84px);
