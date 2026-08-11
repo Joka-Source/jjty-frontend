@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "0.1.0",
+  "id": "anc-0002",
+  "sourceId": "src-0002",
+  "sourceRevision": "r7",
+  "semanticLocator": "section:results/table:1/row:4",
+  "geometricLocator": {
+    "page": 12,
+    "x": 72.5,
+    "y": 401.25,
+    "width": 180.0,
+    "height": 14.5
+  },
+  "quotedEvidence": "Total rainfall recorded: 412 mm",
+  "evidenceDigest": "sha256:2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b",
+  "resolutionStatus": "exact",
+  "returnRoute": "open://src-0002/r7#anc-0002"
+}

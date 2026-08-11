@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "jt-contracts/cursor/v0.1.0",
+  "title": "Cursor",
+  "description": "A person's live act of working at an exact position in a source: what was captured, what the person probably means, how sure the system is, what permission is needed, where the result is going, and how to undo or get back. Its lifecycle state follows the shared state machine.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "anchorId", "sourceId", "state"],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Version of this record's schema (semver: major.minor.patch)."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable identifier for this cursor."
+    },
+    "anchorId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Id of the Anchor marking the exact position in the source this work applies to."
+    },
+    "sourceId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Id of the Source being worked on."
+    },
+    "originModality": {
+      "type": "string",
+      "description": "How the person made this input: e.g. 'voice', 'touch', 'stylus', 'keyboard', 'camera'."
+    },
+    "originDeviceId": {
+      "type": "string",
+      "description": "The device the input started on."
+    },
+    "capturedEvidence": {
+      "type": "string",
+      "description": "What was actually captured from the person (the words heard, the text selected, the stroke made)."
+    },
+    "alternatives": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Other plausible readings of the captured input, kept so the person can correct a wrong guess."
+    },
+    "proposedIntention": {
+      "type": "string",
+      "description": "What the system believes the person wants to do. Provisional until the person confirms it."
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "rest",
+        "invitation",
+        "acquisition",
+        "provisional-intention",
+        "candidate",
+        "ambiguity",
+        "settlement",
+        "durable-result",
+        "recession",
+        "return"
+      ],
+      "description": "Lifecycle position of this work, in plain terms: nothing happening; ready for input; capturing input; a provisional guess at what is meant; a concrete proposal; more than one plausible reading; the person confirming; the result made durable; the interaction stepping back out of the way; the person returned to their source."
+    },
+    "authorityRequired": {
+      "type": "string",
+      "description": "Whose permission is needed before the proposed action can run."
+    },
+    "destination": {
+      "type": "string",
+      "description": "Where the result is going (a device, an app, a person, a place in a document)."
+    },
+    "persistenceState": {
+      "type": "string",
+      "description": "Whether the result has been durably saved yet, and where."
+    },
+    "receiptState": {
+      "type": "string",
+      "enum": ["not-requested", "pending", "received", "refused"],
+      "description": "Whether proof of arrival at the destination has been asked for, is awaited, has arrived, or was refused."
+    },
+    "history": {
+      "type": "array",
+      "description": "What happened to this cursor over time, in order.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["event"],
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When this step happened (ISO 8601)."
+          },
+          "event": {
+            "type": "string",
+            "minLength": 1,
+            "description": "What happened at this step, in plain words."
+          }
+        }
+      }
+    },
+    "undoAvailable": {
+      "type": "boolean",
+      "description": "Whether the person can still undo the last consequential step."
+    },
+    "repairRoute": {
+      "type": "string",
+      "description": "How the person can fix a wrong guess: retype, retry, reselect, or inspect the source, returning to the same position."
+    },
+    "returnRoute": {
+      "type": "string",
+      "description": "The exact way back to the position in the source where this work started."
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "_invalidBecause": "contains an unknown extra property 'nickname' (additionalProperties is false)",
+  "schemaVersion": "0.1.0",
+  "id": "src-bad",
+  "kind": "pdf",
+  "contentDigest": "sha256:9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f",
+  "revision": "r1",
+  "privacyClass": "private",
+  "nickname": "my doc"
+}

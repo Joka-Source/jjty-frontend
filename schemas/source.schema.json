@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "jt-contracts/source/v0.1.0",
+  "title": "Source",
+  "description": "A real thing a person works from: a file, document, recording, page, or other owned material. Records who it belongs to, exactly which version it is, what may be done to it, and how to get back to the original.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "kind", "contentDigest", "revision", "privacyClass"],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Version of this record's schema (semver: major.minor.patch)."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable identifier for this source. Never reused for different material."
+    },
+    "kind": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What kind of material this is, e.g. 'pdf', 'image', 'audio', 'note', 'web-page'."
+    },
+    "origin": {
+      "type": "string",
+      "description": "Where this material came from (an app, a scan, a share, a device)."
+    },
+    "owner": {
+      "type": "string",
+      "description": "The person or party who owns this material."
+    },
+    "custodian": {
+      "type": "string",
+      "description": "Who currently holds the bytes (a device, an app, a host), if different from the owner."
+    },
+    "contentDigest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "Cryptographic digest of the exact bytes of this revision, as 'sha256:<hex>'."
+    },
+    "revision": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Identifier of this exact version of the content. Changes whenever the bytes change."
+    },
+    "structureLocator": {
+      "type": "string",
+      "description": "How to address positions inside this material, e.g. a page map or outline reference."
+    },
+    "rightsRef": {
+      "type": "string",
+      "description": "Id of the RightsRecord that governs this material, if one exists."
+    },
+    "privacyClass": {
+      "type": "string",
+      "enum": ["private", "shared", "public"],
+      "description": "How widely this material may be seen: only its owner, chosen people, or anyone."
+    },
+    "mutationAuthority": {
+      "type": "string",
+      "description": "Who is allowed to change the original bytes, if anyone."
+    },
+    "encryptionState": {
+      "type": "string",
+      "enum": ["encrypted", "not-encrypted"],
+      "description": "Whether the stored bytes are encrypted at rest."
+    },
+    "storageState": {
+      "type": "string",
+      "description": "Where and how the bytes are currently stored, e.g. 'on-device', 'sidecar', 'exported'."
+    },
+    "lifecycleState": {
+      "type": "string",
+      "enum": ["active", "archived", "pending-deletion", "deleted"],
+      "description": "Where this material is in its life: in use, kept aside, queued for removal, or removed."
+    },
+    "originalRoute": {
+      "type": "string",
+      "description": "How to reach the untouched original of this material."
+    },
+    "exportRoute": {
+      "type": "string",
+      "description": "How the person can take this material out of the system in a usable form."
+    },
+    "recoveryRoute": {
+      "type": "string",
+      "description": "How this material can be recovered independently if the app or device is lost."
+    }
+  }
+}

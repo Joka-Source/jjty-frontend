@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "jt-contracts/action/v0.1.0",
+  "title": "Action",
+  "description": "A requested operation and its rules: how serious its consequences are, what the executing side must be able to do, whether it can be undone, whether it must be confirmed first, what it is allowed to change, and what happens if it is refused or goes wrong.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "operation", "consequenceClass"],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Version of this record's schema (semver: major.minor.patch)."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable identifier for this action."
+    },
+    "operation": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The operation being requested, e.g. 'insert-text', 'share', 'redact', 'delete'."
+    },
+    "consequenceClass": {
+      "type": "string",
+      "enum": ["read-only", "reversible", "irreversible", "destructive"],
+      "description": "How serious the consequences are: changes nothing; can be undone; cannot be undone; permanently removes something."
+    },
+    "requiredCapabilities": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "What the source or host must be able to do for this action to run safely."
+    },
+    "reversible": {
+      "type": "boolean",
+      "description": "Whether this action can be undone after it runs."
+    },
+    "confirmationPolicy": {
+      "type": "string",
+      "enum": ["none", "preview", "explicit-confirm"],
+      "description": "What must happen before this action runs: nothing, show the person what will change, or require the person to explicitly say yes."
+    },
+    "mutationBoundary": {
+      "type": "string",
+      "description": "Exactly what this action is allowed to change, and where writing back to the original stops."
+    },
+    "refusalRoute": {
+      "type": "string",
+      "description": "What happens when this action is refused: nothing false is changed, and the reason is named."
+    },
+    "repairRoute": {
+      "type": "string",
+      "description": "How the person can recover and try again if this action fails or does the wrong thing."
+    }
+  }
+}

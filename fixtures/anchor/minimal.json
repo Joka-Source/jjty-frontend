@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "0.1.0",
+  "id": "anc-0001",
+  "sourceId": "src-0001",
+  "sourceRevision": "r1",
+  "semanticLocator": "heading:2/paragraph:3/chars:12-48",
+  "returnRoute": "open://src-0001/r1#anc-0001"
+}

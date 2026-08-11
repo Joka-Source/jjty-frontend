@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "jt-contracts/placepack/v0.1.0",
+  "title": "PlacePack",
+  "description": "A versioned package of local knowledge about a place: the names people actually use, language and script, water, land and seasonal patterns, local assets, who holds rights, who reviewed it, what is sensitive, and how it can be corrected or withdrawn.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "locality", "version"],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Version of this record's schema (semver: major.minor.patch)."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable identifier for this place pack."
+    },
+    "locality": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The place this pack describes."
+    },
+    "localNames": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Names people in and around this place actually use for it."
+    },
+    "languages": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Languages and scripts used in this place, e.g. 'hi-Deva', 'ta-Taml'."
+    },
+    "hydrology": {
+      "type": "string",
+      "description": "Water patterns of this place: rivers, wells, tanks, monsoon behaviour."
+    },
+    "ecology": {
+      "type": "string",
+      "description": "Land, plant and animal patterns of this place."
+    },
+    "seasonality": {
+      "type": "string",
+      "description": "How this place changes through the year."
+    },
+    "assetIds": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Ids of assets (maps, images, recordings, documents) bundled with this pack."
+    },
+    "rightsRefs": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Ids of RightsRecords governing material in this pack."
+    },
+    "reviewers": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "People or bodies who reviewed this pack for accuracy and appropriateness."
+    },
+    "sensitivities": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Things in or about this place that must be handled carefully or not shown."
+    },
+    "capabilityVariants": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Reduced or alternative forms of this pack for weaker devices or networks."
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Version of this pack's content. Changes when the content changes."
+    },
+    "correctionRoute": {
+      "type": "string",
+      "description": "How someone from this place can get an error in the pack fixed."
+    },
+    "withdrawalRoute": {
+      "type": "string",
+      "description": "How this pack, or material in it, can be pulled back if it should not have been shared."
+    },
+    "withdrawn": {
+      "type": "boolean",
+      "description": "Whether this pack has been withdrawn and should no longer be distributed."
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "0.1.0",
+  "id": "rel-bad",
+  "from": { "refType": "spirit", "refId": "x-0001" },
+  "to": { "refType": "source", "refId": "src-0001" },
+  "kind": "annotates",
+  "provenance": "made by the person",
+  "authority": "person-anita"
+}

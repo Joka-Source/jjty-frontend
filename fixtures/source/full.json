@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "0.1.0",
+  "id": "src-0002",
+  "kind": "pdf",
+  "origin": "scanned by owner on device",
+  "owner": "person-anita",
+  "custodian": "device-rmx3853",
+  "contentDigest": "sha256:1a2b3c4d5e6f1a2b3c4d5e6f1a2b3c4d5e6f1a2b3c4d5e6f1a2b3c4d5e6f1a2b",
+  "revision": "r7",
+  "structureLocator": "page-map/v1",
+  "rightsRef": "rights-0001",
+  "privacyClass": "shared",
+  "mutationAuthority": "person-anita",
+  "encryptionState": "encrypted",
+  "storageState": "on-device",
+  "lifecycleState": "active",
+  "originalRoute": "local-store://sources/src-0002/original",
+  "exportRoute": "export://pdf/src-0002",
+  "recoveryRoute": "recovery://bundle/src-0002"
+}

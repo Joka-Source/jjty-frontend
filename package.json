@@ -1,0 +1,14 @@
+{
+  "name": "jt-contracts",
+  "version": "0.1.0",
+  "description": "Portable record schemas and golden fixtures for the JT domain contract. Android, iOS, and web all conform to these.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1"
+  }
+}

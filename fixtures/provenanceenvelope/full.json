@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "0.1.0",
+  "id": "prov-0002",
+  "producer": "jt-perception-engine",
+  "sourceDigest": "sha256:1a2b3c4d5e6f1a2b3c4d5e6f1a2b3c4d5e6f1a2b3c4d5e6f1a2b3c4d5e6f1a2b",
+  "transformation": "ocr",
+  "model": {
+    "name": "jt-ocr-hi-ta",
+    "provider": "on-device",
+    "version": "2.3.0"
+  },
+  "confidence": 0.87,
+  "evidenceRef": "evidence://frames/src-0002/p12",
+  "signature": "ed25519:examplesignaturevalue",
+  "retentionClass": "keep-while-source-exists",
+  "egressClass": "local-only"
+}

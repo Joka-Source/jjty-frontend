@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "jt-contracts/anchor/v0.1.0",
+  "title": "Anchor",
+  "description": "An exact position in a source: which document, which version, and where inside it. Carries the evidence captured at that position and the way back to it. At least one locator (meaning-based or geometry-based) must be present.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "sourceId", "sourceRevision", "returnRoute"],
+  "anyOf": [
+    { "required": ["semanticLocator"] },
+    { "required": ["geometricLocator"] }
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Version of this record's schema (semver: major.minor.patch)."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable identifier for this anchor."
+    },
+    "sourceId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Id of the Source this position lives in."
+    },
+    "sourceRevision": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The exact version of the source this position was captured against."
+    },
+    "semanticLocator": {
+      "type": "string",
+      "description": "A meaning-based address for the position (e.g. a text range or heading path) that can survive reflow, rotation, and format conversion."
+    },
+    "geometricLocator": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A geometry-based address for the position, kept as fallback and audit evidence when meaning-based addressing is unavailable or fails.",
+      "properties": {
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Page number, starting at 1, where the material is paged."
+        },
+        "x": { "type": "number", "description": "Horizontal position in page coordinates." },
+        "y": { "type": "number", "description": "Vertical position in page coordinates." },
+        "width": { "type": "number", "minimum": 0, "description": "Width of the region in page coordinates." },
+        "height": { "type": "number", "minimum": 0, "description": "Height of the region in page coordinates." }
+      }
+    },
+    "quotedEvidence": {
+      "type": "string",
+      "description": "The words or content actually captured at this position, quoted as-is."
+    },
+    "evidenceDigest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "Digest of captured evidence that is not inline text (an image crop, an audio clip), as 'sha256:<hex>'."
+    },
+    "resolutionStatus": {
+      "type": "string",
+      "enum": ["exact", "approximate", "stale", "unresolved"],
+      "description": "How well this position can currently be found again: exactly, roughly, against an older version, or not at all."
+    },
+    "returnRoute": {
+      "type": "string",
+      "description": "The exact way back to this position in the source."
+    }
+  }
+}

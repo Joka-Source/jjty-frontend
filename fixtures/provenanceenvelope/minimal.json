@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "0.1.0",
+  "id": "prov-0001",
+  "producer": "person-anita",
+  "sourceDigest": "sha256:9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f",
+  "transformation": "manual-transcription"
+}

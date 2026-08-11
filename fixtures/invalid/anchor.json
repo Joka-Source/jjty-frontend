@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "0.1.0",
+  "id": "anc-bad",
+  "sourceId": "src-0001",
+  "sourceRevision": "r1",
+  "quotedEvidence": "invalid because it has neither a semanticLocator nor a geometricLocator",
+  "returnRoute": "open://src-0001/r1#anc-bad"
+}

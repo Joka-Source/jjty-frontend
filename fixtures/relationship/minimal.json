@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "0.1.0",
+  "id": "rel-0001",
+  "from": { "refType": "annotation", "refId": "ann-0001" },
+  "to": { "refType": "source", "refId": "src-0001" },
+  "kind": "annotates",
+  "provenance": "made by the person",
+  "authority": "person-anita"
+}

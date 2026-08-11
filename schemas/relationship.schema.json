@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "jt-contracts/relationship/v0.1.0",
+  "title": "Relationship",
+  "description": "An explicit link between two things a person works with — sources, annotations, thoughts, people, things, places, or events — with a record of where the link came from and who has authority over it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "from", "to", "kind", "provenance", "authority"],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Version of this record's schema (semver: major.minor.patch)."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable identifier for this relationship."
+    },
+    "from": {
+      "$ref": "#/$defs/endpoint",
+      "description": "The thing this link starts from."
+    },
+    "to": {
+      "$ref": "#/$defs/endpoint",
+      "description": "The thing this link points to."
+    },
+    "kind": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What this link means, e.g. 'annotates', 'mentions', 'made-by', 'happened-at'."
+    },
+    "provenance": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Where this link came from: made by the person, suggested by the system, imported from elsewhere."
+    },
+    "authority": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Who may change or remove this link."
+    }
+  },
+  "$defs": {
+    "endpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["refType", "refId"],
+      "properties": {
+        "refType": {
+          "type": "string",
+          "enum": ["source", "annotation", "thought", "person", "thing", "place", "event"],
+          "description": "What kind of thing this endpoint is."
+        },
+        "refId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Id of the thing this endpoint refers to."
+        }
+      }
+    }
+  }
+}

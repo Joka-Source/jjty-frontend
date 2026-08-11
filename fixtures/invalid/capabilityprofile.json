@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "0.1.0",
+  "id": "cap-bad",
+  "device": "realme RMX3853",
+  "os": "Android 14",
+  "constraints": {
+    "frameRate": 60,
+    "gpuScore": 9000
+  }
+}

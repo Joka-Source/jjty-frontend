@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "jt-contracts/capabilityprofile/v0.1.0",
+  "title": "CapabilityProfile",
+  "description": "What a specific device and app build can actually do right now: input and output modes it supports, hosts it can talk to, performance and battery limits, accessibility settings in effect, and how fresh the proof of all this is.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "device", "os"],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Version of this record's schema (semver: major.minor.patch)."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable identifier for this capability profile."
+    },
+    "device": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The device this profile describes, e.g. model and identifier."
+    },
+    "os": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Operating system and version on the device."
+    },
+    "appBuild": {
+      "type": "string",
+      "description": "The exact app build this profile was measured against."
+    },
+    "settings": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "Device or app settings that affect capability, as plain name-value pairs."
+    },
+    "modalities": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Input and output modes this device supports, e.g. 'voice', 'stylus', 'camera', 'nfc'."
+    },
+    "hosts": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Apps or services on this device that work can be handed to."
+    },
+    "constraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Current physical limits that affect what this device should be asked to do.",
+      "properties": {
+        "frameRate": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Sustained display or capture frames per second the device can hold."
+        },
+        "thermal": {
+          "type": "string",
+          "description": "Current heat condition, e.g. 'nominal', 'elevated', 'throttled'."
+        },
+        "battery": {
+          "type": "string",
+          "description": "Current battery condition, e.g. 'normal', 'low', 'critical', 'charging'."
+        },
+        "network": {
+          "type": "string",
+          "description": "Current network condition, e.g. 'wifi', 'cellular', 'metered', 'offline'."
+        }
+      }
+    },
+    "accessibilitySettings": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Accessibility settings currently in effect, e.g. 'large-text', 'screen-reader', 'reduced-motion'."
+    },
+    "lastVerifiedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When these capabilities were last actually proved on the device (ISO 8601). Stale profiles are not current proof."
+    },
+    "evidenceRef": {
+      "type": "string",
+      "description": "Reference to the evidence that proved these capabilities."
+    }
+  }
+}
