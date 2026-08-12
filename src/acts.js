@@ -5,7 +5,7 @@
 import { makeActEntry } from "./records.js";
 import { putRecord, getRecords } from "./db.js";
 
-export function createActEngine({ getBlocks, getDoc, onChange, onApply }) {
+export function createActEngine({ getBlocks, getDoc, onChange, onApply, renderMath }) {
   // In-memory mirror of this document's history, newest last.
   let entries = [];
 
@@ -39,6 +39,15 @@ export function createActEngine({ getBlocks, getDoc, onChange, onApply }) {
         note.textContent = entry.noteText;
         p.appendChild(note);
       }
+      if (entry.act === "math") {
+        const math = document.createElement("span");
+        math.className = "kept-math";
+        math.dataset.entry = entry.id;
+        math.dataset.latex = entry.mathLatex;
+        if (renderMath) renderMath(math, entry);
+        else math.textContent = entry.mathLatex;
+        p.appendChild(math);
+      }
       if (confirm) onApply?.(p, entry);
     }
   }
@@ -50,6 +59,9 @@ export function createActEngine({ getBlocks, getDoc, onChange, onApply }) {
       if (entry.act === "note") {
         p.querySelector(`.note[data-entry="${entry.id}"]`)?.remove();
       }
+      if (entry.act === "math") {
+        p.querySelector(`.kept-math[data-entry="${entry.id}"]`)?.remove();
+      }
     }
   }
 
@@ -57,7 +69,21 @@ export function createActEngine({ getBlocks, getDoc, onChange, onApply }) {
    * Perform an act on a block. Returns the persisted history entry.
    * act: "highlight" | "important" | "note"
    */
-  async function perform(act, blockIndex, { modality, evidence, confidence, matchedText, noteText, blockEnd } = {}) {
+  async function perform(
+    act,
+    blockIndex,
+    {
+      modality,
+      evidence,
+      confidence,
+      matchedText,
+      noteText,
+      blockEnd,
+      mathSpeech,
+      mathLatex,
+      mathUnparsed,
+    } = {}
+  ) {
     const doc = getDoc();
     if (!doc || blockIndex < 0) return null;
     const entry = makeActEntry({
@@ -71,6 +97,9 @@ export function createActEngine({ getBlocks, getDoc, onChange, onApply }) {
       confidence,
       matchedText,
       noteText,
+      mathSpeech,
+      mathLatex,
+      mathUnparsed,
     });
     applyEffect(entry, { confirm: true });
     await putRecord(entry);

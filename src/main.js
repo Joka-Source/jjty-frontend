@@ -19,6 +19,8 @@
 // window.__jt and serialized into a #jt-report DOM node for headless runs.
 
 import "./style.css";
+import "../vendor/katex/katex.min.css";
+import katex from "../vendor/katex/katex.mjs";
 import { tokenize, matchTranscript } from "./match.js";
 import { splitParagraphs, titleFrom, STARTER_DOC } from "./doc.js";
 import { IntentStream, toCommand, describeCandidate } from "./intents.js";
@@ -32,6 +34,11 @@ import { rid, nowIso, makeActEntry } from "./records.js";
 import { loadSettings, MOTION_PARAMS } from "./settings.js";
 import { medium } from "../vendor/jt-water/index.js";
 import { initShell } from "./shell.js";
+import {
+  mathControl,
+  translateSpokenMath,
+  makeSpokenMathDocument,
+} from "./math.js";
 
 const article = document.getElementById("doc");
 const marker = document.getElementById("marker");
@@ -61,6 +68,16 @@ const docProvBtn = document.getElementById("doc-prov-btn");
 const docProv = document.getElementById("doc-prov");
 const readEmpty = document.getElementById("read-empty");
 const micHint = document.getElementById("mic-hint");
+const mathModeToggle = document.getElementById("math-mode-toggle");
+const mathModeState = document.getElementById("math-mode-state");
+const mathWorkbench = document.getElementById("math-workbench");
+const mathSpoken = document.getElementById("math-spoken");
+const mathRendered = document.getElementById("math-rendered");
+const mathLatex = document.getElementById("math-latex");
+const mathUnparsed = document.getElementById("math-unparsed");
+const mathKeep = document.getElementById("math-keep");
+const mathSession = document.getElementById("math-session");
+const mathSessionList = document.getElementById("math-session-list");
 
 // ---------------------------------------------------------------------------
 // Phone layout: on a narrow screen the two side panels become slide-over
@@ -129,6 +146,12 @@ const state = {
   matcher: null, // js or wasm engine
   engineKind: "",
   pendingAsk: null, // { candidates, reason, evidence }
+};
+
+const mathState = {
+  active: false,
+  expression: null,
+  kept: [],
 };
 
 const markerDriver = createMarkerDriver(marker, markerMedium);
@@ -212,6 +235,7 @@ const ACT_TITLES = {
   highlight: "highlighted",
   important: "marked important",
   note: "note added",
+  math: "mathematics kept",
   undo: "undone",
 };
 
@@ -244,6 +268,9 @@ function entryNode(e, { onUndo, onSend } = {}) {
   if (e.matchedText) bits.push(`matched: “${e.matchedText}”`);
   if (e.confidence != null) bits.push(`match ${Math.round(e.confidence * 100)}%`);
   if (e.noteText) bits.push(`note: “${e.noteText}”`);
+  if (e.mathSpeech) bits.push(`words: “${e.mathSpeech}”`);
+  if (e.mathLatex) bits.push(`LaTeX: ${e.mathLatex}`);
+  if (e.mathUnparsed?.length) bits.push(`unparsed: ${e.mathUnparsed.join(", ")}`);
   if (e.undoes) bits.push(`reverses ${e.undoes}`);
   ev.textContent = bits.join(" · ");
   li.appendChild(ev);
@@ -293,11 +320,24 @@ function renderHistory(entries) {
 // ---------------------------------------------------------------------------
 // Act engine (acts confirm with a small physical disturbance — jt-water)
 
+function renderMathInto(node, latex) {
+  if (!latex) {
+    node.textContent = "";
+    return;
+  }
+  katex.render(latex, node, {
+    throwOnError: false,
+    output: "htmlAndMathml",
+    strict: "warn",
+  });
+}
+
 const engine = createActEngine({
   getBlocks: () => state.blocks,
   getDoc: () => state.doc,
   onChange: renderHistory,
   onApply: (p) => confirmRipple(p, { energy: motionParams().energy }),
+  renderMath: (node, entry) => renderMathInto(node, entry.mathLatex),
 });
 
 // ---------------------------------------------------------------------------
@@ -431,9 +471,150 @@ async function runCommand(cmd, modality = "voice") {
 }
 
 // ---------------------------------------------------------------------------
+// Spoken mathematics: one final-segment route, one durable act path
+
+function renderMathPreview(expression, { syncWords = true } = {}) {
+  mathState.expression = expression;
+  if (syncWords) mathSpoken.value = expression?.speech ?? "";
+  mathLatex.textContent = expression?.latex ?? "";
+  mathRendered.textContent = "";
+  if (expression?.latex) renderMathInto(mathRendered, expression.latex);
+  const unknown = expression?.unparsed ?? [];
+  mathUnparsed.hidden = unknown.length === 0;
+  mathUnparsed.textContent = unknown.length
+    ? `words the rule-based translator could not place: ${unknown.join(", ")}. they will stay with the record rather than being guessed.`
+    : "";
+  mathKeep.disabled = !expression?.latex;
+}
+
+function setMathMode(active, { announce = true } = {}) {
+  mathState.active = active;
+  mathWorkbench.hidden = !active;
+  mathModeToggle.setAttribute("aria-pressed", String(active));
+  mathModeToggle.textContent = active ? "leave math mode" : "start math mode";
+  mathModeState.textContent = active
+    ? "math mode is on — final words become mathematics"
+    : "math mode is off";
+  if (announce) {
+    setStatus(
+      true,
+      active
+        ? "math mode — speak an expression, then say “keep that”"
+        : "math mode off — reading and spoken acts are back"
+    );
+  }
+  if (active) mathSpoken.focus();
+}
+
+function renderMathSession() {
+  mathSessionList.textContent = "";
+  for (const item of mathState.kept) {
+    const li = document.createElement("li");
+    const words = document.createElement("span");
+    words.className = "math-session-words";
+    words.textContent = item.speech;
+    li.appendChild(words);
+    const rendered = document.createElement("span");
+    rendered.className = "math-session-rendered";
+    renderMathInto(rendered, item.latex);
+    li.appendChild(rendered);
+    mathSessionList.appendChild(li);
+  }
+  mathSession.hidden = mathState.kept.length === 0;
+}
+
+function isSpokenMathDocument(doc) {
+  return doc?.title === "spoken mathematics" && doc.provenance?.sourceKind === "spoken";
+}
+
+async function openSpokenMathExpression(expression) {
+  const docs = await getDocs();
+  const existing = isSpokenMathDocument(state.doc)
+    ? state.doc
+    : docs.find(isSpokenMathDocument) ?? null;
+  const doc = await makeSpokenMathDocument(existing, expression);
+  await putDoc(doc);
+  await openDocument(doc, { navigate: false });
+  state.currentBlock = doc.blocks.length - 1;
+  moveMarker(state.currentBlock);
+  return { doc, blockIndex: state.currentBlock };
+}
+
+async function keepMath(modality) {
+  const expression = mathState.expression;
+  if (!expression?.latex) {
+    setStatus(true, "nothing translatable to keep yet — speak or type an expression first");
+    return null;
+  }
+
+  let doc = state.doc;
+  let blockIndex = state.currentBlock;
+  if (!doc || isSpokenMathDocument(doc)) {
+    ({ doc, blockIndex } = await openSpokenMathExpression(expression));
+  } else if (blockIndex < 0) {
+    setStatus(true, "tap or read a document block first so the expression has an honest anchor");
+    return null;
+  }
+
+  const entry = await engine.perform("math", blockIndex, {
+    modality,
+    evidence: expression.speech,
+    confidence: null,
+    matchedText: state.blockTexts[blockIndex]?.slice(0, 120) ?? "",
+    mathSpeech: expression.speech,
+    mathLatex: expression.latex,
+    mathUnparsed: expression.unparsed,
+  });
+  if (!entry) return null;
+
+  mathState.kept.push({
+    entryId: entry.id,
+    docId: doc.id,
+    blockIndex,
+    speech: expression.speech,
+    latex: expression.latex,
+    unparsed: [...expression.unparsed],
+  });
+  renderMathSession();
+  setStatus(
+    true,
+    expression.unparsed.length
+      ? `kept with ${expression.unparsed.length} unparsed word${expression.unparsed.length === 1 ? "" : "s"} named in the record`
+      : "mathematics kept — history, undo, export and send are ready"
+  );
+  return entry;
+}
+
+async function onMathFinalSegment(segment) {
+  const control = mathControl(segment, mathState.active);
+  if (control === "enter") {
+    setMathMode(true);
+    return "enter";
+  }
+  if (control === "exit") {
+    setMathMode(false);
+    return "exit";
+  }
+  if (control === "keep") {
+    await keepMath("voice");
+    return "keep";
+  }
+  if (!mathState.active) return null;
+  renderMathPreview(translateSpokenMath(segment));
+  return "expression";
+}
+
+mathModeToggle.addEventListener("click", () => setMathMode(!mathState.active));
+mathKeep.addEventListener("click", () => keepMath("pointer"));
+mathSpoken.addEventListener("input", () => {
+  renderMathPreview(translateSpokenMath(mathSpoken.value), { syncWords: false });
+});
+
+// ---------------------------------------------------------------------------
 // Transcript pipeline (shared by mic and sim)
 
 function onInterim(fullText) {
+  if (mathState.active) return;
   if (!state.matcher) return;
   const m = state.matcher.follow(fullText);
   if (!m || m.blockIndex == null || m.blockIndex < 0) return;
@@ -449,6 +630,8 @@ function onInterim(fullText) {
 }
 
 async function onFinalSegment(segment) {
+  const mathResult = await onMathFinalSegment(segment);
+  if (mathResult) return;
   const events = intentStream.push({ text: segment, final: true });
   for (const ev of events) {
     const cmd = toCommand(ev);
@@ -474,6 +657,7 @@ async function refreshLibrary() {
       const prov = document.createElement("div");
       prov.className = "prov";
       const bits = [d.provenance.sourceKind];
+      if (d.provenance.createdBy) bits.push(`created by ${d.provenance.createdBy}`);
       if (d.provenance.pageCount) bits.push(`${d.provenance.pageCount} pages`);
       bits.push(fmtBytes(d.provenance.byteSize));
       bits.push(shortDigest(d.provenance.contentDigest));
@@ -505,6 +689,7 @@ function renderDocHead(doc) {
   if (p) {
     docProv.textContent = [
       `came in as ${p.sourceKind}`,
+      p.createdBy ? `created by ${p.createdBy}` : "",
       p.pageCount ? `${p.pageCount} pages` : "",
       fmtBytes(p.byteSize),
       `fingerprint ${shortDigest(p.contentDigest)}`,
@@ -930,6 +1115,13 @@ window.__jtApp = {
   micState: () => mic.state,
   exportData: () => shell?.exportData(),
   perform: (act, blockIndex, opts) => engine.perform(act, blockIndex, { modality: "pointer", evidence: "test hook", ...opts }),
+  math: {
+    active: () => mathState.active,
+    expression: () => mathState.expression,
+    kept: () => mathState.kept,
+    segment: (text) => onFinalSegment(text),
+    keep: (modality = "pointer") => keepMath(modality),
+  },
 };
 
 // ---------------------------------------------------------------------------

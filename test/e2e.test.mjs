@@ -139,4 +139,84 @@ test("sim replay: records created, schema-valid, undo works", { timeout: 120000 
   assert.equal(resolved.askGone, true, "ask should clear after resolution");
   assert.ok(validateCursor(resolved.cursor), `range cursor: ${errorsOf(validateCursor)}`);
   assert.ok(validateReceipt(resolved.receipt), `range receipt: ${errorsOf(validateReceipt)}`);
+
+  await t.test("math voice sim enters mode, keeps in history, and validates", async () => {
+  // Voice math mode uses the same final-segment pipeline as the mic. Typed
+  // words also remain editable (spaces are not trimmed out from under the
+  // person) and unknown words are surfaced before the required spoken case.
+  await page.evaluate(() => window.__jtApp.math.segment("math mode"));
+  await page.type("#math-spoken", "x squared mystery");
+  const typedMath = await page.evaluate(() => ({
+    value: document.getElementById("math-spoken").value,
+    unparsed: document.getElementById("math-unparsed").textContent,
+  }));
+  assert.equal(typedMath.value, "x squared mystery");
+  assert.match(typedMath.unparsed, /mystery/);
+
+  await page.evaluate(() => window.__jtApp.math.segment("one half plus x squared"));
+  await page.waitForSelector("#math-rendered .katex");
+  const mathPreview = await page.evaluate(() => ({
+    active: window.__jtApp.math.active(),
+    spoken: document.getElementById("math-spoken").value,
+    latex: window.__jtApp.math.expression().latex,
+    unparsedHidden: document.getElementById("math-unparsed").hidden,
+    modePressed: document.getElementById("math-mode-toggle").getAttribute("aria-pressed"),
+  }));
+  assert.deepEqual(mathPreview, {
+    active: true,
+    spoken: "one half plus x squared",
+    latex: "\\frac{1}{2} + x^{2}",
+    unparsedHidden: true,
+    modePressed: "true",
+  });
+
+  const beforeMath = await page.evaluate(() => window.__jtApp.entries().length);
+  await page.evaluate(() => window.__jtApp.math.segment("keep that"));
+  await page.waitForFunction(
+    (count) => window.__jtApp.entries().length === count + 1,
+    { timeout: 5000 },
+    beforeMath
+  );
+  const keptMath = await page.evaluate(async () => {
+    const entry = window.__jtApp.entries().at(-1);
+    const exported = JSON.parse(await window.__jtApp.exportData());
+    return {
+      entry,
+      strip: document.getElementById("math-session-list").textContent,
+      readingHistory: document.getElementById("history-list").textContent,
+      exported: exported.records.some(
+        (record) => record.id === entry.id && record.mathLatex === entry.mathLatex
+      ),
+    };
+  });
+  assert.equal(keptMath.entry.act, "math");
+  assert.equal(keptMath.entry.evidence, "one half plus x squared");
+  assert.equal(keptMath.entry.mathLatex, "\\frac{1}{2} + x^{2}");
+  assert.match(keptMath.strip, /one half plus x squared/);
+  assert.match(keptMath.readingHistory, /mathematics kept/);
+  assert.equal(keptMath.exported, true);
+  assert.ok(validateCursor(keptMath.entry.cursor), `math cursor: ${errorsOf(validateCursor)}`);
+  assert.ok(validateReceipt(keptMath.entry.receipt), `math receipt: ${errorsOf(validateReceipt)}`);
+
+  await page.evaluate(() => window.__jtApp.showView("history"));
+  await page.waitForFunction(() =>
+    document.getElementById("history-all").textContent.includes("mathematics kept")
+  );
+  assert.match(await page.$eval("#history-all", (node) => node.textContent), /one half plus x squared/);
+
+  await page.evaluate(() => document.querySelector("#history-list .entry .undo-btn").click());
+  await page.waitForFunction(
+    (entryId) => window.__jtApp.entries().find((entry) => entry.id === entryId)?.undone === true,
+    { timeout: 5000 },
+    keptMath.entry.id
+  );
+  const undoneMath = await page.evaluate((entryId) => ({
+    target: window.__jtApp.entries().find((entry) => entry.id === entryId),
+    last: window.__jtApp.entries().at(-1),
+    annotationPresent: !!document.querySelector(`[data-entry="${entryId}"]`),
+  }), keptMath.entry.id);
+  assert.equal(undoneMath.target.undone, true);
+  assert.equal(undoneMath.last.undoes, keptMath.entry.id);
+  assert.equal(undoneMath.annotationPresent, false);
+  });
 });
