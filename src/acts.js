@@ -5,7 +5,7 @@
 import { makeActEntry } from "./records.js";
 import { putRecord, getRecords } from "./db.js";
 
-export function createActEngine({ getBlocks, getDoc, onChange }) {
+export function createActEngine({ getBlocks, getDoc, onChange, onApply }) {
   // In-memory mirror of this document's history, newest last.
   let entries = [];
 
@@ -19,27 +19,37 @@ export function createActEngine({ getBlocks, getDoc, onChange }) {
     return entries;
   }
 
-  function applyEffect(entry) {
-    const p = getBlocks()[entry.blockIndex];
-    if (!p) return;
-    if (entry.act === "highlight") p.classList.add("hl");
-    if (entry.act === "important") p.classList.add("important");
-    if (entry.act === "note") {
-      const note = document.createElement("span");
-      note.className = "note";
-      note.dataset.entry = entry.id;
-      note.textContent = entry.noteText;
-      p.appendChild(note);
+  function* affectedBlocks(entry) {
+    const blocks = getBlocks();
+    const from = entry.blockIndex;
+    const to = entry.blockEnd ?? entry.blockIndex;
+    for (let i = from; i <= to; i++) {
+      if (blocks[i]) yield blocks[i];
+    }
+  }
+
+  function applyEffect(entry, { confirm = false } = {}) {
+    for (const p of affectedBlocks(entry)) {
+      if (entry.act === "highlight") p.classList.add("hl");
+      if (entry.act === "important") p.classList.add("important");
+      if (entry.act === "note") {
+        const note = document.createElement("span");
+        note.className = "note";
+        note.dataset.entry = entry.id;
+        note.textContent = entry.noteText;
+        p.appendChild(note);
+      }
+      if (confirm) onApply?.(p, entry);
     }
   }
 
   function reverseEffect(entry) {
-    const p = getBlocks()[entry.blockIndex];
-    if (!p) return;
-    if (entry.act === "highlight") p.classList.remove("hl");
-    if (entry.act === "important") p.classList.remove("important");
-    if (entry.act === "note") {
-      p.querySelector(`.note[data-entry="${entry.id}"]`)?.remove();
+    for (const p of affectedBlocks(entry)) {
+      if (entry.act === "highlight") p.classList.remove("hl");
+      if (entry.act === "important") p.classList.remove("important");
+      if (entry.act === "note") {
+        p.querySelector(`.note[data-entry="${entry.id}"]`)?.remove();
+      }
     }
   }
 
@@ -47,13 +57,14 @@ export function createActEngine({ getBlocks, getDoc, onChange }) {
    * Perform an act on a block. Returns the persisted history entry.
    * act: "highlight" | "important" | "note"
    */
-  async function perform(act, blockIndex, { modality, evidence, confidence, matchedText, noteText } = {}) {
+  async function perform(act, blockIndex, { modality, evidence, confidence, matchedText, noteText, blockEnd } = {}) {
     const doc = getDoc();
     if (!doc || blockIndex < 0) return null;
     const entry = makeActEntry({
       docId: doc.id,
       revision: doc.revision,
       blockIndex,
+      blockEnd,
       act,
       modality,
       evidence,
@@ -61,7 +72,7 @@ export function createActEngine({ getBlocks, getDoc, onChange }) {
       matchedText,
       noteText,
     });
-    applyEffect(entry);
+    applyEffect(entry, { confirm: true });
     await putRecord(entry);
     entries.push(entry);
     onChange?.(entries);
@@ -87,6 +98,7 @@ export function createActEngine({ getBlocks, getDoc, onChange }) {
       docId: doc.id,
       revision: doc.revision,
       blockIndex: target.blockIndex,
+      blockEnd: target.blockEnd,
       act: "undo",
       modality,
       evidence,
