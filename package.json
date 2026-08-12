@@ -6,8 +6,10 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
+    "icons:generate": "node scripts/generate-icons.mjs",
     "preview": "vite preview",
-    "test": "node --test test/*.test.mjs",
+    "test": "vite build && node --test test/*.test.mjs",
+    "test:pwa": "vite build && node --test test/pwa.e2e.test.mjs",
     "test:unit": "node --test test/records.test.mjs test/match.test.mjs",
     "test:e2e": "node --test test/e2e.test.mjs"
   },

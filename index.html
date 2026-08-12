@@ -4,7 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#4c9be8" />
     <title>jt</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/jt-192.png" />
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%234c9be8'/%3E%3C/svg%3E"
@@ -201,6 +204,12 @@
         <p class="hint" id="engine-state"></p>
       </div>
       <div class="setting">
+        <h2>install jt</h2>
+        <button id="install-button" hidden>install jt</button>
+        <p class="hint" id="install-manual"></p>
+        <p class="hint" id="install-state" aria-live="polite"></p>
+      </div>
+      <div class="setting">
         <h2>your data</h2>
         <button id="export-btn">download everything as JSON</button>
         <p class="hint">documents, records, arrivals, spaces, settings &mdash; one file, yours.</p>
@@ -216,6 +225,12 @@
         </p>
       </div>
     </section>
+
+    <aside class="install-hint" id="install-hint" hidden aria-live="polite">
+      <span>install jt for offline reading.</span>
+      <a id="install-hint-link" href="#/settings">open settings</a>
+      <button id="install-hint-dismiss" type="button">not now</button>
+    </aside>
 
     <!-- honest rooms: designed surfaces for what is not built yet -->
     <section class="view" id="view-rooms" hidden>

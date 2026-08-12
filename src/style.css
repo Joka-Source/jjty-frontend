@@ -962,6 +962,51 @@ body:not([data-view="read"]) .layout {
   color: #b3462c;
 }
 
+.install-hint {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  max-width: calc(100vw - 2rem);
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 0.78rem;
+}
+
+.install-hint[hidden] {
+  display: none;
+}
+
+.install-hint a {
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.install-hint button {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+
+@media (max-width: 960px) {
+  .install-hint {
+    left: 0.7rem;
+    right: 0.7rem;
+    bottom: calc(4.2rem + env(safe-area-inset-bottom));
+    flex-wrap: wrap;
+  }
+}
+
 /* rooms */
 .room {
   border: 1px solid var(--line);
@@ -1126,4 +1171,3 @@ body:not([data-view="read"]) .layout {
     grid-template-columns: 1fr;
   }
 }
-
