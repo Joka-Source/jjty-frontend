@@ -3,7 +3,7 @@
 //! phrases resolve to the nearest occurrence — the same behaviour as the
 //! reference web demo's page state.
 
-use crate::r#match::{match_transcript, tokenize, MatchOpts};
+use crate::r#match::{match_transcript_prepared, tokenize, MatchOpts, PreparedDoc};
 
 /// Result of one engine update: which document block the latest speech
 /// window landed in, and how confident the match is.
@@ -21,7 +21,7 @@ pub struct BlockMatch {
 /// Deterministic matching engine over a fixed document.
 #[derive(Debug, Clone)]
 pub struct MatchEngine {
-    doc_tokens: Vec<String>,
+    doc: PreparedDoc,
     token_block: Vec<usize>,
     last_index: Option<i64>,
     opts: MatchOpts,
@@ -44,7 +44,7 @@ impl MatchEngine {
             }
         }
         MatchEngine {
-            doc_tokens,
+            doc: PreparedDoc::new(&doc_tokens),
             token_block,
             last_index: None,
             opts,
@@ -52,7 +52,7 @@ impl MatchEngine {
     }
 
     pub fn doc_token_count(&self) -> usize {
-        self.doc_tokens.len()
+        self.doc.len()
     }
 
     /// Feed the current rolling transcript (full text so far, or a recent
@@ -63,7 +63,7 @@ impl MatchEngine {
             last_index: self.last_index,
             ..self.opts
         };
-        let m = match_transcript(&self.doc_tokens, transcript, &opts)?;
+        let m = match_transcript_prepared(&self.doc, transcript, &opts)?;
         self.last_index = Some(m.end as i64);
         let block_index = self.block_for(m.start, m.end)?;
         Some(BlockMatch {

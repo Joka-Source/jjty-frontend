@@ -235,6 +235,8 @@ pub struct ReceiptRecord {
     pub repair_route: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub recovery_route: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub return_route: Option<String>,
 }
 
 /// Validation failure for a record that parsed but breaks a schema
