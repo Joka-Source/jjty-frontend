@@ -60,12 +60,17 @@
           &ldquo;note that &hellip;&rdquo; or &ldquo;undo&rdquo;.
         </p>
       </main>
-      <aside class="panel history">
+      <aside class="panel history" id="history-panel">
         <h2>what happened</h2>
         <p class="hint">every act leaves a record you can inspect and undo.</p>
         <ul id="history-list"></ul>
       </aside>
     </div>
+    <div class="scrim" id="sheet-scrim"></div>
+    <nav class="tabbar" id="tabbar" aria-label="panels">
+      <button id="tab-library" aria-expanded="false" aria-controls="library-panel">documents</button>
+      <button id="tab-history" aria-expanded="false" aria-controls="history-panel">what happened</button>
+    </nav>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

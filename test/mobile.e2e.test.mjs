@@ -1,0 +1,265 @@
+// Headless proof that jt is genuinely phone-first. The same built app is
+// loaded at a phone viewport (390x844, touch) and at the desktop viewport
+// (1280x800). At phone size: the document is full width with no horizontal
+// overflow, the side panels are slide-over sheets opened from a bottom bar,
+// touch targets are at least 44px, and the ambiguity prompt can be answered
+// with a tap. At desktop size the original three-column layout is untouched.
+import test from "node:test";
+import assert from "node:assert/strict";
+import { execFileSync, spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import puppeteer from "puppeteer-core";
+import { root } from "./validate.mjs";
+
+const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+
+async function waitFor(url, ms = 15000) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    try {
+      const r = await fetch(url);
+      if (r.ok) return;
+    } catch {
+      /* not up yet */
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  throw new Error(`server never came up at ${url}`);
+}
+
+/** Build (if needed), serve dist/, open a page at `viewport`, run the sim to
+ * completion, and hand the page back. The preview server announces its own
+ * URL (no --strictPort): if a preferred port is taken — say by a server a
+ * previous run has not fully released — vite shifts to a free one and we
+ * follow whatever it printed, so tests never race each other for a port. */
+async function bootSim(t, port, viewport) {
+  assert.ok(existsSync(CHROME), "Google Chrome required for headless e2e");
+  if (!existsSync(path.join(root, "dist", "index.html"))) {
+    execFileSync("npx", ["vite", "build"], { cwd: root, stdio: "inherit" });
+  }
+  const server = spawn(
+    "npx",
+    ["vite", "preview", "--host", "127.0.0.1", "--port", String(port)],
+    { cwd: root, stdio: ["ignore", "pipe", "ignore"] }
+  );
+  t.after(() => server.kill("SIGTERM"));
+  const url = await new Promise((resolve, reject) => {
+    let out = "";
+    const timer = setTimeout(() => reject(new Error(`vite preview never announced a URL\n${out}`)), 20000);
+    server.stdout.on("data", (chunk) => {
+      out += String(chunk);
+      const m = out.match(/(http:\/\/127\.0\.0\.1:\d+)\//);
+      if (m) {
+        clearTimeout(timer);
+        resolve(m[1]);
+      }
+    });
+    server.on("exit", () => reject(new Error(`vite preview exited early\n${out}`)));
+  });
+  await waitFor(`${url}/`);
+
+  const browser = await puppeteer.launch({
+    executablePath: CHROME,
+    headless: true,
+    args: ["--disable-gpu", "--no-first-run"],
+  });
+  t.after(() => browser.close());
+  const page = await browser.newPage();
+  await page.setViewport(viewport);
+  try {
+    await page.goto(`${url}/?sim=1&fast=1`, { waitUntil: "load" });
+  } catch {
+    await new Promise((r) => setTimeout(r, 500)); // one honest retry
+    await page.goto(`${url}/?sim=1&fast=1`, { waitUntil: "load" });
+  }
+  await page.waitForSelector("#jt-report", { timeout: 60000 });
+  return page;
+}
+
+const noHorizontalOverflow = (page) =>
+  page.evaluate(() => ({
+    innerWidth: window.innerWidth,
+    docScroll: document.documentElement.scrollWidth,
+    bodyScroll: document.body.scrollWidth,
+    scrollX: Math.round(window.scrollX),
+  }));
+
+test("phone viewport: full-width document, sheet panels, 44px targets, no sideways scroll", { timeout: 120000 }, async (t) => {
+  const page = await bootSim(t, 4933, {
+    width: 390,
+    height: 844,
+    deviceScaleFactor: 3,
+    isMobile: true,
+    hasTouch: true,
+  });
+
+  // 1. No horizontal overflow anywhere.
+  const o = await noHorizontalOverflow(page);
+  assert.ok(o.docScroll <= o.innerWidth, `document overflows sideways: ${o.docScroll} > ${o.innerWidth}`);
+  assert.ok(o.bodyScroll <= o.innerWidth, `body overflows sideways: ${o.bodyScroll} > ${o.innerWidth}`);
+
+  // The document column and the reading marker stay inside the viewport.
+  const rects = await page.evaluate(() => {
+    const r = (el) => {
+      const b = el.getBoundingClientRect();
+      return { left: b.left, right: b.right, width: b.width, height: b.height };
+    };
+    return {
+      article: r(document.getElementById("doc")),
+      marker: r(document.getElementById("marker")),
+      vw: window.innerWidth,
+    };
+  });
+  assert.ok(rects.article.left >= 0 && rects.article.right <= rects.vw + 0.5, "article sticks out of the viewport");
+  assert.ok(rects.marker.left >= 0 && rects.marker.right <= rects.vw + 0.5, "marker sticks out of the viewport");
+  assert.ok(rects.article.width >= rects.vw * 0.9, "document is not full width on a phone");
+
+  // 2. The bottom bar is visible, with thumb-sized buttons.
+  const bar = await page.evaluate(() => {
+    const visible = (el) => {
+      const b = el.getBoundingClientRect();
+      return b.width > 0 && b.height > 0 && getComputedStyle(el).display !== "none";
+    };
+    const h = (el) => el.getBoundingClientRect().height;
+    return {
+      barVisible: visible(document.getElementById("tabbar")),
+      libH: h(document.getElementById("tab-library")),
+      histH: h(document.getElementById("tab-history")),
+    };
+  });
+  assert.equal(bar.barVisible, true, "bottom bar not visible on phone");
+  assert.ok(bar.libH >= 44, `documents button too small to tap: ${bar.libH}px`);
+  assert.ok(bar.histH >= 44, `history button too small to tap: ${bar.histH}px`);
+
+  // 3. Panels start closed — nothing overlaps the document.
+  const closed = await page.evaluate(() => {
+    const off = (el) => {
+      const b = el.getBoundingClientRect();
+      return getComputedStyle(el).visibility === "hidden" || b.top >= window.innerHeight;
+    };
+    return {
+      sheet: window.__jtApp.sheet(),
+      library: off(document.getElementById("library-panel")),
+      history: off(document.getElementById("history-panel")),
+    };
+  });
+  assert.equal(closed.sheet, null, "a sheet is open at load");
+  assert.equal(closed.library, true, "library panel overlaps the document at load");
+  assert.equal(closed.history, true, "history panel overlaps the document at load");
+
+  // 4. Library sheet opens with a tap, sits inside the viewport, closes on the scrim.
+  await page.tap("#tab-library");
+  await page.waitForFunction(() => window.__jtApp.sheet() === "library", { timeout: 3000 });
+  // the sheet slides in (0.28s of water-calm motion) — wait for it to arrive
+  await page.waitForFunction(
+    () => {
+      const b = document.getElementById("library-panel").getBoundingClientRect();
+      return b.top >= 0 && b.top < window.innerHeight;
+    },
+    { timeout: 3000 }
+  );
+  const lib = await page.evaluate(() => {
+    const p = document.getElementById("library-panel");
+    const b = p.getBoundingClientRect();
+    const doc = document.querySelector(".doc-btn");
+    return {
+      visible: getComputedStyle(p).visibility === "visible",
+      top: b.top,
+      bottom: b.bottom,
+      left: b.left,
+      right: b.right,
+      vw: window.innerWidth,
+      vh: window.innerHeight,
+      docBtnH: doc ? doc.getBoundingClientRect().height : 0,
+      expanded: document.getElementById("tab-library").getAttribute("aria-expanded"),
+    };
+  });
+  assert.equal(lib.visible, true, "library sheet did not open");
+  assert.ok(lib.top >= 0 && lib.top < lib.vh, "library sheet not on screen");
+  assert.ok(lib.left >= 0 && lib.right <= lib.vw + 0.5, "library sheet overflows sideways");
+  assert.ok(lib.docBtnH >= 44, `document row too small to tap: ${lib.docBtnH}px`);
+  assert.equal(lib.expanded, "true");
+  await page.touchscreen.tap(195, 80); // the scrim, above the sheet
+  await page.waitForFunction(() => window.__jtApp.sheet() === null, { timeout: 3000 });
+
+  // 5. History sheet: opens, shows the sim's records, undo is tappable, closes.
+  await page.tap("#tab-history");
+  await page.waitForFunction(() => window.__jtApp.sheet() === "history", { timeout: 3000 });
+  const hist = await page.evaluate(() => {
+    const p = document.getElementById("history-panel");
+    const undo = p.querySelector(".undo-btn");
+    return {
+      visible: getComputedStyle(p).visibility === "visible",
+      entries: p.querySelectorAll(".entry").length,
+      undoH: undo ? undo.getBoundingClientRect().height : 0,
+    };
+  });
+  assert.equal(hist.visible, true, "history sheet did not open");
+  assert.ok(hist.entries >= 4, `expected the sim's 4 records, saw ${hist.entries}`);
+  assert.ok(hist.undoH >= 44, `undo button too small to tap: ${hist.undoH}px`);
+  await page.tap("#tab-history"); // same button closes it
+  await page.waitForFunction(() => window.__jtApp.sheet() === null, { timeout: 3000 });
+
+  // 6. The ambiguity prompt is on screen and answerable with a thumb.
+  const ask = await page.evaluate(() => {
+    const box = document.getElementById("ask");
+    const b = box.getBoundingClientRect();
+    const opt = box.querySelector('.ask-option[data-candidate="0"]');
+    return {
+      hidden: box.hidden,
+      onScreen: b.top >= 0 && b.left >= 0 && b.right <= window.innerWidth + 0.5,
+      optH: opt ? opt.getBoundingClientRect().height : 0,
+    };
+  });
+  assert.equal(ask.hidden, false, "did-you-mean prompt not visible on phone");
+  assert.equal(ask.onScreen, true, "did-you-mean prompt off screen");
+  assert.ok(ask.optH >= 44, `ask option too small to tap: ${ask.optH}px`);
+  const before = await page.evaluate(() => window.__jtApp.entries().length);
+  await page.tap('#ask .ask-option[data-candidate="0"]');
+  await page.waitForFunction(
+    (n) => window.__jtApp.entries().length > n,
+    { timeout: 5000 },
+    before
+  );
+  const resolved = await page.evaluate(() => {
+    const es = window.__jtApp.entries();
+    const e = es[es.length - 1];
+    return { act: e.act, blockIndex: e.blockIndex, blockEnd: e.blockEnd, askGone: !window.__jtApp.ask() };
+  });
+  assert.equal(resolved.act, "highlight");
+  assert.equal(resolved.blockIndex, 3);
+  assert.equal(resolved.blockEnd, 4);
+  assert.equal(resolved.askGone, true, "ask should clear after a tap");
+});
+
+test("desktop viewport: three-column layout intact, no bottom bar, no sideways scroll", { timeout: 120000 }, async (t) => {
+  const page = await bootSim(t, 4934, { width: 1280, height: 800 });
+
+  const o = await noHorizontalOverflow(page);
+  assert.ok(o.docScroll <= o.innerWidth, `document overflows sideways: ${o.docScroll} > ${o.innerWidth}`);
+
+  const desk = await page.evaluate(() => {
+    const lib = document.getElementById("library-panel");
+    const hist = document.getElementById("history-panel");
+    const libBox = lib.getBoundingClientRect();
+    const histBox = hist.getBoundingClientRect();
+    const art = document.getElementById("doc").getBoundingClientRect();
+    return {
+      barDisplay: getComputedStyle(document.getElementById("tabbar")).display,
+      scrimVisible: getComputedStyle(document.getElementById("sheet-scrim")).display !== "none",
+      libPosition: getComputedStyle(lib).position,
+      histPosition: getComputedStyle(hist).position,
+      columns: libBox.right <= art.left + 1 && art.right <= histBox.left + 1,
+      libVisible: libBox.width > 0 && getComputedStyle(lib).visibility === "visible",
+      histVisible: histBox.width > 0 && getComputedStyle(hist).visibility === "visible",
+    };
+  });
+  assert.equal(desk.barDisplay, "none", "bottom bar should not exist on desktop");
+  assert.equal(desk.scrimVisible, false, "scrim should not exist on desktop");
+  assert.equal(desk.libPosition, "sticky", "library panel should stay a sticky column");
+  assert.equal(desk.histPosition, "sticky", "history panel should stay a sticky column");
+  assert.equal(desk.columns, true, "panels should flank the document, not overlap it");
+  assert.equal(desk.libVisible, true);
+  assert.equal(desk.histVisible, true);
+});

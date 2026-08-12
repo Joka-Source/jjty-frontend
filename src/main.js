@@ -47,6 +47,38 @@ const shareState = document.getElementById("share-state");
 const joinCode = document.getElementById("join-code");
 const joinBtn = document.getElementById("join-btn");
 const inboxList = document.getElementById("inbox-list");
+const tabLibrary = document.getElementById("tab-library");
+const tabHistory = document.getElementById("tab-history");
+const sheetScrim = document.getElementById("sheet-scrim");
+
+// ---------------------------------------------------------------------------
+// Phone layout: on a narrow screen the two side panels become slide-over
+// sheets, opened from the bottom bar. One sheet at a time; the scrim (or the
+// same bar button) closes it. On wide screens the bar is display:none and
+// none of this runs.
+
+const narrowScreen = matchMedia("(max-width: 960px)");
+
+function currentSheet() {
+  if (document.body.classList.contains("sheet-library")) return "library";
+  if (document.body.classList.contains("sheet-history")) return "history";
+  return null;
+}
+
+function setSheet(which) {
+  document.body.classList.toggle("sheet-library", which === "library");
+  document.body.classList.toggle("sheet-history", which === "history");
+  tabLibrary.setAttribute("aria-expanded", String(which === "library"));
+  tabHistory.setAttribute("aria-expanded", String(which === "history"));
+}
+
+tabLibrary.addEventListener("click", () =>
+  setSheet(currentSheet() === "library" ? null : "library")
+);
+tabHistory.addEventListener("click", () =>
+  setSheet(currentSheet() === "history" ? null : "history")
+);
+sheetScrim.addEventListener("click", () => setSheet(null));
 
 const params = new URLSearchParams(location.search);
 const SIM = params.get("sim") === "1";
@@ -301,6 +333,7 @@ async function runCommand(cmd, modality = "voice") {
       return done;
     }
     case "show": {
+      if (narrowScreen.matches) setSheet("history");
       document.querySelector(".history")?.classList.add("attention");
       setTimeout(() => document.querySelector(".history")?.classList.remove("attention"), 1500);
       setStatus(true, `everything you have done is in the panel on the right (${engine.entries.length} so far)`);
@@ -411,6 +444,7 @@ async function openDocument(doc) {
   await renderDoc(doc);
   await engine.load(doc.id);
   await refreshLibrary();
+  if (narrowScreen.matches) setSheet(null); // picking a document closes the sheet
   setStatus(true, `open: ${doc.title}`);
 }
 
@@ -768,6 +802,8 @@ window.__jtApp = {
   },
   syncState: () => sync.state,
   engineKind: () => state.engineKind,
+  sheet: () => currentSheet(),
+  setSheet,
 };
 
 // ---------------------------------------------------------------------------
