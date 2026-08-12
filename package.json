@@ -1,0 +1,14 @@
+{
+  "name": "jt-connectors",
+  "version": "0.1.0",
+  "description": "jt connector library: documents and material enter jt as moments with provenance, never as stripped files.",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "vitest run",
+    "cli": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}
