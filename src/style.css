@@ -1,0 +1,349 @@
+/* jt — restrained, liquid, one accent. Adapted from the voice demo. */
+
+:root {
+  --accent: #4c9be8;
+  --warm: #e8a44c;
+  --bg: #fbfbf9;
+  --panel: #f3f3ef;
+  --ink: #23282d;
+  --ink-dim: #8a9199;
+  --line: #e3e3dd;
+  --bar-bg: color-mix(in srgb, var(--bg) 82%, transparent);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #101317;
+    --panel: #171b20;
+    --ink: #d7dce1;
+    --ink-dim: #6c757e;
+    --line: #232930;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  font-family: Charter, Georgia, "Times New Roman", serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.bar {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 10;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0.8rem 1.4rem;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 0.8rem;
+  background: var(--bar-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.brand {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--ink-dim);
+}
+
+.dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--ink-dim);
+  transition: background 0.4s ease;
+}
+
+.dot.on {
+  background: var(--accent);
+  animation: breathe 2.6s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr) 320px;
+  gap: 1rem;
+  padding: 4rem 1rem 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+@media (max-width: 960px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.panel {
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 0.85rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 1rem;
+  align-self: start;
+  position: sticky;
+  top: 4rem;
+  max-height: calc(100vh - 5rem);
+  overflow: auto;
+}
+
+.panel h2 {
+  margin: 0 0 0.6rem;
+  font-size: 0.8rem;
+  text-transform: lowercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-dim);
+  font-weight: 600;
+}
+
+.hint {
+  color: var(--ink-dim);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+main {
+  min-width: 0;
+}
+
+article {
+  position: relative;
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 1rem 1.5rem 40vh;
+  font-size: 1.08rem;
+  line-height: 1.72;
+}
+
+article p {
+  margin: 0 0 1.1em;
+  transition: color 0.3s ease;
+  cursor: default;
+  border-radius: 6px;
+  padding: 0.15em 0.4em;
+}
+
+article p.hl {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+article p.important {
+  border-left: 3px solid var(--warm);
+  background: color-mix(in srgb, var(--warm) 10%, transparent);
+}
+
+.note {
+  display: block;
+  margin-top: 0.4em;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 0.78rem;
+  color: var(--ink-dim);
+  border-left: 2px solid var(--accent);
+  padding-left: 0.6em;
+}
+
+.note::before {
+  content: "note — ";
+  color: var(--accent);
+}
+
+#marker {
+  position: absolute;
+  left: -0.4rem;
+  right: -0.4rem;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  border-left: 3px solid var(--accent);
+  opacity: 0;
+  transition:
+    top 0.55s cubic-bezier(0.22, 0.9, 0.3, 1),
+    height 0.55s cubic-bezier(0.22, 0.9, 0.3, 1),
+    opacity 0.4s ease;
+  pointer-events: none;
+}
+
+#marker.on {
+  opacity: 1;
+}
+
+.mic-hint {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 0 1.5rem 2rem;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* library */
+#doc-list {
+  list-style: none;
+  margin: 0 0 0.8rem;
+  padding: 0;
+}
+
+.doc-btn {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--ink);
+  font: inherit;
+  padding: 0.35rem 0.4rem;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doc-btn:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.doc-btn.open {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  font-weight: 600;
+}
+
+.add {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.filebtn,
+#paste-add {
+  display: block;
+  text-align: center;
+  font: inherit;
+  padding: 0.45rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.filebtn:hover,
+#paste-add:hover {
+  border-color: var(--accent);
+}
+
+#paste-box {
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 0.4rem;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  resize: vertical;
+}
+
+/* history */
+#history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.entry {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.55rem 0.65rem;
+  background: var(--bg);
+}
+
+.entry.undo {
+  border-style: dashed;
+}
+
+.entry.struck .entry-head strong {
+  text-decoration: line-through;
+  color: var(--ink-dim);
+}
+
+.entry-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.entry-time {
+  color: var(--ink-dim);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.entry-evidence {
+  margin-top: 0.25rem;
+  color: var(--ink-dim);
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.entry details {
+  margin-top: 0.35rem;
+}
+
+.entry summary {
+  cursor: pointer;
+  font-size: 0.72rem;
+  color: var(--accent);
+}
+
+.entry pre {
+  font-size: 0.66rem;
+  line-height: 1.35;
+  overflow-x: auto;
+  background: var(--panel);
+  padding: 0.5rem;
+  border-radius: 6px;
+  max-height: 16rem;
+}
+
+.undo-btn {
+  margin-top: 0.4rem;
+  font: inherit;
+  font-size: 0.74rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.undo-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}

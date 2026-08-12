@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "jt-contracts/receipt/v0.1.0",
+  "title": "Receipt",
+  "description": "Durable proof of what actually happened when an action ran: against which exact source version, by whom, on what device and build, with what result, and whether the result arrived exactly, arrived degraded, or was refused. A notification is not a receipt; this record is.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "sourceId", "sourceRevision", "actionId", "result", "arrival", "occurredAt"],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Version of this record's schema (semver: major.minor.patch)."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable identifier for this receipt."
+    },
+    "sourceId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Id of the Source the action ran against."
+    },
+    "sourceRevision": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The exact version of the source the action ran against."
+    },
+    "actionId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Id of the Action that ran."
+    },
+    "executor": {
+      "type": "string",
+      "description": "Who or what carried out the action."
+    },
+    "host": {
+      "type": "string",
+      "description": "The app or service the action ran inside."
+    },
+    "device": {
+      "type": "string",
+      "description": "The device the action ran on."
+    },
+    "build": {
+      "type": "string",
+      "description": "The exact app build that carried out the action."
+    },
+    "result": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What actually happened, in plain words."
+    },
+    "artifactDigest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "Digest of the produced artifact, as 'sha256:<hex>', where the action produced one."
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the action completed (ISO 8601)."
+    },
+    "authority": {
+      "type": "string",
+      "description": "Whose permission this action ran under."
+    },
+    "arrival": {
+      "type": "string",
+      "enum": ["exact", "degraded", "refused"],
+      "description": "How the result reached its destination: exactly as intended, in a reduced form that was disclosed, or not at all."
+    },
+    "degradationNote": {
+      "type": "string",
+      "description": "When arrival was degraded, exactly what was lost or reduced, named plainly."
+    },
+    "undoRoute": {
+      "type": "string",
+      "description": "How the person can undo what this receipt records, if undo is possible."
+    },
+    "repairRoute": {
+      "type": "string",
+      "description": "How the person can fix things if this result was wrong."
+    },
+    "recoveryRoute": {
+      "type": "string",
+      "description": "How the prior state can be recovered if something was lost."
+    },
+    "returnRoute": {
+      "type": "string",
+      "description": "The exact way back to the position in the source where the action started."
+    }
+  }
+}
