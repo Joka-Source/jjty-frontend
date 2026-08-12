@@ -32,6 +32,8 @@ import { rid, nowIso, makeActEntry } from "./records.js";
 import { loadSettings, MOTION_PARAMS } from "./settings.js";
 import { medium } from "../vendor/jt-water/index.js";
 import { initShell } from "./shell.js";
+import "./pwa.js";
+import { initInstallUx } from "./install.js";
 
 const article = document.getElementById("doc");
 const marker = document.getElementById("marker");
@@ -105,6 +107,7 @@ sheetScrim.addEventListener("click", () => setSheet(null));
 const params = new URLSearchParams(location.search);
 const SIM = params.get("sim") === "1";
 const settings = loadSettings();
+initInstallUx();
 // wasm is the default engine — parity with the JS reference matcher is
 // proven by test/parity.test.mjs; ?engine=js (or the setting) opts back
 // into the reference implementation.

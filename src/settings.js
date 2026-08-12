@@ -10,7 +10,10 @@ const KEYS = {
   lang: "jt.lang", // BCP-47 tag for speech recognition
   motion: "jt.motion", // "calm" | "usual" | "lively"
   person: "jt.person", // JSON { id, name } — who "you" are in spaces
+  installHintSeen: "jt.installHintSeen", // "1" after the installable hint appears
 };
+
+export const INSTALL_HINT_KEY = KEYS.installHintSeen;
 
 export const LANGS = [
   ["en-US", "english (US)"],
