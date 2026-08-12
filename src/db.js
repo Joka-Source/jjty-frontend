@@ -7,7 +7,7 @@
 // app-level evidence for the history panel.
 
 const DB_NAME = "jt-web";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise = null;
 
@@ -23,6 +23,9 @@ export function openDb() {
       if (!db.objectStoreNames.contains("records")) {
         const s = db.createObjectStore("records", { keyPath: "id" });
         s.createIndex("docId", "docId");
+      }
+      if (!db.objectStoreNames.contains("inbox")) {
+        db.createObjectStore("inbox", { keyPath: "momentId" });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -68,6 +71,24 @@ export async function getDoc(id) {
 export async function putRecord(entry) {
   const db = await openDb();
   return tx(db, "records", "readwrite", (s) => s.put(entry));
+}
+
+export async function putInbox(item) {
+  const db = await openDb();
+  return tx(db, "inbox", "readwrite", (s) => s.put(item));
+}
+
+export async function getInbox() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction("inbox").objectStore("inbox").getAll();
+    req.onsuccess = () => {
+      const rows = req.result ?? [];
+      rows.sort((a, b) => a.receivedAt.localeCompare(b.receivedAt));
+      resolve(rows);
+    };
+    req.onerror = () => reject(req.error);
+  });
 }
 
 export async function getRecords(docId) {

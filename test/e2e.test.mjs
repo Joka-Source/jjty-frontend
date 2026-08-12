@@ -59,8 +59,20 @@ test("sim replay: records created, schema-valid, undo works", { timeout: 120000 
   assert.ok(report.blocksHit.includes(3), "block 3 never matched");
   assert.ok(report.blocksHit.includes(4), "block 4 never matched");
 
-  // All four spoken commands were recognized, in order.
-  assert.deepEqual(report.commands, ["highlight", "note", "important", "undo"]);
+  // The default matching engine is the jt-core wasm kernel.
+  assert.equal(report.engine, "wasm", "default engine should be wasm");
+
+  // The sim document entered through jt-connectors: provenance travels.
+  assert.ok(report.provenance, "sim document has no provenance");
+  assert.match(report.provenance.contentDigest, /^sha256:[0-9a-f]{64}$/);
+  assert.ok(report.provenance.byteSize > 0);
+
+  // All spoken commands were recognized, in order; the final ambiguous
+  // range utterance surfaced as an ask, not an act.
+  assert.deepEqual(report.commands, ["highlight", "note", "important", "undo", "ask"]);
+  assert.equal(report.ambiguities.length, 1, "ambiguous utterance not surfaced");
+  assert.ok(report.ambiguities[0].candidates.length >= 2);
+  assert.equal(report.askPending, true, "the app should still be asking");
 
   // Four history entries: three acts + one undo.
   const acts = report.entries.filter((e) => e.kind === "act");
@@ -94,4 +106,37 @@ test("sim replay: records created, schema-valid, undo works", { timeout: 120000 
     assert.ok(validateCursor(e.cursor), `${e.id} cursor: ${errorsOf(validateCursor)}`);
     assert.ok(validateReceipt(e.receipt), `${e.id} receipt: ${errorsOf(validateReceipt)}`);
   }
+
+  // Ambiguity resolves by asking: the "did you mean…" prompt is visible;
+  // choosing the first candidate performs a range highlight — only then.
+  const askVisible = await page.$eval("#ask", (n) => !n.hidden);
+  assert.equal(askVisible, true, "did-you-mean prompt not visible");
+  const before = await page.evaluate(() => window.__jtApp.entries().length);
+  await page.evaluate(() =>
+    document.querySelector('#ask .ask-option[data-candidate="0"]').click()
+  );
+  await page.waitForFunction(
+    (n) => window.__jtApp.entries().length > n,
+    { timeout: 5000 },
+    before
+  );
+  const resolved = await page.evaluate(() => {
+    const es = window.__jtApp.entries();
+    const e = es[es.length - 1];
+    return {
+      act: e.act,
+      blockIndex: e.blockIndex,
+      blockEnd: e.blockEnd,
+      modality: e.modality,
+      cursor: e.cursor,
+      receipt: e.receipt,
+      askGone: !window.__jtApp.ask(),
+    };
+  });
+  assert.equal(resolved.act, "highlight");
+  assert.equal(resolved.blockIndex, 3, "range should start at the rent block");
+  assert.equal(resolved.blockEnd, 4, "range should end at the deposit block");
+  assert.equal(resolved.askGone, true, "ask should clear after resolution");
+  assert.ok(validateCursor(resolved.cursor), `range cursor: ${errorsOf(validateCursor)}`);
+  assert.ok(validateReceipt(resolved.receipt), `range receipt: ${errorsOf(validateReceipt)}`);
 });

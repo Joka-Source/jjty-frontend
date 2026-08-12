@@ -113,6 +113,7 @@ export function makeActEntry({
   docId,
   revision,
   blockIndex,
+  blockEnd = null, // inclusive range end, for two-anchor highlights
   act, // "highlight" | "important" | "note" | "undo"
   modality,
   evidence,
@@ -122,10 +123,14 @@ export function makeActEntry({
   undoes = null,
   at = nowIso(),
 }) {
+  const span =
+    blockEnd != null && blockEnd !== blockIndex
+      ? `blocks ${blockIndex} to ${blockEnd}`
+      : `block ${blockIndex}`;
   const intention =
     act === "undo"
       ? `undo the act recorded as ${undoes}`
-      : `${ACT_LABELS[act]} (block ${blockIndex})`;
+      : `${ACT_LABELS[act]} (${span})`;
   const cursor = makeCursor({
     docId,
     revision,
@@ -138,12 +143,12 @@ export function makeActEntry({
   const actionId = rid("act");
   const result =
     act === "highlight"
-      ? `block ${blockIndex} highlighted`
+      ? `${span} highlighted`
       : act === "important"
-        ? `block ${blockIndex} marked important`
+        ? `${span} marked important`
         : act === "note"
-          ? `note attached to block ${blockIndex}: "${noteText}"`
-          : `act ${undoes} reversed; block ${blockIndex} restored`;
+          ? `note attached to ${span}: "${noteText}"`
+          : `act ${undoes} reversed; ${span} restored`;
   const receipt = makeReceipt({
     docId,
     revision,
@@ -162,6 +167,7 @@ export function makeActEntry({
     kind: act === "undo" ? "undo" : "act",
     act,
     blockIndex,
+    blockEnd,
     modality,
     evidence,
     confidence,

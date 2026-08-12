@@ -25,14 +25,32 @@
         <div class="add">
           <label class="filebtn">
             open a file
-            <input id="file-input" type="file" accept=".txt,.md,text/plain,text/markdown" hidden />
+            <input id="file-input" type="file" accept=".txt,.md,.pdf,text/plain,text/markdown,application/pdf" hidden />
           </label>
           <textarea id="paste-box" rows="4" placeholder="or paste text here&hellip;"></textarea>
           <button id="paste-add">add pasted text</button>
-          <p class="hint">you can also drop a .txt or .md file anywhere on this page</p>
+          <p class="hint">you can also drop a .txt, .md or .pdf file anywhere on this page</p>
+        </div>
+        <div class="share" id="share-panel">
+          <h2>share with another device</h2>
+          <button id="share-start">start sharing</button>
+          <p class="hint" id="share-code" hidden></p>
+          <div class="join">
+            <input id="join-code" placeholder="three words from the other device" />
+            <button id="join-btn">connect</button>
+          </div>
+          <p class="hint" id="share-state"></p>
+        </div>
+        <div class="inbox">
+          <h2>arrived from other devices</h2>
+          <ul id="inbox-list"></ul>
         </div>
       </aside>
       <main>
+        <div id="ask" class="ask" hidden role="alertdialog" aria-live="assertive">
+          <p id="ask-title">did you mean&hellip;</p>
+          <div id="ask-options"></div>
+        </div>
         <article id="doc">
           <div id="marker" aria-hidden="true"></div>
         </article>
