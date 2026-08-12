@@ -1,15 +1,15 @@
 // Headless end-to-end proof: build output served by `vite preview`, loaded in
-// headless Chrome with ?sim=1&fast=1. The sim replays a scripted transcript
-// through the live pipeline (matcher, command grammar, act engine, IndexedDB)
-// and serializes a #jt-report node; we assert on it and re-validate every
-// cursor/receipt with ajv. Run `npm run build` first (the test does it if
-// dist/ is missing).
+// headless Chrome (driven by puppeteer-core) with ?sim=1&fast=1. The sim
+// replays a scripted transcript through the live pipeline (matcher, command
+// grammar, act engine, IndexedDB) and serializes a #jt-report node; we assert
+// on it and re-validate every cursor/receipt with ajv. The test builds dist/
+// if it is missing.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync } from "node:fs";
 import path from "node:path";
+import puppeteer from "puppeteer-core";
 import { validateCursor, validateReceipt, errorsOf, root } from "./validate.mjs";
 
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
@@ -34,33 +34,25 @@ test("sim replay: records created, schema-valid, undo works", { timeout: 120000 
   if (!existsSync(path.join(root, "dist", "index.html"))) {
     execFileSync("npx", ["vite", "build"], { cwd: root, stdio: "inherit" });
   }
-  const server = spawn("npx", ["vite", "preview", "--port", String(PORT), "--strictPort"], {
+  const server = spawn("npx", ["vite", "preview", "--host", "127.0.0.1", "--port", String(PORT), "--strictPort"], {
     cwd: root,
     stdio: "ignore",
   });
   t.after(() => server.kill("SIGTERM"));
   await waitFor(`http://127.0.0.1:${PORT}/`);
 
-  const profile = mkdtempSync(path.join(tmpdir(), "jt-e2e-"));
-  t.after(() => rmSync(profile, { recursive: true, force: true }));
-  const dom = execFileSync(
-    CHROME,
-    [
-      "--headless",
-      "--disable-gpu",
-      "--no-first-run",
-      `--user-data-dir=${profile}`,
-      "--virtual-time-budget=45000",
-      "--timeout=60000",
-      "--dump-dom",
-      `http://127.0.0.1:${PORT}/?sim=1&fast=1`,
-    ],
-    { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, timeout: 90000 }
+  const browser = await puppeteer.launch({
+    executablePath: CHROME,
+    headless: true,
+    args: ["--disable-gpu", "--no-first-run"],
+  });
+  t.after(() => browser.close());
+  const page = await browser.newPage();
+  await page.goto(`http://127.0.0.1:${PORT}/?sim=1&fast=1`, { waitUntil: "load" });
+  await page.waitForSelector("#jt-report", { timeout: 60000 });
+  const report = JSON.parse(
+    await page.$eval("#jt-report", (n) => n.textContent)
   );
-
-  const m = dom.match(/<script type="application\/json" id="jt-report">([\s\S]*?)<\/script>/);
-  assert.ok(m, "no #jt-report in headless DOM — sim did not finish");
-  const report = JSON.parse(m[1]);
 
   // The glide worked: live matching hit both read passages.
   assert.ok(report.matches > 0, "no transcript matches recorded");
