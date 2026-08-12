@@ -26,6 +26,20 @@ Judgment calls made where that document is silent are recorded in `DECISIONS.md`
   | `CapabilityProfile` | What a device/build can actually do right now, with proof freshness |
   | `ProvenanceEnvelope` | Who/what produced content, from what, how confidently |
 
+  Plus the **organizational layer** (PROVISIONAL — pending a further founder handoff,
+  see `docs/ORG_VISION_PROVISIONAL_2026-08-12.md`):
+
+  | Record | Plain meaning |
+  |---|---|
+  | `Institution` | A college/university/school as first-class structure |
+  | `Cohort` | A batch moving through an institution together (programme + entry year) |
+  | `Space` | A place or grouping where everyday life happens: class, hostel, floor, room, club |
+  | `Membership` | One person's belonging to one space, with role and roll-number identity |
+  | `SpaceContext` | The stamp a moment-carrying record attaches to say which space it happened in |
+
+  A reference in-memory store for the org layer lives in `src/org/store.mjs`
+  (tested in `test/org.test.mjs`; every object it emits validates against these schemas).
+
 - `fixtures/<record>/` — golden fixtures: `minimal.json` (only required fields) and
   `full.json` (every field populated). These are the conformance corpus.
 - `fixtures/invalid/<record>.json` — one deliberately broken record each, which every

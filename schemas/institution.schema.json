@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "jt-contracts/institution/v0.1.0",
+  "title": "Institution",
+  "description": "PROVISIONAL (pending founder WhatsApp handoff, 2026-08-12). An educational institution as a first-class structure: a college, university, or school whose real-world organization (programmes, hostels, cohorts) jt adopts rather than reinvents.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "name"],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Version of this record's schema (semver: major.minor.patch)."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable identifier for this institution."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Full official name of the institution."
+    },
+    "shortName": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Common short name or abbreviation students actually use."
+    },
+    "kind": {
+      "type": "string",
+      "description": "What sort of institution this is (college, university, school, institute). Free string for now; may become an enum once the handoff settles the vocabulary."
+    },
+    "affiliatedTo": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The affiliating university, if this is an affiliated college (common in India)."
+    },
+    "location": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "city": { "type": "string", "minLength": 1 },
+        "state": { "type": "string", "minLength": 1 },
+        "country": { "type": "string", "minLength": 1 }
+      },
+      "description": "Where the institution is, at city/state/country granularity."
+    },
+    "academicYearStartMonth": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 12,
+      "description": "Month (1-12) the academic year usually starts; most Indian colleges start in July or August."
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "jt-contracts/cohort/v0.1.0",
+  "title": "Cohort",
+  "description": "PROVISIONAL (pending founder WhatsApp handoff, 2026-08-12). A batch of people who move through an institution together: a programme plus an entry year (e.g. the B.Tech CSE batch that joined in 2024). Sections and classes within a cohort are Spaces that point back here.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "institutionId", "label"],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Version of this record's schema (semver: major.minor.patch)."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable identifier for this cohort."
+    },
+    "institutionId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Id of the Institution this cohort belongs to."
+    },
+    "label": {
+      "type": "string",
+      "minLength": 1,
+      "description": "How people name this cohort in speech (e.g. 'B.Tech CSE 2024', 'MBBS 2023 batch')."
+    },
+    "programme": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The programme of study (e.g. 'B.Tech Computer Science', 'B.A. Economics')."
+    },
+    "entryYear": {
+      "type": "integer",
+      "minimum": 1900,
+      "maximum": 2200,
+      "description": "Calendar year the cohort joined the institution."
+    },
+    "expectedGraduationYear": {
+      "type": "integer",
+      "minimum": 1900,
+      "maximum": 2200,
+      "description": "Calendar year the cohort is expected to graduate."
+    }
+  }
+}

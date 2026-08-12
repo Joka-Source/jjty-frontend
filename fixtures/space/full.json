@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "0.1.0",
+  "id": "spc-0002",
+  "institutionId": "inst-0001",
+  "kind": "room",
+  "name": "Room 214",
+  "parentSpaceId": "spc-0001",
+  "cohortId": "coh-0001",
+  "capacity": 3
+}
