@@ -240,9 +240,8 @@
         <h2>spoken mathematics</h2>
         <p class="hint">
           say &ldquo;x squared plus one half&rdquo; and jt will write the
-          mathematics properly. an early version of the translator already
-          runs on this device &mdash; try it with your keyboard; the
-          listening part arrives next.
+          mathematics properly. math mode now listens on the reading surface;
+          this keyboard field uses the same local rule-based translator.
         </p>
         <div class="tryit">
           <input id="math-input" placeholder="type spoken math, e.g. one half plus x squared" />
@@ -287,6 +286,40 @@
           <button id="doc-prov-btn" class="doc-prov-btn" hidden>where this came from</button>
           <div id="doc-prov" class="doc-prov" hidden></div>
         </div>
+        <section class="math-station" id="math-station" aria-labelledby="math-station-title">
+          <div class="math-station-head">
+            <div>
+              <h2 id="math-station-title">spoken mathematics</h2>
+              <p class="hint" id="math-mode-state">math mode is off</p>
+            </div>
+            <button id="math-mode-toggle" class="math-mode-toggle" type="button" aria-pressed="false">
+              start math mode
+            </button>
+          </div>
+          <div id="math-workbench" class="math-workbench" hidden>
+            <div class="math-pair">
+              <label class="math-side math-input-side" for="math-spoken">
+                <span>words heard</span>
+                <textarea id="math-spoken" rows="3" placeholder="say or type: one half plus x squared"></textarea>
+              </label>
+              <div class="math-side math-output-side">
+                <span>mathematics</span>
+                <div id="math-rendered" class="math-rendered" aria-live="polite"></div>
+                <code id="math-latex" class="math-latex"></code>
+              </div>
+            </div>
+            <p id="math-unparsed" class="math-unparsed" hidden></p>
+            <div class="math-actions">
+              <button id="math-keep" type="button" disabled>keep expression</button>
+              <span class="hint">or say &ldquo;keep that&rdquo;</span>
+            </div>
+            <div id="math-session" class="math-session" hidden>
+              <h3>kept this session</h3>
+              <ol id="math-session-list"></ol>
+            </div>
+            <p class="math-disclosure">rule-based translator; 65k dataset untouched pending provenance.</p>
+          </div>
+        </section>
         <article id="doc">
           <div id="marker" aria-hidden="true"></div>
           <div class="read-empty" id="read-empty" hidden>
@@ -296,7 +329,7 @@
         <p class="hint mic-hint" id="mic-hint">
           read a line aloud and the page follows you. say
           &ldquo;highlight this&rdquo;, &ldquo;mark this important&rdquo;,
-          &ldquo;note that &hellip;&rdquo; or &ldquo;undo&rdquo;.
+          &ldquo;note that &hellip;&rdquo;, &ldquo;math mode&rdquo; or &ldquo;undo&rdquo;.
         </p>
       </main>
       <aside class="panel history" id="history-panel">

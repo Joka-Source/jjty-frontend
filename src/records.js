@@ -101,6 +101,7 @@ export const ACT_LABELS = {
   highlight: "highlight this block",
   important: "mark this block important",
   note: "attach a spoken note to this block",
+  math: "keep spoken mathematics",
   undo: "undo a previous act",
 };
 
@@ -120,6 +121,9 @@ export function makeActEntry({
   confidence = null,
   matchedText = "",
   noteText = "",
+  mathSpeech = "",
+  mathLatex = "",
+  mathUnparsed = [],
   undoes = null,
   at = nowIso(),
 }) {
@@ -130,7 +134,9 @@ export function makeActEntry({
   const intention =
     act === "undo"
       ? `undo the act recorded as ${undoes}`
-      : `${ACT_LABELS[act]} (${span})`;
+      : act === "math"
+        ? `${ACT_LABELS.math} at ${span}`
+        : `${ACT_LABELS[act]} (${span})`;
   const cursor = makeCursor({
     docId,
     revision,
@@ -146,8 +152,10 @@ export function makeActEntry({
       ? `${span} highlighted`
       : act === "important"
         ? `${span} marked important`
-        : act === "note"
+      : act === "note"
           ? `note attached to ${span}: "${noteText}"`
+          : act === "math"
+            ? `mathematics kept at ${span}: ${mathLatex}`
           : `act ${undoes} reversed; ${span} restored`;
   const receipt = makeReceipt({
     docId,
@@ -161,7 +169,7 @@ export function makeActEntry({
         : "undo from the history panel",
     at,
   });
-  return {
+  const entry = {
     id: rid("evt"),
     docId,
     kind: act === "undo" ? "undo" : "act",
@@ -179,4 +187,10 @@ export function makeActEntry({
     cursor,
     receipt,
   };
+  if (act === "math") {
+    entry.mathSpeech = mathSpeech;
+    entry.mathLatex = mathLatex;
+    entry.mathUnparsed = [...mathUnparsed];
+  }
+  return entry;
 }

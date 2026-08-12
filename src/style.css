@@ -170,6 +170,16 @@ article p.important {
   color: var(--accent);
 }
 
+.kept-math {
+  display: block;
+  margin-top: 0.55em;
+  padding: 0.45em 0.65em;
+  overflow-x: auto;
+  border-left: 2px solid var(--warm);
+  background: color-mix(in srgb, var(--warm) 7%, transparent);
+  font-size: 1.05rem;
+}
+
 #marker {
   position: absolute;
   left: -0.4rem;
@@ -1093,6 +1103,205 @@ body:not([data-view="read"]) .layout {
   color: var(--accent);
 }
 
+/* spoken mathematics: a compact working margin, not a separate app surface */
+.math-station {
+  max-width: 44rem;
+  margin: 0.8rem auto 0;
+  padding: 0 1.5rem;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.math-station-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.65rem;
+}
+
+.math-station-head h2,
+.math-station-head p {
+  margin: 0;
+}
+
+.math-station-head h2 {
+  color: var(--ink-dim);
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+}
+
+.math-mode-toggle,
+.math-actions button {
+  min-height: 36px;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.math-mode-toggle[aria-pressed="true"] {
+  border-color: var(--warm);
+  color: color-mix(in srgb, var(--warm) 80%, var(--ink));
+  background: color-mix(in srgb, var(--warm) 10%, var(--bg));
+}
+
+.math-workbench {
+  margin-top: 0.65rem;
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--warm);
+  border-radius: 3px 3px 10px 10px;
+  background: var(--panel);
+  padding: 0.75rem;
+}
+
+.math-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  background: var(--line);
+  gap: 1px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  overflow: hidden;
+}
+
+.math-side {
+  min-width: 0;
+  margin: 0;
+  padding: 0.65rem;
+  background: var(--bg);
+}
+
+.math-side > span:first-child {
+  display: block;
+  margin-bottom: 0.45rem;
+  color: var(--ink-dim);
+  font-size: 0.67rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+#math-spoken {
+  display: block;
+  width: 100%;
+  min-height: 5.4rem;
+  margin: 0;
+  padding: 0;
+  resize: vertical;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: 1rem/1.45 Charter, Georgia, "Times New Roman", serif;
+}
+
+#math-spoken:focus-visible {
+  box-shadow: inset 3px 0 0 var(--accent);
+  padding-left: 0.55rem;
+}
+
+.math-output-side {
+  display: flex;
+  flex-direction: column;
+}
+
+.math-rendered {
+  display: grid;
+  min-height: 3.2rem;
+  place-items: center;
+  overflow-x: auto;
+  font-size: 1.15rem;
+}
+
+.math-latex {
+  margin-top: auto;
+  overflow-wrap: anywhere;
+  color: var(--ink-dim);
+  font-size: 0.68rem;
+}
+
+.math-unparsed {
+  margin: 0.65rem 0 0;
+  border-left: 2px solid var(--warm);
+  padding-left: 0.6rem;
+  color: var(--ink);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.math-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.65rem;
+}
+
+.math-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.math-session {
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.6rem;
+}
+
+.math-session h3 {
+  margin: 0 0 0.4rem;
+  color: var(--ink-dim);
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.math-session ol {
+  display: flex;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  overflow-x: auto;
+  list-style: none;
+}
+
+.math-session li {
+  flex: 0 0 auto;
+  min-width: 10rem;
+  max-width: 16rem;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--bg);
+  padding: 0.45rem 0.55rem;
+}
+
+.math-session-words {
+  display: block;
+  overflow: hidden;
+  color: var(--ink-dim);
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.math-session-rendered {
+  display: block;
+  margin-top: 0.25rem;
+  overflow-x: auto;
+}
+
+.math-disclosure {
+  margin: 0.65rem 0 0;
+  color: var(--ink-dim);
+  font-size: 0.68rem;
+}
+
 /* the "more" sheet exists only on phones */
 .more-sheet {
   display: none;
@@ -1168,6 +1377,19 @@ body:not([data-view="read"]) .layout {
   }
 
   .org-forms {
+    grid-template-columns: 1fr;
+  }
+
+  .math-station {
+    padding: 0 1.1rem;
+  }
+
+  .math-mode-toggle,
+  .math-actions button {
+    min-height: 44px;
+  }
+
+  .math-pair {
     grid-template-columns: 1fr;
   }
 }

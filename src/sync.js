@@ -32,11 +32,21 @@ export async function momentFromEntry(entry, doc, blockTexts) {
   const to = entry.blockEnd ?? entry.blockIndex;
   const blocks = [];
   for (let i = from; i <= to; i++) {
-    blocks.push({
-      kind: "text",
-      content: blockTexts[i] ?? "",
-      anchorId: `anc-${doc.id}-b${i}`,
-    });
+    if (entry.act === "math") {
+      blocks.push({
+        kind: "math",
+        content: entry.mathLatex,
+        spoken: entry.mathSpeech,
+        unparsed: [...(entry.mathUnparsed ?? [])],
+        anchorId: `anc-${doc.id}-b${i}`,
+      });
+    } else {
+      blocks.push({
+        kind: "text",
+        content: blockTexts[i] ?? "",
+        anchorId: `anc-${doc.id}-b${i}`,
+      });
+    }
   }
   const sourceDigest = doc.provenance?.contentDigest ?? (await contentDigest(doc.text ?? ""));
   return {
