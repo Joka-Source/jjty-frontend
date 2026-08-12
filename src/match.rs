@@ -9,8 +9,7 @@
 //!
 //! This is a semantics-faithful port of the reference JavaScript
 //! implementation (jt-demo-voice-highlight/src/match.js). Operation order is
-//! preserved so f64 results are bit-identical to the JS engine, including
-//! its NaN edge cases (two distinct single-character tokens compare 0/0).
+//! preserved so f64 results are bit-identical to the JS engine.
 
 use unicode_normalization::UnicodeNormalization;
 use unicode_properties::{GeneralCategoryGroup, UnicodeGeneralCategory};
@@ -87,25 +86,48 @@ pub fn tokenize(text: &str) -> Vec<String> {
     }
 }
 
-/// Character bigrams of a token.
-fn bigrams(token: &str) -> Vec<(char, char)> {
-    let chars: Vec<char> = token.chars().collect();
-    let mut grams = Vec::new();
-    if chars.len() >= 2 {
-        for w in chars.windows(2) {
-            grams.push((w[0], w[1]));
-        }
+/// Character bigrams of a token, including boundary markers, packed into
+/// u64s and SORTED. The reference implementation pads with U+0002/U+0003
+/// (STX/ETX), so a one-character token still yields two bigrams and
+/// boundary characters participate in similarity. Multiset intersection
+/// size is order-independent, so sorting changes nothing about the score
+/// while enabling a linear merge in [`dice`].
+fn bigrams(token: &str) -> Vec<u64> {
+    let mut prev = '\u{2}';
+    let mut grams: Vec<u64> = Vec::with_capacity(token.len() + 2);
+    for c in token.chars() {
+        grams.push(((prev as u64) << 32) | c as u64);
+        prev = c;
     }
+    grams.push(((prev as u64) << 32) | '\u{3}' as u64);
+    grams.sort_unstable();
     grams
 }
 
+/// Sorensen-Dice coefficient over two sorted bigram lists. The shared
+/// count is the multiset intersection size — exactly what the JS
+/// reference's count-then-consume loop computes — via a linear merge.
+fn dice(ga: &[u64], gb: &[u64]) -> f64 {
+    let mut shared: usize = 0;
+    let (mut i, mut j) = (0usize, 0usize);
+    while i < ga.len() && j < gb.len() {
+        match ga[i].cmp(&gb[j]) {
+            std::cmp::Ordering::Less => i += 1,
+            std::cmp::Ordering::Greater => j += 1,
+            std::cmp::Ordering::Equal => {
+                shared += 1;
+                i += 1;
+                j += 1;
+            }
+        }
+    }
+    (2.0 * shared as f64) / ((ga.len() + gb.len()) as f64)
+}
+
 /// Similarity of two tokens in [0, 1].
-/// Exact match is 1; otherwise Sorensen-Dice over character bigrams,
-/// which forgives typical ASR slips ("holmes" vs "homes").
-///
-/// Faithful to the JS reference: two distinct single-char tokens yield
-/// 0/0 = NaN, which then loses every comparison downstream exactly as the
-/// JS engine's NaN does.
+/// Exact match is 1; otherwise Sorensen-Dice over boundary-padded
+/// character bigrams, which forgives typical ASR slips
+/// ("holmes" vs "homes").
 pub fn token_similarity(a: &str, b: &str) -> f64 {
     if a == b {
         return 1.0;
@@ -113,22 +135,19 @@ pub fn token_similarity(a: &str, b: &str) -> f64 {
     if a.is_empty() || b.is_empty() {
         return 0.0;
     }
-    let ga = bigrams(a);
-    let gb = bigrams(b);
-    let mut counts: std::collections::HashMap<(char, char), i64> = std::collections::HashMap::new();
-    for g in &ga {
-        *counts.entry(*g).or_insert(0) += 1;
+    dice(&bigrams(a), &bigrams(b))
+}
+
+/// Similarity given precomputed bigram lists (hot path of [`find_match`]).
+#[inline]
+fn token_similarity_pre(a: &str, ga: &[u64], b: &str, gb: &[u64]) -> f64 {
+    if a == b {
+        return 1.0;
     }
-    let mut shared: i64 = 0;
-    for g in &gb {
-        if let Some(c) = counts.get_mut(g) {
-            if *c > 0 {
-                shared += 1;
-                *c -= 1;
-            }
-        }
+    if a.is_empty() || b.is_empty() {
+        return 0.0;
     }
-    (2.0 * shared as f64) / ((ga.len() + gb.len()) as f64)
+    dice(ga, gb)
 }
 
 /// Options for [`find_match`] / [`match_transcript`].
@@ -169,9 +188,44 @@ pub struct MatchResult {
     pub score: f64,
 }
 
+/// A document token stream with its bigram lists precomputed once, so
+/// repeated matching calls skip per-token bigram construction.
+#[derive(Debug, Clone, Default)]
+pub struct PreparedDoc {
+    tokens: Vec<String>,
+    grams: Vec<Vec<u64>>,
+}
+
+impl PreparedDoc {
+    pub fn new(doc_tokens: &[String]) -> PreparedDoc {
+        PreparedDoc {
+            tokens: doc_tokens.to_vec(),
+            grams: doc_tokens.iter().map(|t| bigrams(t)).collect(),
+        }
+    }
+
+    pub fn tokens(&self) -> &[String] {
+        &self.tokens
+    }
+
+    pub fn len(&self) -> usize {
+        self.tokens.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.tokens.is_empty()
+    }
+}
+
 /// Find the best window of `doc_tokens` matching `spoken_tokens`.
 /// Returns `None` when nothing clears `min_score`.
 pub fn find_match(doc_tokens: &[String], spoken_tokens: &[String], opts: &MatchOpts) -> Option<MatchResult> {
+    find_match_prepared(&PreparedDoc::new(doc_tokens), spoken_tokens, opts)
+}
+
+/// [`find_match`] against a [`PreparedDoc`] (the hot path).
+pub fn find_match_prepared(doc: &PreparedDoc, spoken_tokens: &[String], opts: &MatchOpts) -> Option<MatchResult> {
+    let doc_tokens = &doc.tokens;
     let n = doc_tokens.len();
     let m = spoken_tokens.len();
     if m == 0 || n == 0 || m > n {
@@ -190,30 +244,65 @@ pub fn find_match(doc_tokens: &[String], spoken_tokens: &[String], opts: &MatchO
         weight_sum += *w;
     }
 
-    struct Best {
-        start: usize,
-        score: f64,
-        raw: f64,
-    }
-    let mut best: Option<Best> = None;
+    let spoken_grams: Vec<Vec<u64>> = spoken_tokens.iter().map(|t| bigrams(t)).collect();
 
-    for s in 0..=(n - m) {
+    // ---- Pruned search, output-identical to the JS reference. ----
+    //
+    // The JS engine scans windows ascending, keeps the first window with a
+    // strictly maximal biased score, and bails a window once even a perfect
+    // tail plus max bonus cannot beat the current best. The result is
+    // therefore exactly: (max biased score, earliest start among equals),
+    // reported with that window's raw score.
+    //
+    // We compute the same result faster: precompute the two anchor
+    // similarities for every position, evaluate the window with the highest
+    // upper bound first (a strong best makes bounds sharp), then sweep all
+    // windows ascending, skipping any whose upper bound is strictly below
+    // the best. Skipping is conservative (bound >= true biased score) and
+    // ties are resolved to the earliest start explicitly, so the chosen
+    // window — and its raw f64 score, accumulated in the same order — is
+    // identical to the reference scan.
+
+    let last = n - m; // maximum window start (inclusive)
+
+    // Anchor similarity caches.
+    let sim_at = |i: usize, j: usize| -> f64 {
+        token_similarity_pre(&spoken_tokens[i], &spoken_grams[i], &doc_tokens[j], &doc.grams[j])
+    };
+    let s_first: Vec<f64> = (0..=last).map(|s| sim_at(0, s)).collect();
+    let s_last: Vec<f64> = if m >= 2 {
+        (0..=last).map(|s| sim_at(m - 1, s + m - 1)).collect()
+    } else {
+        Vec::new()
+    };
+    // Sum of interior weights (each interior similarity is at most 1).
+    let interior_weight: f64 = if m >= 2 { weights[1..m - 1].iter().sum() } else { 0.0 };
+
+    // Upper bound on the biased score of window s.
+    let upper = |s: usize| -> f64 {
+        let anchors = if m >= 2 {
+            weights[0] * s_first[s] + weights[m - 1] * s_last[s]
+        } else {
+            weights[0] * s_first[s]
+        };
+        (anchors + interior_weight) / weight_sum + opts.proximity_bonus
+    };
+
+    // Biased score of window s (same accumulation order as the reference:
+    // acc summed left to right, then divided, then the bonus added).
+    // `floor` is the current best biased score for the conservative bail:
+    // strictly-below-floor windows can neither win nor tie-earlier.
+    let eval = |s: usize, floor: Option<f64>| -> Option<(f64, f64)> {
         let mut acc = 0.0f64;
         let mut remaining = weight_sum;
-        let mut bailed = false;
         for i in 0..m {
-            acc += weights[i] * token_similarity(&spoken_tokens[i], &doc_tokens[s + i]);
+            acc += weights[i] * sim_at(i, s + i);
             remaining -= weights[i];
-            // Even a perfect tail plus max bonus can't beat the current best: bail.
-            if let Some(b) = &best {
-                if (acc + remaining) / weight_sum + opts.proximity_bonus <= b.score {
-                    bailed = true;
-                    break;
+            if let Some(f) = floor {
+                if (acc + remaining) / weight_sum + opts.proximity_bonus < f {
+                    return None;
                 }
             }
-        }
-        if bailed {
-            continue;
         }
         let raw = acc / weight_sum;
         let mut score = raw;
@@ -224,29 +313,69 @@ pub fn find_match(doc_tokens: &[String], spoken_tokens: &[String], opts: &MatchO
                 score += opts.proximity_bonus * (1.0 - dist.min(n_f) / n_f);
             }
         }
-        // NaN loses this comparison, exactly like in JS.
-        let better = match &best {
-            None => true,
-            Some(b) => score > b.score,
-        };
-        if better {
-            best = Some(Best { start: s, score, raw });
+        Some((raw, score))
+    };
+
+    // Probe: the window with the highest upper bound (earliest on ties).
+    let mut probe = 0usize;
+    let mut probe_ub = upper(0);
+    for s in 1..=last {
+        let ub = upper(s);
+        if ub > probe_ub {
+            probe = s;
+            probe_ub = ub;
+        }
+    }
+    let (probe_raw, probe_score) = eval(probe, None).expect("unbounded eval always completes");
+
+    struct Best {
+        start: usize,
+        score: f64,
+        raw: f64,
+    }
+    let mut best = Best {
+        start: probe,
+        score: probe_score,
+        raw: probe_raw,
+    };
+
+    for s in 0..=last {
+        if s == probe {
+            continue;
+        }
+        // Epsilon slack: `upper` sums in a different order than `eval`'s
+        // accumulator, so guard against an ulp of rounding skew before
+        // skipping. Real losses are far below the bound, so pruning power
+        // is unaffected.
+        if upper(s) + 1e-9 < best.score {
+            continue;
+        }
+        if let Some((raw, score)) = eval(s, Some(best.score)) {
+            if score > best.score || (score == best.score && s < best.start) {
+                best = Best { start: s, score, raw };
+            }
         }
     }
 
-    match best {
-        Some(b) if !(b.raw < opts.min_score) => Some(MatchResult {
-            start: b.start,
-            end: b.start + m - 1,
-            score: b.raw,
-        }),
-        _ => None,
+    if !(best.raw < opts.min_score) {
+        Some(MatchResult {
+            start: best.start,
+            end: best.start + m - 1,
+            score: best.raw,
+        })
+    } else {
+        None
     }
 }
 
 /// Convenience for the live path: match the last `window_size` words of a
 /// running transcript against the document.
 pub fn match_transcript(doc_tokens: &[String], transcript: &str, opts: &MatchOpts) -> Option<MatchResult> {
+    match_transcript_prepared(&PreparedDoc::new(doc_tokens), transcript, opts)
+}
+
+/// [`match_transcript`] against a [`PreparedDoc`] (the hot path).
+pub fn match_transcript_prepared(doc: &PreparedDoc, transcript: &str, opts: &MatchOpts) -> Option<MatchResult> {
     let words = tokenize(transcript);
     if words.is_empty() {
         return None;
@@ -257,12 +386,130 @@ pub fn match_transcript(doc_tokens: &[String], transcript: &str, opts: &MatchOpt
     if spoken.len() < 3 {
         return None;
     }
-    find_match(doc_tokens, spoken, opts)
+    find_match_prepared(doc, spoken, opts)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Literal port of the reference JS scan (no pruning beyond the JS
+    /// bail): ascending windows, strict-improvement best. Used to verify
+    /// the pruned production search is output-identical.
+    fn find_match_reference(doc_tokens: &[String], spoken_tokens: &[String], opts: &MatchOpts) -> Option<MatchResult> {
+        let n = doc_tokens.len();
+        let m = spoken_tokens.len();
+        if m == 0 || n == 0 || m > n {
+            return None;
+        }
+        let mut weights = vec![1.0f64; m];
+        if m >= 2 {
+            weights[0] = opts.anchor_weight;
+            weights[m - 1] = opts.anchor_weight;
+        }
+        let mut weight_sum = 0.0f64;
+        for w in &weights {
+            weight_sum += *w;
+        }
+        struct Best {
+            start: usize,
+            score: f64,
+            raw: f64,
+        }
+        let mut best: Option<Best> = None;
+        for s in 0..=(n - m) {
+            let mut acc = 0.0f64;
+            let mut remaining = weight_sum;
+            let mut bailed = false;
+            for i in 0..m {
+                acc += weights[i] * token_similarity(&spoken_tokens[i], &doc_tokens[s + i]);
+                remaining -= weights[i];
+                if let Some(b) = &best {
+                    if (acc + remaining) / weight_sum + opts.proximity_bonus <= b.score {
+                        bailed = true;
+                        break;
+                    }
+                }
+            }
+            if bailed {
+                continue;
+            }
+            let raw = acc / weight_sum;
+            let mut score = raw;
+            if let Some(last_index) = opts.last_index {
+                if n > 1 {
+                    let dist = (s as i64 - last_index).unsigned_abs() as f64;
+                    let n_f = n as f64;
+                    score += opts.proximity_bonus * (1.0 - dist.min(n_f) / n_f);
+                }
+            }
+            let better = match &best {
+                None => true,
+                Some(b) => score > b.score,
+            };
+            if better {
+                best = Some(Best { start: s, score, raw });
+            }
+        }
+        match best {
+            Some(b) if !(b.raw < opts.min_score) => Some(MatchResult {
+                start: b.start,
+                end: b.start + m - 1,
+                score: b.raw,
+            }),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn pruned_search_identical_to_reference_scan() {
+        // Deterministic LCG-driven fuzz: random docs (with deliberate
+        // repeats and near-misses), random spoken windows, random opts.
+        let mut state: u64 = 0x243F6A8885A308D3;
+        let mut rand = move |bound: usize| -> usize {
+            state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            ((state >> 33) as usize) % bound.max(1)
+        };
+        const WORDS: [&str; 12] = [
+            "one", "two", "three", "holmes", "homes", "mantelpiece", "a", "ab", "river", "rivers",
+            "degree", "medicine",
+        ];
+        for case in 0..500 {
+            let n = 1 + rand(60);
+            let doc: Vec<String> = (0..n).map(|_| WORDS[rand(12)].to_owned()).collect();
+            let m = 1 + rand(10);
+            let spoken: Vec<String> = (0..m)
+                .map(|i| {
+                    // Half the time, copy from the doc to force repeats/ties.
+                    if rand(2) == 0 && m <= n {
+                        doc[(rand(n.saturating_sub(m) + 1) + i).min(n - 1)].clone()
+                    } else {
+                        WORDS[rand(12)].to_owned()
+                    }
+                })
+                .collect();
+            let opts = MatchOpts {
+                min_score: 0.0, // compare full outputs, not just confident ones
+                last_index: if rand(2) == 0 { Some(rand(n) as i64) } else { None },
+                ..MatchOpts::default()
+            };
+            let fast = find_match(&doc, &spoken, &opts);
+            let slow = find_match_reference(&doc, &spoken, &opts);
+            match (fast, slow) {
+                (None, None) => {}
+                (Some(f), Some(s)) => {
+                    assert_eq!((f.start, f.end), (s.start, s.end), "case {case}: window drift");
+                    assert!(
+                        f.score == s.score,
+                        "case {case}: score drift {} vs {}",
+                        f.score,
+                        s.score
+                    );
+                }
+                (f, s) => panic!("case {case}: presence drift {f:?} vs {s:?}"),
+            }
+        }
+    }
 
     #[test]
     fn normalize_basics() {
@@ -292,9 +539,10 @@ mod tests {
         assert_eq!(token_similarity("holmes", "holmes"), 1.0);
         assert_eq!(token_similarity("", "x"), 0.0);
         assert!(token_similarity("holmes", "homes") > 0.6);
-        // JS parity: two distinct single chars -> 0/0 -> NaN.
-        assert!(token_similarity("a", "b").is_nan());
-        assert_eq!(token_similarity("a", "ab"), 0.0);
+        // Boundary-padded bigrams: single chars share no grams; a prefix
+        // shares its opening boundary gram (JS parity).
+        assert_eq!(token_similarity("a", "b"), 0.0);
+        assert_eq!(token_similarity("a", "ab"), 0.4);
     }
 
     #[test]

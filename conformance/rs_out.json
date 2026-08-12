@@ -1,0 +1,86 @@
+[
+  "hello world",
+  "dont dont dont",
+  "r and d at at and t",
+  "cafe naive resume",
+  "ab c obriens",
+  "",
+  "",
+  "bar 121 2 fine",
+  [
+    "the",
+    "quick",
+    "brown",
+    "fox",
+    "jumps"
+  ],
+  [],
+  0.7692307692307693,
+  1.0,
+  0.0,
+  0.4,
+  0.7692307692307693,
+  0.75,
+  0.0,
+  {
+    "end": 11,
+    "score": 1.0,
+    "start": 4
+  },
+  {
+    "end": 42,
+    "score": 0.8913043478260869,
+    "start": 35
+  },
+  null,
+  {
+    "end": 62,
+    "score": 1.0,
+    "start": 58
+  },
+  {
+    "end": 2,
+    "score": 1.0,
+    "start": 0
+  },
+  {
+    "end": 13,
+    "score": 1.0,
+    "start": 11
+  },
+  {
+    "end": 2,
+    "score": 1.0,
+    "start": 0
+  },
+  null,
+  {
+    "end": 2,
+    "score": 1.0,
+    "start": 0
+  },
+  null,
+  {
+    "end": 11,
+    "score": 1.0,
+    "start": 4
+  },
+  {
+    "end": 24,
+    "score": 0.9190110826939473,
+    "start": 17
+  },
+  {
+    "end": 96,
+    "score": 1.0,
+    "start": 89
+  },
+  null,
+  null,
+  {
+    "end": 54,
+    "score": 1.0,
+    "start": 51
+  },
+  null
+]

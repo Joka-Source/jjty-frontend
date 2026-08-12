@@ -50,7 +50,6 @@ unchanged, invalid ones must be rejected.
 ## Determinism notes
 
 - All scoring is `f64` with a fixed operation order, matching the reference
-  JS implementation exactly — including its NaN edge case (two distinct
-  single-character tokens score 0/0).
+  JS implementation exactly (boundary-padded character bigrams included).
 - The kernel never reads time, environment, or randomness; timestamps in
   records are supplied by the caller.
