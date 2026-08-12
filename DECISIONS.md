@@ -100,3 +100,24 @@ optionality, the choices below apply. All are v0.1.0 choices — revisit before 
 21. Conformance uses ajv (draft 2020-12 build) with `strict: true` but
     `strictRequired: false`, because Anchor's `anyOf` requires properties defined at the
     parent level — valid 2020-12, flagged only by ajv's extra-strict lint.
+
+## Organizational layer (PROVISIONAL, S1-ORG, 2026-08-12)
+
+Judgment calls made adding the provisional org layer (Institution, Cohort, Space,
+Membership, SpaceContext) from the founder's 12 Aug 2026 stated intent, ahead of the
+WhatsApp handoff. All are v0.1.0 choices; the handoff overrides.
+
+22. **Five new records, existing records untouched.** Moments reference a space via a
+    separate SpaceContext schema — the shape of a future optional field on
+    moment-carrying records — rather than by mutating Cursor/Receipt now.
+23. **Institutional identity lives on Membership, not on a person record.** Roll and
+    registration numbers are per-enrolment facts; the same person can hold several
+    over time. Both are stored verbatim strings (formats vary per institution).
+24. **Space is one record with `kind` + `parentSpaceId`,** not per-level record types.
+    Hostel > floor > room nests; sections bind to a cohort via optional `cohortId`.
+    `kind` and Membership `role` are minimal invented enums (convention 5): growing
+    them is a minor bump.
+25. **Membership is time-bounded** (`joinedAt`/`leftAt`), never deleted; a missing
+    `leftAt` means current.
+26. **Every org schema description opens with "PROVISIONAL (pending founder WhatsApp
+    handoff, 2026-08-12)"** so the marker travels with any copied schema.

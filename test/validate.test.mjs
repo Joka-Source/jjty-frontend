@@ -46,9 +46,15 @@ const EXPECTED_RECORDS = [
   "rightsrecord",
   "capabilityprofile",
   "provenanceenvelope",
+  // Organizational layer (PROVISIONAL, pending founder WhatsApp handoff 2026-08-12):
+  "institution",
+  "cohort",
+  "space",
+  "membership",
+  "spacecontext",
 ];
 
-test("all 11 portable records have a schema", () => {
+test(`all ${EXPECTED_RECORDS.length} portable records have a schema`, () => {
   for (const record of EXPECTED_RECORDS) {
     assert.ok(validators.has(record), `missing schema for record '${record}'`);
   }

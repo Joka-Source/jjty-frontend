@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "jt-contracts/membership/v0.1.0",
+  "title": "Membership",
+  "description": "PROVISIONAL (pending founder WhatsApp handoff, 2026-08-12). One person's belonging to one Space, with the role they hold there and the institutional identity (roll number, registration number) they carry alongside their personal identity.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "personId", "spaceId", "role"],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Version of this record's schema (semver: major.minor.patch)."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable identifier for this membership."
+    },
+    "personId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Id of the person who belongs to the space."
+    },
+    "spaceId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Id of the Space the person belongs to."
+    },
+    "role": {
+      "type": "string",
+      "enum": ["student", "resident", "faculty", "staff", "warden", "lead", "member", "guest"],
+      "description": "The role held in this space. Minimal invented set (students first, per founder intent); adding values is a minor bump."
+    },
+    "institutionalIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rollNumber": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The roll number as the institution issues it, kept verbatim (formats vary widely across Indian colleges)."
+        },
+        "registrationNumber": {
+          "type": "string",
+          "minLength": 1,
+          "description": "University registration/enrolment number, where distinct from the roll number."
+        },
+        "admissionYear": {
+          "type": "integer",
+          "minimum": 1900,
+          "maximum": 2200,
+          "description": "Year of admission, where the identity carries one."
+        }
+      },
+      "description": "Identity the institution assigned to this person, carried alongside (never instead of) their personal identity."
+    },
+    "joinedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the person joined this space (ISO 8601)."
+    },
+    "leftAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the person left this space, if they have (ISO 8601). Absent means the membership is current."
+    }
+  }
+}
