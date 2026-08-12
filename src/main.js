@@ -226,10 +226,24 @@ const engine = createActEngine({
 // ---------------------------------------------------------------------------
 // Intents (jt-speech) — the only command path
 
-function findAnchorBlock(anchorText) {
-  const m = matchTranscript(state.docTokens, anchorText, {});
-  if (!m) return -1;
-  return blockForRange(state.tokenBlock, m.start, m.end);
+/**
+ * Locate the block an anchor phrase points at. Spoken anchors are fuzzy and
+ * may span a paragraph break ("rent is due to the deposit"), so on a failed
+ * full-phrase match we retry with the phrase's head, then tail — the words
+ * most likely to sit contiguously in the document.
+ */
+function findAnchorBlock(anchorText, prefer = "head") {
+  const words = tokenize(anchorText);
+  const tries = [words];
+  const head = words.slice(0, 3);
+  const tail = words.slice(-3);
+  if (words.length > 3) tries.push(prefer === "tail" ? tail : head, prefer === "tail" ? head : tail);
+  for (const t of tries) {
+    if (t.length < 3) continue;
+    const m = matchTranscript(state.docTokens, t.join(" "), {});
+    if (m) return blockForRange(state.tokenBlock, m.start, m.end);
+  }
+  return -1;
 }
 
 function hideAsk() {
@@ -303,8 +317,8 @@ async function runCommand(cmd, modality = "voice") {
     case "send":
       return sendSpoken(cmd);
     case "range": {
-      const from = findAnchorBlock(cmd.fromAnchor);
-      const to = findAnchorBlock(cmd.toAnchor);
+      const from = findAnchorBlock(cmd.fromAnchor, "head");
+      const to = findAnchorBlock(cmd.toAnchor, "tail");
       if (from < 0 || to < 0) {
         setStatus(true, "couldn't find those words in the document");
         return null;
