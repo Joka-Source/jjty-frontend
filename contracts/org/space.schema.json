@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "jt-contracts/space/v0.1.0",
+  "title": "Space",
+  "description": "PROVISIONAL (pending founder WhatsApp handoff, 2026-08-12). A real place or grouping inside an institution where everyday life happens and moments flow: a class, a section, a hostel, a hostel floor, a room, a club. Spaces nest via parentSpaceId (hostel > floor > room).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "institutionId", "kind", "name"],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Version of this record's schema (semver: major.minor.patch)."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable identifier for this space."
+    },
+    "institutionId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Id of the Institution this space belongs to."
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["class", "section", "hostel", "floor", "room", "club", "department", "mess", "other"],
+      "description": "What sort of space this is. Minimal set from the founder's stated examples (class, dorm, club) plus the obvious Indian-college companions; expected to grow via minor bumps once the handoff lands."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "How people name this space (e.g. 'Hostel 7', 'Second floor', 'Room 214', 'CSE-A', 'Dramatics Club')."
+    },
+    "parentSpaceId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Id of the enclosing Space, if this space nests inside another (a floor inside a hostel, a room inside a floor)."
+    },
+    "cohortId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Id of the Cohort this space serves, if it is cohort-bound (a section or class usually is; a hostel usually is not)."
+    },
+    "capacity": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "How many people this space holds, where that is a real constraint (rooms, hostels)."
+    }
+  }
+}

@@ -22,6 +22,9 @@ export function createGlider(initial = 0, m = MARKER_MEDIUM, now = () => perform
   let g = null;
   let t0 = 0;
   let value = initial;
+  // m may be a medium or a () => medium, so a settings change (motion
+  // intensity) takes hold on the very next glide without rebuilding drivers.
+  const mediumNow = () => (typeof m === "function" ? m() : m);
 
   return {
     /** Where the value is right now. */
@@ -40,7 +43,7 @@ export function createGlider(initial = 0, m = MARKER_MEDIUM, now = () => perform
         g = null;
         return;
       }
-      g = glide(value, target, m);
+      g = glide(value, target, mediumNow());
       t0 = now();
     },
     /** Jump without motion (initial placement). */
@@ -58,9 +61,9 @@ export function createGlider(initial = 0, m = MARKER_MEDIUM, now = () => perform
  * Drive a marker element with two gliders (top, height) on one rAF loop.
  * Returns { moveTo(top, height), stop() }.
  */
-export function createMarkerDriver(el) {
-  const top = createGlider(0);
-  const height = createGlider(0);
+export function createMarkerDriver(el, mediumOf = () => MARKER_MEDIUM) {
+  const top = createGlider(0, mediumOf);
+  const height = createGlider(0, mediumOf);
   let raf = 0;
   let placed = false;
 
@@ -91,6 +94,30 @@ export function createMarkerDriver(el) {
       placed = false;
     },
   };
+}
+
+/**
+ * Surface arrival: when the shell shows a different surface, the new one
+ * rises and clears through the same water the marker swims in — a glide
+ * from 1 to 0 drives both translateY (x8 px) and opacity (1 - x). No CSS
+ * easing; the trajectory is jt-water's closed-form glide.
+ */
+export function surfaceArrive(el, m = MARKER_MEDIUM) {
+  const g = glide(1, 0, m);
+  const t0 = performance.now();
+  function frame(ts) {
+    const s = g.at((ts - t0) / 1000);
+    if (s.done) {
+      el.style.transform = "";
+      el.style.opacity = "";
+      return;
+    }
+    el.style.transform = `translateY(${(s.x * 8).toFixed(2)}px)`;
+    el.style.opacity = (1 - s.x).toFixed(3);
+    requestAnimationFrame(frame);
+  }
+  el.style.opacity = "0";
+  requestAnimationFrame(frame);
 }
 
 /**
