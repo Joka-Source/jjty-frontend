@@ -95,11 +95,6 @@ body {
   margin: 0 auto;
 }
 
-@media (max-width: 960px) {
-  .layout {
-    grid-template-columns: 1fr;
-  }
-}
 
 .panel {
   font-family: system-ui, -apple-system, sans-serif;
@@ -492,4 +487,145 @@ article p.important {
 .history.attention {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* bottom bar + scrim exist only at narrow widths (see the media query below) */
+.tabbar {
+  display: none;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 35;
+  gap: 0.5rem;
+  padding: 0.4rem 0.8rem calc(0.4rem + env(safe-area-inset-bottom));
+  background: var(--bar-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-top: 1px solid var(--line);
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.tabbar button {
+  flex: 1;
+  min-height: 44px;
+  font: inherit;
+  font-size: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.tabbar button[aria-expanded="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.scrim {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  background: rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+/* phone-first: at narrow widths the document owns the full width; the side
+   panels become slide-over sheets reached from a bottom bar, and every
+   control grows to a comfortable thumb size (≥44px). */
+@media (max-width: 960px) {
+  body {
+    overflow-x: clip;
+  }
+
+  .layout {
+    display: block;
+    padding: 3.6rem 0 calc(4.2rem + env(safe-area-inset-bottom));
+    max-width: none;
+  }
+
+  article {
+    padding: 1rem 1.1rem 30vh;
+  }
+
+  /* keep the marker inside the viewport — no horizontal scroll */
+  #marker {
+    left: 0.35rem;
+    right: 0.35rem;
+  }
+
+  .mic-hint {
+    padding: 0 1.1rem 1.5rem;
+  }
+
+  /* the ask prompt stays reachable under the top bar while the page scrolls */
+  .ask {
+    position: sticky;
+    top: 3.1rem;
+    z-index: 15;
+    margin: 0 0.6rem 1rem;
+    background: var(--panel);
+  }
+
+  .panel {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: calc(3.4rem + env(safe-area-inset-bottom));
+    z-index: 30;
+    max-height: 72vh;
+    border-radius: 14px 14px 0 0;
+    border-bottom: none;
+    box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.18);
+    transform: translateY(115%);
+    transition: transform 0.28s ease, visibility 0s linear 0.28s;
+    visibility: hidden;
+  }
+
+  body.sheet-library .scrim,
+  body.sheet-history .scrim {
+    display: block;
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  body.sheet-library .panel.library,
+  body.sheet-history .panel.history {
+    transform: translateY(0);
+    visibility: visible;
+    transition: transform 0.28s ease;
+  }
+
+  .tabbar {
+    display: flex;
+  }
+
+  /* thumb-sized touch targets everywhere a finger lands */
+  .doc-btn,
+  .filebtn,
+  #paste-add,
+  .undo-btn,
+  .send-btn,
+  .ask-option,
+  .share button,
+  .join button,
+  .join input {
+    min-height: 44px;
+  }
+
+  .filebtn,
+  #paste-add {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .entry summary {
+    padding: 0.5rem 0;
+  }
 }
