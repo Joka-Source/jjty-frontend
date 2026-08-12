@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>jt</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%234c9be8'/%3E%3C/svg%3E"
+    />
+  </head>
+  <body>
+    <header class="bar">
+      <span class="brand">jt</span>
+      <span class="status">
+        <span id="status-dot" class="dot"></span>
+        <span id="status-text">starting&hellip;</span>
+      </span>
+    </header>
+    <div class="layout">
+      <aside class="panel library" id="library-panel">
+        <h2>your documents</h2>
+        <ul id="doc-list"></ul>
+        <div class="add">
+          <label class="filebtn">
+            open a file
+            <input id="file-input" type="file" accept=".txt,.md,text/plain,text/markdown" hidden />
+          </label>
+          <textarea id="paste-box" rows="4" placeholder="or paste text here&hellip;"></textarea>
+          <button id="paste-add">add pasted text</button>
+          <p class="hint">you can also drop a .txt or .md file anywhere on this page</p>
+        </div>
+      </aside>
+      <main>
+        <article id="doc">
+          <div id="marker" aria-hidden="true"></div>
+        </article>
+        <p class="hint mic-hint" id="mic-hint">
+          read a line aloud and the page follows you. say
+          &ldquo;highlight this&rdquo;, &ldquo;mark this important&rdquo;,
+          &ldquo;note that &hellip;&rdquo; or &ldquo;undo&rdquo;.
+        </p>
+      </main>
+      <aside class="panel history">
+        <h2>what happened</h2>
+        <p class="hint">every act leaves a record you can inspect and undo.</p>
+        <ul id="history-list"></ul>
+      </aside>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
