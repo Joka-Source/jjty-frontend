@@ -1,0 +1,29 @@
+[package]
+name = "jt-core"
+version = "0.1.0"
+edition = "2021"
+description = "jt core: deterministic portable kernel — fuzzy transcript-to-document matching and record lifecycle. Compiles native, to wasm32 (web), and as a cdylib for JNI."
+license = "UNLICENSED"
+publish = false
+
+[lib]
+name = "jt_core"
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+unicode-normalization = "0.1"
+unicode-properties = "0.1"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+js-sys = "0.3"
+
+[profile.release]
+opt-level = 3
+lto = true
+
+[[bench]]
+name = "match_bench"
+harness = false

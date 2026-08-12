@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "0.1.0",
+  "id": "rcp-0002",
+  "sourceId": "src-0002",
+  "sourceRevision": "r7",
+  "actionId": "act-0002",
+  "executor": "local-domain-engine",
+  "host": "jt-android",
+  "device": "device-rmx3853",
+  "build": "jt-android 0.4.1 (1042)",
+  "result": "selected region redacted; text layer, metadata and prior versions purged and verified",
+  "artifactDigest": "sha256:3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c",
+  "occurredAt": "2026-08-11T09:20:31Z",
+  "authority": "person-anita",
+  "arrival": "degraded",
+  "degradationNote": "destination host could not keep the annotation layer; it was flattened into the page image and the person was told before transfer",
+  "undoRoute": "not available; redaction is permanent by design",
+  "repairRoute": "re-run from the retained pre-action recovery copy",
+  "recoveryRoute": "recovery://bundle/src-0002/pre-act-0002",
+  "returnRoute": "open://src-0002/r8#anc-0002"
+}
