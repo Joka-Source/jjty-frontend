@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>jt-water — motion through a medium</title>
+<style>
+  :root {
+    --bg: #f6f4ef;
+    --ink: #2b2a26;
+    --accent: #2f6f6a;
+    --hairline: color-mix(in srgb, var(--ink) 14%, transparent);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 17px/1.6 Georgia, "Times New Roman", serif;
+  }
+  main { max-width: 640px; margin: 0 auto; padding: 3rem 1.5rem 6rem; }
+  h1 { font-size: 1.4rem; font-weight: normal; letter-spacing: 0.02em; }
+  h2 { font-size: 1rem; margin-top: 3.5rem; border-top: 1px solid var(--hairline); padding-top: 1.5rem; }
+  p.note { font-size: 0.85rem; opacity: 0.6; }
+
+  /* 1 — highlight bar gliding between blocks */
+  #reader { position: relative; }
+  #reader p { position: relative; z-index: 1; margin: 0 0 1.3em; cursor: pointer; }
+  #bar {
+    position: absolute;
+    z-index: 0;
+    left: -1rem;
+    right: -1rem;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    box-shadow: inset 2.5px 0 0 var(--accent);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    will-change: transform, height;
+  }
+  #bar.on { opacity: 1; }
+
+  /* 2 — drag and release */
+  #tank {
+    position: relative;
+    height: 120px;
+    border: 1px solid var(--hairline);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  #pebble {
+    position: absolute;
+    top: 40px;
+    left: 24px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: grab;
+    touch-action: none;
+    will-change: transform;
+  }
+  #pebble.held { cursor: grabbing; }
+
+  /* 3 — disturbance rippling neighbors */
+  #pond { display: flex; gap: 14px; flex-wrap: wrap; padding: 10px 0; }
+  .stone {
+    width: 64px;
+    height: 64px;
+    border-radius: 14px;
+    border: 1px solid var(--hairline);
+    background: color-mix(in srgb, var(--accent) 7%, transparent);
+    cursor: pointer;
+    will-change: transform;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>jt-water</h1>
+  <p class="note">Motion as physics, not easing curves. Everything below runs on one
+  shared field: critically damped glides, viscous coasting, decaying ripples.</p>
+
+  <h2>1 &middot; A highlight bar glides between blocks</h2>
+  <p class="note">Click a paragraph. The bar moves through the medium: fast entry,
+  drag, gentle arrival, zero overshoot.</p>
+  <div id="reader">
+    <div id="bar"></div>
+    <p>Reading is a slow art. The eye moves, pauses, returns; attention pools in
+    one place before it flows to the next.</p>
+    <p>An interface that respects this does not snap. It travels — the way a
+    thing underwater travels — quickly at first, then braked by the medium,
+    arriving without a bounce.</p>
+    <p>Nothing here is a timing curve chosen by hand. The trajectory falls out
+    of a damped equation of motion, so every element in jt moves the same way
+    because they share the same water.</p>
+  </div>
+
+  <h2>2 &middot; Drag, release, and it settles like an object in water</h2>
+  <p class="note">Throw the pebble. On release it coasts against viscous drag to a
+  predictable resting point — no bounce, no spring-back.</p>
+  <div id="tank"><div id="pebble"></div></div>
+
+  <h2>3 &middot; A disturbance ripples the neighbors</h2>
+  <p class="note">Click a stone. Energy radiates outward and strictly decays; near
+  stones move most, far ones less and later.</p>
+  <div id="pond"></div>
+</main>
+
+<script type="module">
+  import { surface, attach } from "../dist/index.js";
+
+  // One shared body of water for the whole page.
+  const field = surface({ seed: 42, viscosity: 1, tension: 170 });
+
+  // -- 1: highlight bar ----------------------------------------------------
+  const reader = document.getElementById("reader");
+  const bar = document.getElementById("bar");
+  let barY = 0;
+  attach(bar, field, {
+    id: "bar",
+    ripple: false,
+    apply(el, motion) {
+      if (motion != null) barY = motion;
+      el.style.transform = `translateY(${barY.toFixed(2)}px)`;
+    },
+  });
+  bar.style.top = "0px"; // physics owns vertical position via transform
+  for (const p of reader.querySelectorAll("p")) {
+    p.addEventListener("click", () => {
+      const targetY = p.offsetTop - 8;
+      bar.style.height = `${p.offsetHeight + 16}px`;
+      bar.classList.add("on");
+      field.glideTo("bar", barY, targetY);
+    });
+  }
+
+  // -- 2: drag + release ---------------------------------------------------
+  const tank = document.getElementById("tank");
+  const pebble = document.getElementById("pebble");
+  let px = 0;
+  let held = false;
+  let lastX = 0;
+  let lastT = 0;
+  let vx = 0;
+  attach(pebble, field, {
+    id: "pebble",
+    axis: "x",
+    ripple: false,
+    apply(el, motion) {
+      if (!held && motion != null) px = motion;
+      const max = tank.clientWidth - 40 - 48;
+      px = Math.max(0, Math.min(max, px));
+      el.style.transform = `translateX(${px.toFixed(2)}px)`;
+    },
+  });
+  pebble.addEventListener("pointerdown", (e) => {
+    held = true;
+    pebble.classList.add("held");
+    pebble.setPointerCapture(e.pointerId);
+    lastX = e.clientX;
+    lastT = e.timeStamp;
+    vx = 0;
+  });
+  pebble.addEventListener("pointermove", (e) => {
+    if (!held) return;
+    const dx = e.clientX - lastX;
+    const dt = Math.max(1, e.timeStamp - lastT) / 1000;
+    vx = 0.7 * vx + 0.3 * (dx / dt);
+    px += dx;
+    lastX = e.clientX;
+    lastT = e.timeStamp;
+  });
+  pebble.addEventListener("pointerup", () => {
+    held = false;
+    pebble.classList.remove("held");
+    field.release("pebble", px, vx, "x");
+  });
+
+  // -- 3: disturbance ------------------------------------------------------
+  const pond = document.getElementById("pond");
+  for (let i = 0; i < 12; i++) {
+    const s = document.createElement("button");
+    s.className = "stone";
+    s.setAttribute("aria-label", "stone " + (i + 1));
+    pond.appendChild(s);
+    attach(s, field, { ripple: true }); // default writer: ripple offset only
+    s.addEventListener("click", () => {
+      const r = s.getBoundingClientRect();
+      field.disturb({ x: r.left + r.width / 2, y: r.top + r.height / 2 }, 14);
+    });
+  }
+</script>
+</body>
+</html>

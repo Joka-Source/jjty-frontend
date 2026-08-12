@@ -1,0 +1,156 @@
+diff --git a/src/main.js b/src/main.js
+index 618ad1b..c5e3ba1 100644
+--- a/src/main.js
++++ b/src/main.js
+@@ -5,6 +5,7 @@ import "./style.css";
+ import { tokenize, matchTranscript } from "./match.js";
+ import { DEFAULT_DOC, splitParagraphs } from "./doc.js";
+ import { createActEngine } from "./acts.js";
++import { glide, WATER } from "./water.js";
+ 
+ const article = document.getElementById("doc");
+ const marker = document.getElementById("marker");
+@@ -65,11 +66,55 @@ function blockFor(match) {
+   return best;
+ }
+ 
++// The marker moves through jt-water's medium: critically damped glides for
++// top and height, driven by one rAF loop. CSS no longer animates top/height.
++const markerMotion = {
++  top: 0,
++  height: 0,
++  placed: false, // first placement snaps; later ones glide
++  glides: null, // { top, height, startedAt } or null when at rest
++  raf: 0,
++};
++
++function stepMarker(ts) {
++  const g = markerMotion.glides;
++  if (!g) return;
++  const t = (ts - g.startedAt) / 1000;
++  const st = g.top.at(t);
++  const sh = g.height.at(t);
++  markerMotion.top = st.x;
++  markerMotion.height = sh.x;
++  marker.style.top = `${st.x.toFixed(2)}px`;
++  marker.style.height = `${sh.x.toFixed(2)}px`;
++  if (st.done && sh.done) {
++    markerMotion.glides = null;
++    return;
++  }
++  markerMotion.raf = requestAnimationFrame(stepMarker);
++}
++
+ function moveMarker(blockIdx) {
+   const p = state.blocks[blockIdx];
+   if (!p) return;
+-  marker.style.top = `${p.offsetTop - 8}px`;
+-  marker.style.height = `${p.offsetHeight + 16}px`;
++  const top = p.offsetTop - 8;
++  const height = p.offsetHeight + 16;
++  cancelAnimationFrame(markerMotion.raf);
++  if (!markerMotion.placed) {
++    // First appearance: no travel, just surface in place.
++    markerMotion.placed = true;
++    markerMotion.top = top;
++    markerMotion.height = height;
++    markerMotion.glides = null;
++    marker.style.top = `${top}px`;
++    marker.style.height = `${height}px`;
++  } else {
++    markerMotion.glides = {
++      top: glide(markerMotion.top, top, WATER),
++      height: glide(markerMotion.height, height, WATER),
++      startedAt: performance.now(),
++    };
++    markerMotion.raf = requestAnimationFrame(stepMarker);
++  }
+   marker.classList.add("on");
+ }
+ 
+diff --git a/src/style.css b/src/style.css
+index a4240ed..b744b13 100644
+--- a/src/style.css
++++ b/src/style.css
+@@ -111,10 +111,9 @@ article p {
+   background: color-mix(in srgb, var(--accent) 15%, transparent);
+   box-shadow: inset 2.5px 0 0 var(--accent);
+   opacity: 0;
+-  transition:
+-    top 0.6s cubic-bezier(0.22, 0.9, 0.3, 1),
+-    height 0.6s cubic-bezier(0.22, 0.9, 0.3, 1),
+-    opacity 0.45s ease;
++  /* top/height are driven by jt-water's glide (src/water.js) via rAF —
++     motion through a viscous medium, not a hand-drawn timing curve. */
++  transition: opacity 0.45s ease;
+   will-change: top, height;
+ }
+ 
+diff --git a/src/water.js b/src/water.js
+new file mode 100644
+index 0000000..25e65eb
+--- /dev/null
++++ b/src/water.js
+@@ -0,0 +1,62 @@
++// jt-water (vendored) — glide through a viscous medium.
++// Built from jt-water@0.1.0 (src/medium.ts + src/glide.ts, compiled to JS).
++// Do not edit here; edit in the jt-water repo and re-vendor.
++//
++// Model: critically damped motion, x'' = -omega^2 (x - to) - 2 omega x',
++// closed form x(t) = to + (A + B t) e^(-omega t) with an entry impulse
++// v0 = -entry * omega * A (entry < 1 => zero overshoot, analytically).
++
++export const WATER = Object.freeze({
++  viscosity: 1,
++  tension: 170,
++  entry: 0.85,
++  drag: 6,
++});
++
++export const REST_EPSILON = 0.05;
++
++export function omegaOf(m) {
++  return Math.sqrt(m.tension) / m.viscosity;
++}
++
++function settlingTime(A, B, omega, eps) {
++  if (Math.abs(A) < eps) return 0;
++  const a = Math.abs(A);
++  const b = Math.abs(B);
++  let t = Math.log(Math.max(a / eps, Math.E)) / omega;
++  for (let i = 0; i < 40; i++) {
++    const e = Math.exp(-omega * t);
++    const f = (a + b * t) * e - eps;
++    const df = (b - omega * (a + b * t)) * e;
++    if (df >= 0) {
++      t += 1 / omega;
++      continue;
++    }
++    const next = t - f / df;
++    if (!Number.isFinite(next) || next < 0) break;
++    if (Math.abs(next - t) < 1e-6) return next;
++    t = next;
++  }
++  return t;
++}
++
++export function glide(from, to, m = WATER) {
++  const omega = omegaOf(m);
++  const A = from - to;
++  const B = (1 - m.entry) * omega * A;
++  const duration = settlingTime(A, B, omega, REST_EPSILON);
++  return Object.freeze({
++    from,
++    to,
++    omega,
++    duration,
++    at(t) {
++      if (t <= 0) return { x: from, v: -m.entry * omega * A, done: A === 0 };
++      const e = Math.exp(-omega * t);
++      const x = to + (A + B * t) * e;
++      const v = (B - omega * (A + B * t)) * e;
++      const done = t >= duration;
++      return { x: done ? to : x, v: done ? 0 : v, done };
++    },
++  });
++}
