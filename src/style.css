@@ -629,3 +629,501 @@ article p.important {
     padding: 0.5rem 0;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   the shell: surfaces around the reading core. Same language — one accent,
+   soft panels, plain words. Surface changes arrive on jt-water motion
+   (surfaceArrive in src/motion.js), so no transition properties here. */
+
+/* only the reading surface shows the three-column layout */
+body:not([data-view="read"]) .layout {
+  display: none;
+}
+
+.topnav {
+  display: flex;
+  gap: 1rem;
+  align-items: baseline;
+}
+
+.topnav a {
+  color: var(--ink-dim);
+  text-decoration: none;
+  padding: 0.2rem 0.1rem;
+}
+
+.topnav a:hover {
+  color: var(--accent);
+}
+
+.topnav a[aria-current="page"] {
+  color: var(--ink);
+  font-weight: 600;
+  border-bottom: 2px solid var(--accent);
+}
+
+.voice-toggle {
+  font: inherit;
+  font-size: 0.72rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.voice-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.view {
+  font-family: system-ui, -apple-system, sans-serif;
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 4.4rem 1.2rem 3rem;
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.view h1 {
+  font-size: 1.15rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  margin: 0 0 0.7rem;
+}
+
+.view h2 {
+  font-size: 0.85rem;
+  text-transform: lowercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-dim);
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+
+.view button,
+.view select,
+.view input,
+.view textarea {
+  font: inherit;
+}
+
+.view button {
+  padding: 0.45rem 0.8rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.view button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.view input,
+.view select,
+.view textarea {
+  padding: 0.4rem 0.55rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.4rem 0;
+}
+
+.field span {
+  color: var(--ink-dim);
+  font-size: 0.8rem;
+  min-width: 6.5rem;
+}
+
+.field input,
+.field select {
+  flex: 1;
+  min-width: 0;
+}
+
+/* welcome */
+.view-welcome {
+  max-width: 34rem;
+  padding-top: 18vh;
+  text-align: left;
+}
+
+.welcome-brand {
+  font-family: Charter, Georgia, serif;
+  font-size: 2.2rem;
+  font-weight: 600;
+  margin: 0 0 1rem;
+}
+
+.welcome-lede {
+  font-family: Charter, Georgia, serif;
+  font-size: 1.05rem;
+  line-height: 1.65;
+  margin: 0 0 1rem;
+}
+
+.big-btn {
+  display: block;
+  width: 100%;
+  margin-top: 1.2rem;
+  padding: 0.8rem 1rem;
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--ink);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.big-btn:hover {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.quiet-btn {
+  display: block;
+  width: 100%;
+  margin-top: 0.6rem;
+  padding: 0.6rem 1rem;
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: none;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+
+.quiet-btn:hover {
+  color: var(--ink);
+  border-color: var(--ink-dim);
+}
+
+/* home */
+.home-doc-list {
+  list-style: none;
+  margin: 0 0 1.2rem;
+  padding: 0;
+}
+
+.home-doc {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 0.5rem 0.7rem;
+  margin-bottom: 0.55rem;
+}
+
+.home-doc .doc-btn {
+  font-size: 1rem;
+  font-family: Charter, Georgia, serif;
+  min-height: 32px;
+}
+
+.home-add {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+}
+
+.home-empty p:first-child {
+  font-family: Charter, Georgia, serif;
+  font-size: 1.05rem;
+}
+
+/* history surface */
+.history-all {
+  list-style: none;
+  margin: 0.8rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+
+/* sharing */
+.explain {
+  margin-top: 1rem;
+}
+
+.explain summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 0.82rem;
+}
+
+/* spaces */
+.early-badge {
+  font-size: 0.66rem;
+  font-weight: 500;
+  vertical-align: middle;
+  margin-left: 0.5rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--warm);
+  color: var(--warm);
+  letter-spacing: 0.03em;
+}
+
+.org-forms {
+  display: grid;
+  gap: 0.9rem;
+  margin: 1rem 0;
+}
+
+.org-form {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 0.8rem 0.9rem;
+}
+
+.org-form button[type="submit"] {
+  margin-top: 0.4rem;
+}
+
+.org-inst {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.8rem 0.9rem;
+  margin-bottom: 0.7rem;
+}
+
+.org-inst h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+
+.org-kind {
+  font-size: 0.68rem;
+  color: var(--ink-dim);
+  margin-left: 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.05rem 0.45rem;
+  font-weight: 400;
+}
+
+.org-space {
+  border-top: 1px solid var(--line);
+  padding: 0.5rem 0 0.2rem;
+  margin-top: 0.5rem;
+}
+
+.org-members {
+  list-style: none;
+  margin: 0.3rem 0 0;
+  padding: 0 0 0 0.8rem;
+  font-size: 0.82rem;
+  color: var(--ink-dim);
+}
+
+#org-error {
+  color: #b3462c;
+}
+
+/* settings */
+.setting {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 0.8rem 0.9rem;
+  margin-bottom: 0.8rem;
+}
+
+.choices {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.choice[aria-checked="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.danger {
+  margin-top: 0.8rem;
+}
+
+.danger:hover {
+  border-color: #b3462c;
+  color: #b3462c;
+}
+
+/* rooms */
+.room {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 0.8rem 0.9rem;
+  margin-bottom: 0.8rem;
+}
+
+.tryit {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.tryit input {
+  flex: 1;
+  min-width: 0;
+}
+
+.math-out {
+  margin-top: 0.6rem;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.6rem;
+  font-size: 0.85rem;
+  overflow-x: auto;
+}
+
+.room-soon {
+  font-size: 0.78rem;
+  color: var(--warm);
+  border-left: 2px solid var(--warm);
+  padding-left: 0.6em;
+}
+
+/* reading surface header */
+.doc-head {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.doc-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink-dim);
+}
+
+.doc-prov-btn {
+  font: inherit;
+  font-size: 0.7rem;
+  margin-left: 0.6rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: none;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+
+.doc-prov-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.doc-prov {
+  font-size: 0.72rem;
+  color: var(--ink-dim);
+  margin-top: 0.3rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.read-empty {
+  font-family: system-ui, -apple-system, sans-serif;
+  color: var(--ink-dim);
+  padding: 3rem 0;
+}
+
+.read-empty a {
+  color: var(--accent);
+}
+
+/* the "more" sheet exists only on phones */
+.more-sheet {
+  display: none;
+}
+
+.more-nav {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.more-nav a {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.more-nav a:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.tabbar .current {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+@media (max-width: 960px) {
+  .topnav {
+    display: none;
+  }
+
+  .view {
+    padding: 4rem 1rem calc(4.6rem + env(safe-area-inset-bottom));
+  }
+
+  .view-welcome {
+    padding-top: 12vh;
+  }
+
+  .more-sheet {
+    display: block;
+  }
+
+  body.sheet-more .scrim {
+    display: block;
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  body.sheet-more .panel.more-sheet {
+    transform: translateY(0);
+    visibility: visible;
+    transition: transform 0.28s ease;
+  }
+
+  /* thumb-sized targets on the new surfaces too */
+  .view button,
+  .view select,
+  .view input,
+  .choice,
+  .home-doc .doc-btn {
+    min-height: 44px;
+  }
+
+  .field {
+    flex-wrap: wrap;
+  }
+
+  .org-forms {
+    grid-template-columns: 1fr;
+  }
+}
+

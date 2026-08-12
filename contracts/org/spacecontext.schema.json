@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "jt-contracts/spacecontext/v0.1.0",
+  "title": "SpaceContext",
+  "description": "PROVISIONAL (pending founder WhatsApp handoff, 2026-08-12). The shape of the optional `spaceContext` field a moment-carrying record (Cursor, Receipt) may attach in a future minor revision, defined here as its own schema so the existing record schemas are not mutated. It says: this act happened in the flow of this space.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "spaceId"],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Version of this record's schema (semver: major.minor.patch)."
+    },
+    "spaceId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Id of the Space this act or moment belongs to."
+    },
+    "institutionId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Id of the Institution the space belongs to, denormalized for records that travel without the Space itself."
+    },
+    "cohortId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Id of the Cohort in whose flow the act happened, where relevant."
+    },
+    "visibility": {
+      "type": "string",
+      "enum": ["private", "space", "institution"],
+      "description": "How far within the structure the moment may be seen: only its owner, the space's members, or the whole institution."
+    }
+  }
+}

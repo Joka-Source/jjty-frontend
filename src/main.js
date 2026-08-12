@@ -27,8 +27,11 @@ import { createMarkerDriver, confirmRipple } from "./motion.js";
 import { ingestText, ingestPaste, ingestPdfBrowser, shortDigest, fmtBytes } from "./ingest.js";
 import { createSyncSurface } from "./sync.js";
 import { createActEngine } from "./acts.js";
-import { putDoc, getDocs, putInbox, getInbox } from "./db.js";
-import { rid, nowIso } from "./records.js";
+import { putDoc, getDocs, getRecords, putRecord, putInbox, getInbox } from "./db.js";
+import { rid, nowIso, makeActEntry } from "./records.js";
+import { loadSettings, MOTION_PARAMS } from "./settings.js";
+import { medium } from "../vendor/jt-water/index.js";
+import { initShell } from "./shell.js";
 
 const article = document.getElementById("doc");
 const marker = document.getElementById("marker");
@@ -49,7 +52,15 @@ const joinBtn = document.getElementById("join-btn");
 const inboxList = document.getElementById("inbox-list");
 const tabLibrary = document.getElementById("tab-library");
 const tabHistory = document.getElementById("tab-history");
+const tabMore = document.getElementById("tab-more");
 const sheetScrim = document.getElementById("sheet-scrim");
+const voiceToggle = document.getElementById("voice-toggle");
+const docHead = document.getElementById("doc-head");
+const docTitle = document.getElementById("doc-title");
+const docProvBtn = document.getElementById("doc-prov-btn");
+const docProv = document.getElementById("doc-prov");
+const readEmpty = document.getElementById("read-empty");
+const micHint = document.getElementById("mic-hint");
 
 // ---------------------------------------------------------------------------
 // Phone layout: on a narrow screen the two side panels become slide-over
@@ -62,30 +73,50 @@ const narrowScreen = matchMedia("(max-width: 960px)");
 function currentSheet() {
   if (document.body.classList.contains("sheet-library")) return "library";
   if (document.body.classList.contains("sheet-history")) return "history";
+  if (document.body.classList.contains("sheet-more")) return "more";
   return null;
 }
 
 function setSheet(which) {
   document.body.classList.toggle("sheet-library", which === "library");
   document.body.classList.toggle("sheet-history", which === "history");
+  document.body.classList.toggle("sheet-more", which === "more");
   tabLibrary.setAttribute("aria-expanded", String(which === "library"));
   tabHistory.setAttribute("aria-expanded", String(which === "history"));
+  tabMore.setAttribute("aria-expanded", String(which === "more"));
 }
 
-tabLibrary.addEventListener("click", () =>
-  setSheet(currentSheet() === "library" ? null : "library")
-);
-tabHistory.addEventListener("click", () =>
-  setSheet(currentSheet() === "history" ? null : "history")
-);
+/** The documents / what-happened buttons open sheets over the reading
+ * surface; from any other surface they first bring the reading back. */
+function sheetTab(which) {
+  if (document.body.dataset.view !== "read") {
+    shell?.show("read");
+    setSheet(which);
+    return;
+  }
+  setSheet(currentSheet() === which ? null : which);
+}
+
+tabLibrary.addEventListener("click", () => sheetTab("library"));
+tabHistory.addEventListener("click", () => sheetTab("history"));
+tabMore.addEventListener("click", () => setSheet(currentSheet() === "more" ? null : "more"));
 sheetScrim.addEventListener("click", () => setSheet(null));
 
 const params = new URLSearchParams(location.search);
 const SIM = params.get("sim") === "1";
+const settings = loadSettings();
 // wasm is the default engine — parity with the JS reference matcher is
-// proven by test/parity.test.mjs; ?engine=js opts back into the reference.
-const ENGINE_MODE = params.get("engine") === "js" ? "js" : "wasm";
+// proven by test/parity.test.mjs; ?engine=js (or the setting) opts back
+// into the reference implementation.
+const ENGINE_MODE = (params.get("engine") ?? settings.engine) === "js" ? "js" : "wasm";
 const RELAY_URL = params.get("relay") || "ws://127.0.0.1:8787";
+
+/** The motion setting picks the water: same physics, different medium. */
+const motionParams = () => MOTION_PARAMS[settings.motion] ?? MOTION_PARAMS.usual;
+const markerMedium = () => {
+  const p = motionParams();
+  return medium({ viscosity: 0.9, tension: p.tension, entry: p.entry, drag: 6 });
+};
 
 const state = {
   doc: null, // { id, title, text, blocks?, provenance?, createdAt, revision }
@@ -100,8 +131,9 @@ const state = {
   pendingAsk: null, // { candidates, reason, evidence }
 };
 
-const markerDriver = createMarkerDriver(marker);
+const markerDriver = createMarkerDriver(marker, markerMedium);
 const intentStream = new IntentStream();
+let shell = null; // the surface router (initShell) — set during boot
 
 function setStatus(on, text) {
   statusDot.classList.toggle("on", on);
@@ -189,60 +221,73 @@ function spanLabel(e) {
     : `block ${e.blockIndex}`;
 }
 
-function renderHistory(entries) {
-  historyList.textContent = "";
-  for (const e of [...entries].reverse()) {
-    const li = document.createElement("li");
-    li.className = `entry ${e.kind}${e.undone ? " struck" : ""}`;
-    const head = document.createElement("div");
-    head.className = "entry-head";
-    const title = document.createElement("strong");
-    title.textContent = `${ACT_TITLES[e.act] ?? e.act} — ${spanLabel(e)}`;
-    head.appendChild(title);
-    const time = document.createElement("span");
-    time.className = "entry-time";
-    time.textContent = fmtTime(e.createdAt);
-    head.appendChild(time);
-    li.appendChild(head);
+/** Build the DOM for one history entry. Shared by the reading-side panel
+ * and the full what-happened surface (which passes its own undo handler). */
+function entryNode(e, { onUndo, onSend } = {}) {
+  const li = document.createElement("li");
+  li.className = `entry ${e.kind}${e.undone ? " struck" : ""}`;
+  const head = document.createElement("div");
+  head.className = "entry-head";
+  const title = document.createElement("strong");
+  title.textContent = `${ACT_TITLES[e.act] ?? e.act} — ${spanLabel(e)}`;
+  head.appendChild(title);
+  const time = document.createElement("span");
+  time.className = "entry-time";
+  time.textContent = fmtTime(e.createdAt);
+  head.appendChild(time);
+  li.appendChild(head);
 
-    const ev = document.createElement("div");
-    ev.className = "entry-evidence";
-    const bits = [];
-    if (e.evidence) bits.push(`heard: “${e.evidence}”`);
-    if (e.matchedText) bits.push(`matched: “${e.matchedText}”`);
-    if (e.confidence != null) bits.push(`match ${Math.round(e.confidence * 100)}%`);
-    if (e.noteText) bits.push(`note: “${e.noteText}”`);
-    if (e.undoes) bits.push(`reverses ${e.undoes}`);
-    ev.textContent = bits.join(" · ");
-    li.appendChild(ev);
+  const ev = document.createElement("div");
+  ev.className = "entry-evidence";
+  const bits = [];
+  if (e.evidence) bits.push(`heard: “${e.evidence}”`);
+  if (e.matchedText) bits.push(`matched: “${e.matchedText}”`);
+  if (e.confidence != null) bits.push(`match ${Math.round(e.confidence * 100)}%`);
+  if (e.noteText) bits.push(`note: “${e.noteText}”`);
+  if (e.undoes) bits.push(`reverses ${e.undoes}`);
+  ev.textContent = bits.join(" · ");
+  li.appendChild(ev);
 
-    const det = document.createElement("details");
-    const sum = document.createElement("summary");
-    sum.textContent = "full record";
-    det.appendChild(sum);
-    const pre = document.createElement("pre");
-    pre.textContent = JSON.stringify({ cursor: e.cursor, receipt: e.receipt }, null, 2);
-    det.appendChild(pre);
-    li.appendChild(det);
+  const det = document.createElement("details");
+  const sum = document.createElement("summary");
+  sum.textContent = "full record";
+  det.appendChild(sum);
+  const pre = document.createElement("pre");
+  pre.textContent = JSON.stringify({ cursor: e.cursor, receipt: e.receipt }, null, 2);
+  det.appendChild(pre);
+  li.appendChild(det);
 
-    if (e.kind === "act" && !e.undone) {
-      const btn = document.createElement("button");
-      btn.className = "undo-btn";
-      btn.textContent = "undo";
-      btn.addEventListener("click", () =>
-        engine.undo(e.id, { modality: "pointer", evidence: "undo button clicked" })
-      );
-      li.appendChild(btn);
+  if (e.kind === "act" && !e.undone) {
+    const btn = document.createElement("button");
+    btn.className = "undo-btn";
+    btn.textContent = "undo";
+    btn.addEventListener("click", () => onUndo?.(e));
+    li.appendChild(btn);
 
+    if (onSend) {
       const send = document.createElement("button");
       send.className = "send-btn";
       send.textContent = "send";
       send.title = "send this act to the connected device";
-      send.addEventListener("click", () => sendEntry(e.id));
+      send.addEventListener("click", () => onSend(e));
       li.appendChild(send);
     }
-    historyList.appendChild(li);
   }
+  return li;
+}
+
+function renderHistory(entries) {
+  historyList.textContent = "";
+  for (const e of [...entries].reverse()) {
+    historyList.appendChild(
+      entryNode(e, {
+        onUndo: (entry) =>
+          engine.undo(entry.id, { modality: "pointer", evidence: "undo button clicked" }),
+        onSend: (entry) => sendEntry(entry.id),
+      })
+    );
+  }
+  shell?.historyChanged();
 }
 
 // ---------------------------------------------------------------------------
@@ -252,7 +297,7 @@ const engine = createActEngine({
   getBlocks: () => state.blocks,
   getDoc: () => state.doc,
   onChange: renderHistory,
-  onApply: (p) => confirmRipple(p),
+  onApply: (p) => confirmRipple(p, { energy: motionParams().energy }),
 });
 
 // ---------------------------------------------------------------------------
@@ -438,13 +483,50 @@ async function refreshLibrary() {
     }
     docList.appendChild(li);
   }
+  shell?.libraryChanged();
 }
 
-async function openDocument(doc) {
+/** The reading surface's header: title + a tap-to-open provenance line. */
+function renderDocHead(doc) {
+  if (!doc) {
+    docHead.hidden = true;
+    readEmpty.hidden = false;
+    micHint.hidden = true;
+    return;
+  }
+  readEmpty.hidden = true;
+  micHint.hidden = false;
+  docHead.hidden = false;
+  docTitle.textContent = doc.title;
+  const p = doc.provenance;
+  docProvBtn.hidden = !p;
+  docProv.hidden = true;
+  docProvBtn.setAttribute("aria-expanded", "false");
+  if (p) {
+    docProv.textContent = [
+      `came in as ${p.sourceKind}`,
+      p.pageCount ? `${p.pageCount} pages` : "",
+      fmtBytes(p.byteSize),
+      `fingerprint ${shortDigest(p.contentDigest)}`,
+      `captured ${fmtTime(p.capturedAt)}`,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  }
+}
+
+docProvBtn.addEventListener("click", () => {
+  docProv.hidden = !docProv.hidden;
+  docProvBtn.setAttribute("aria-expanded", String(!docProv.hidden));
+});
+
+async function openDocument(doc, { navigate = true } = {}) {
   await renderDoc(doc);
   await engine.load(doc.id);
+  renderDocHead(doc);
   await refreshLibrary();
   if (narrowScreen.matches) setSheet(null); // picking a document closes the sheet
+  if (navigate) shell?.show("read");
   setStatus(true, `open: ${doc.title}`);
 }
 
@@ -562,6 +644,8 @@ function renderInbox() {
     li.appendChild(det);
     inboxList.appendChild(li);
   }
+  const empty = document.getElementById("inbox-empty");
+  if (empty) empty.hidden = inbox.length > 0;
 }
 
 const sync = createSyncSurface({
@@ -641,16 +725,33 @@ async function sendSpoken(cmd) {
 }
 
 // ---------------------------------------------------------------------------
-// Live mic
+// Live mic — one permission ask, then a small state machine the header
+// reflects honestly: listening / paused / voice off / blocked / unavailable.
+
+const mic = { state: "off", stop: null };
+
+function setMicState(state, statusMsg, on = state === "listening") {
+  mic.state = state;
+  if (statusMsg) setStatus(on, statusMsg);
+  if (SIM) return;
+  const label = {
+    off: "turn on voice",
+    listening: "pause listening",
+    paused: "resume listening",
+  }[state];
+  voiceToggle.hidden = !label;
+  if (label) voiceToggle.textContent = label;
+  shell?.micChanged(state);
+}
 
 function startMic() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) {
-    setStatus(false, "speech recognition unavailable — open in Chrome, or append ?sim=1");
+    setMicState("unavailable", "this browser cannot listen yet — jt still reads; try Chrome for voice", false);
     return;
   }
   const denied = () =>
-    setStatus(false, "microphone denied — reload and allow, or append ?sim=1");
+    setMicState("denied", "the microphone is blocked — allow it in the browser's site settings, then reload", false);
   navigator.mediaDevices
     .getUserMedia({ audio: true })
     .then((stream) => {
@@ -658,7 +759,7 @@ function startMic() {
       const rec = new SR();
       rec.continuous = true;
       rec.interimResults = true;
-      rec.lang = "en-US";
+      rec.lang = settings.lang;
       let alive = true;
       let finalized = 0; // how many final results we've already handled
       rec.onresult = (e) => {
@@ -687,11 +788,30 @@ function startMic() {
           denied();
         }
       };
+      mic.stop = () => {
+        alive = false;
+        try {
+          rec.stop();
+        } catch {
+          /* already stopped */
+        }
+      };
       rec.start();
-      setStatus(true, "listening — read a line, then speak an act");
+      settings.set("mic", "on");
+      setMicState("listening", "listening — read a line, then speak an act");
     })
     .catch(denied);
 }
+
+function pauseMic() {
+  mic.stop?.();
+  setMicState("paused", "paused — jt is not listening until you resume", false);
+}
+
+voiceToggle.addEventListener("click", () => {
+  if (mic.state === "listening") pauseMic();
+  else startMic(); // off or paused: (re)start — permission is already remembered
+});
 
 // ---------------------------------------------------------------------------
 // Sim (?sim=1): scripted transcript through the same pipeline. ?fast=1 for
@@ -804,12 +924,45 @@ window.__jtApp = {
   engineKind: () => state.engineKind,
   sheet: () => currentSheet(),
   setSheet,
+  // shell hooks (headless drivers)
+  view: () => document.body.dataset.view,
+  showView: (v) => shell?.show(v),
+  micState: () => mic.state,
+  exportData: () => shell?.exportData(),
+  perform: (act, blockIndex, opts) => engine.perform(act, blockIndex, { modality: "pointer", evidence: "test hook", ...opts }),
 };
 
 // ---------------------------------------------------------------------------
 // Boot
 
 async function boot() {
+  shell = initShell({
+    settings,
+    SIM,
+    engineState: () => ({ kind: state.engineKind, mode: ENGINE_MODE }),
+    currentDoc: () => state.doc,
+    getDocs,
+    getRecords,
+    putRecord,
+    makeActEntry,
+    getInbox: () => inbox,
+    engine,
+    entryNode,
+    openDocument,
+    ingestFile,
+    addIngested,
+    addDocument,
+    ingestPaste,
+    starterDoc: STARTER_DOC,
+    startMic,
+    micState: () => mic.state,
+    setStatus,
+    shortDigest,
+    fmtBytes,
+    fmtTime,
+    setSheet,
+  });
+
   try {
     for (const item of await getInbox()) inbox.push(item);
     if (inbox.length) renderInbox();
@@ -817,17 +970,31 @@ async function boot() {
     /* first run */
   }
   if (SIM) {
+    settings.set("welcomed", true);
+    shell.show("read", { silent: true });
+    window.__jtApp.booted = true;
     await startSim();
     return;
   }
+
   const docs = await getDocs();
   if (docs.length) {
     const latest = docs.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
-    await openDocument(latest);
+    await openDocument(latest, { navigate: false });
   } else {
-    await addDocument(STARTER_DOC, "a short lease");
+    renderDocHead(null); // designed empty reading surface
+    await refreshLibrary();
   }
-  startMic();
+
+  if (!settings.welcomed) {
+    shell.show("welcome", { silent: true });
+    setStatus(false, "welcome");
+  } else {
+    shell.route(); // honor the hash, or land home
+    if (settings.mic === "on") startMic();
+    else setMicState("off", "voice is off — reading works; speaking waits for you", false);
+  }
+  window.__jtApp.booted = true;
 }
 
 boot();
