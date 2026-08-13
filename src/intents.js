@@ -7,15 +7,9 @@
 // returned as {type:"ask"} and the app must ask the person.
 
 import { IntentStream } from "../vendor/jt-speech/index.js";
+import { verbRegistry } from "./registry/index.js";
 
 export { IntentStream };
-
-/** jt-speech intent name -> jt-web act name (for single-block acts). */
-export const INTENT_TO_ACT = {
-  "highlight.this": "highlight",
-  "annotate.this": "note",
-  "mark.important": "important",
-};
 
 /**
  * Map one jt-speech IntentEvent to an app-level command.
@@ -43,62 +37,15 @@ export function toCommand(ev) {
     };
   }
   const evidence = ev.sourceSpan.text;
-  const confidence = ev.confidence;
-  switch (ev.intent) {
-    case "highlight.this":
-      return { type: "act", act: "highlight", evidence, confidence };
-    case "mark.important":
-      return { type: "act", act: "important", evidence, confidence };
-    case "annotate.this":
-      return { type: "act", act: "note", noteText: ev.args.note ?? "", evidence, confidence };
-    case "highlight.range":
-      return {
-        type: "range",
-        fromAnchor: ev.args.fromAnchor,
-        toAnchor: ev.args.toAnchor,
-        evidence,
-        confidence,
-      };
-    case "undo":
-      return { type: "undo", evidence };
-    case "acts.show":
-      return { type: "show", evidence };
-    case "document.open":
-      return { type: "open", documentName: ev.args.documentName ?? "", evidence };
-    case "document.return":
-      return { type: "return", documentName: ev.args.documentName ?? "", evidence };
-    case "send.to":
-      return { type: "send", recipient: ev.args.recipient ?? "", evidence };
-    default:
-      return { type: "reading", text: evidence };
-  }
+  const verb = verbRegistry.forIntent(ev.intent);
+  if (!verb?.commandFromIntent) return { type: "reading", text: evidence };
+  return verb.commandFromIntent(ev, evidence, ev.confidence);
 }
 
 /** Plain-words label for a disambiguation candidate ("did you mean…"). */
 export function describeCandidate(cand) {
   if (cand.type === "reading") return "nothing — I was just reading";
-  switch (cand.intent) {
-    case "highlight.this":
-      return "highlight this block";
-    case "mark.important":
-      return "mark this block important";
-    case "annotate.this":
-      return `add the note “${cand.args.note ?? ""}”`;
-    case "highlight.range":
-      return `highlight from “${cand.args.fromAnchor}” to “${cand.args.toAnchor}”`;
-    case "undo":
-      return "undo the last act";
-    case "acts.show":
-      return "show what you have done";
-    case "document.open":
-      return `open “${cand.args.documentName ?? ""}”`;
-    case "document.return":
-      return cand.args.documentName
-        ? `go back to “${cand.args.documentName}”`
-        : "go back to where I was";
-    case "send.to":
-      return `send this to “${cand.args.recipient ?? ""}”`;
-    default:
-      return cand.intent;
-  }
+  const verb = verbRegistry.forIntent(cand.intent);
+  if (!verb) return cand.intent;
+  return verb.describeIntent?.(cand.args ?? {}) ?? verb.description;
 }

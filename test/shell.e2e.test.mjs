@@ -288,7 +288,7 @@ test("phone shell walk: bottom bar reaches everything, sheets, 44px targets, no 
   );
   assert.deepEqual(
     moreLinks.map((l) => l.href),
-    ["#/share", "#/spaces", "#/settings", "#/rooms"]
+    ["#/share", "#/spaces", "#/settings", "#/capabilities", "#/rooms"]
   );
   for (const l of moreLinks) assert.ok(l.h >= 44, `more link ${l.href} too small: ${l.h}px`);
 

@@ -9,6 +9,7 @@ import { MomentChannel } from "../vendor/jt-sync/client.js";
 import { MemoryLogStore } from "../vendor/jt-sync/log.js";
 import { isValidPairCode } from "../vendor/jt-sync/pairing.js";
 import { contentDigest } from "../vendor/jt-connectors/index.js";
+import { verbRegistry } from "./registry/index.js";
 
 export { isValidPairCode };
 
@@ -31,22 +32,15 @@ export async function momentFromEntry(entry, doc, blockTexts) {
   const from = entry.blockIndex;
   const to = entry.blockEnd ?? entry.blockIndex;
   const blocks = [];
+  const verb = verbRegistry.resolve(entry.verbId ?? entry.act);
   for (let i = from; i <= to; i++) {
-    if (entry.act === "math") {
-      blocks.push({
-        kind: "math",
-        content: entry.mathLatex,
-        spoken: entry.mathSpeech,
-        unparsed: [...(entry.mathUnparsed ?? [])],
-        anchorId: `anc-${doc.id}-b${i}`,
-      });
-    } else {
-      blocks.push({
+    blocks.push(
+      verb?.momentBlock?.(entry, { document: doc, blockIndex: i, blockTexts }) ?? {
         kind: "text",
         content: blockTexts[i] ?? "",
         anchorId: `anc-${doc.id}-b${i}`,
-      });
-    }
+      },
+    );
   }
   const sourceDigest = doc.provenance?.contentDigest ?? (await contentDigest(doc.text ?? ""));
   return {

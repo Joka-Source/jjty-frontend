@@ -4,6 +4,8 @@
 // contracts/receipt.schema.json (additionalProperties: false — nothing extra
 // may ride along on these).
 
+import { verbRegistry } from "./registry/index.js";
+
 export const SCHEMA_VERSION = "0.1.0";
 
 export function nowIso() {
@@ -107,15 +109,6 @@ export function makeReceipt({
   };
 }
 
-/** Plain-words labels for the three acts plus undo. Used in UI and records. */
-export const ACT_LABELS = {
-  highlight: "highlight the selected text",
-  important: "mark the selected text important",
-  note: "attach a spoken note to the selected text",
-  math: "keep spoken mathematics",
-  undo: "undo a previous act",
-};
-
 /**
  * Build the full app-level history entry for an act: wrapper + schema-pure
  * cursor and receipt. `undoes` is the id of the entry being reversed, for
@@ -127,6 +120,7 @@ export function makeActEntry({
   blockIndex,
   blockEnd = null, // inclusive range end, for two-anchor highlights
   act, // "highlight" | "important" | "note" | "undo"
+  verbId = null,
   modality,
   evidence,
   confidence = null,
@@ -141,6 +135,9 @@ export function makeActEntry({
   undoes = null,
   at = nowIso(),
 }) {
+  const verb = verbRegistry.resolve(verbId ?? act);
+  if (!verb?.recordAct) throw new TypeError(`unknown record verb: ${verbId ?? act}`);
+  const storedAct = verb.recordAct;
   const resolvedArrival = arrival ?? (anchor ? "exact" : "approximate");
   const span =
     blockEnd != null && blockEnd !== blockIndex
@@ -149,12 +146,8 @@ export function makeActEntry({
   const target = anchor?.quotedText
     ? `“${anchor.quotedText}” in block ${blockIndex}`
     : span;
-  const intention =
-    act === "undo"
-      ? `undo the act recorded as ${undoes}`
-      : act === "math"
-        ? `${ACT_LABELS.math} at ${target}`
-        : `${ACT_LABELS[act]} (${target})`;
+  const wording = { target, span, undoes, noteText, mathLatex };
+  const intention = verb.recordDescription(wording);
   const cursor = makeCursor({
     docId,
     revision,
@@ -170,16 +163,7 @@ export function makeActEntry({
     at,
   });
   const actionId = rid("act");
-  const result =
-    act === "highlight"
-      ? `${target} highlighted`
-      : act === "important"
-        ? `${span} marked important`
-      : act === "note"
-          ? `note attached to ${span}: "${noteText}"`
-          : act === "math"
-            ? `mathematics kept at ${span}: ${mathLatex}`
-          : `act ${undoes} reversed; ${span} restored`;
+  const result = verb.recordResult(wording);
   const receipt = makeReceipt({
     docId,
     revision,
@@ -187,17 +171,15 @@ export function makeActEntry({
     actionId,
     result,
     arrival: resolvedArrival,
-    undoRoute:
-      act === "undo"
-        ? "redo by performing the original act again"
-        : "undo from the history panel",
+    undoRoute: verb.undoRoute ?? "undo from the history panel",
     at,
   });
   const entry = {
     id: rid("evt"),
     docId,
-    kind: act === "undo" ? "undo" : "act",
-    act,
+    kind: verb.historyKind ?? "act",
+    act: storedAct,
+    verbId: verb.id,
     blockIndex,
     blockEnd,
     modality,
@@ -215,11 +197,7 @@ export function makeActEntry({
     cursor,
     receipt,
   };
-  if (act === "math") {
-    entry.mathSpeech = mathSpeech;
-    entry.mathLatex = mathLatex;
-    entry.mathUnparsed = [...mathUnparsed];
-  }
+  verb.extendEntry?.(entry, { mathSpeech, mathLatex, mathUnparsed });
   return entry;
 }
 
@@ -233,44 +211,12 @@ export function makeReturnEntry({
   matchedText = "",
   at = nowIso(),
 }) {
-  const cursor = makeCursor({
-    docId,
-    revision,
-    blockIndex,
-    modality,
-    evidence,
-    intention: `return to block ${blockIndex}`,
-    at,
-  });
-  cursor.state = "return";
-  cursor.undoAvailable = false;
-  cursor.repairRoute = "open the document and choose another block";
-  const receipt = makeReceipt({
-    docId,
-    revision,
-    blockIndex,
-    actionId: rid("act"),
-    result: `returned to block ${blockIndex}`,
-    arrival: "exact",
-    undoRoute: "read or choose another block",
-    at,
-  });
-  return {
-    id: rid("evt"),
-    docId,
-    kind: "return",
-    act: "return",
-    blockIndex,
-    blockEnd: null,
-    modality,
-    evidence,
-    confidence: null,
-    matchedText,
-    noteText: "",
-    undone: false,
-    undoes: null,
-    createdAt: at,
-    cursor,
-    receipt,
-  };
+  const verb = verbRegistry.get("return");
+  if (typeof verb?.createReturnEntry !== "function") {
+    throw new TypeError("return verb cannot create its record");
+  }
+  return verb.createReturnEntry(
+    { docId, revision, blockIndex, modality, evidence, matchedText, at },
+    { makeCursor, makeReceipt, rid },
+  );
 }

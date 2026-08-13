@@ -23,6 +23,7 @@
         <a href="#/share" data-view-link="share">sharing</a>
         <a href="#/spaces" data-view-link="spaces">spaces</a>
         <a href="#/settings" data-view-link="settings">settings</a>
+        <a href="#/capabilities" data-view-link="capabilities">capabilities</a>
         <a href="#/rooms" data-view-link="rooms">what&rsquo;s coming</a>
       </nav>
       <span class="status">
@@ -237,10 +238,21 @@
       <button id="install-hint-dismiss" type="button">not now</button>
     </aside>
 
+    <section class="view" id="view-capabilities" hidden>
+      <h1>capabilities</h1>
+      <p class="hint">this page is made from the live verb registry. real, partial, and designed work appears here from the same source the app executes.</p>
+      <div id="capability-list" class="capability-list"></div>
+    </section>
+
     <!-- honest rooms: designed surfaces for what is not built yet -->
     <section class="view" id="view-rooms" hidden>
       <h1>what&rsquo;s coming</h1>
       <p class="hint">these are designed and on the way. nothing here pretends to work before it does.</p>
+      <div class="room designed-room" id="designed-room">
+        <h2>designed capability rooms</h2>
+        <p class="hint">open a designed entry on the <a href="#/capabilities">capabilities page</a> to see exactly what belongs here.</p>
+        <p class="room-soon">designed &mdash; not built.</p>
+      </div>
       <div class="room">
         <h2>spoken mathematics</h2>
         <p class="hint">
@@ -254,16 +266,6 @@
         </div>
         <pre id="math-out" class="math-out" hidden></pre>
         <p class="hint" id="math-note" hidden></p>
-      </div>
-      <div class="room">
-        <h2>carry your place across devices</h2>
-        <p class="hint">
-          stand up from your desk mid-page, and your phone opens to the very
-          line you were reading. the records that make this possible already
-          exist &mdash; each act knows its document and its place in it. the
-          hand-over between devices is what we are building now.
-        </p>
-        <p class="room-soon">not built yet &mdash; this page will become that switch.</p>
       </div>
     </section>
 
@@ -350,6 +352,7 @@
         <a href="#/share">sharing</a>
         <a href="#/spaces">spaces</a>
         <a href="#/settings">settings</a>
+        <a href="#/capabilities">capabilities</a>
         <a href="#/rooms">what&rsquo;s coming</a>
       </nav>
     </aside>

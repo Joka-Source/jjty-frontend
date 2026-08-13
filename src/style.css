@@ -1238,6 +1238,59 @@ body:not([data-view="read"]) .layout {
 }
 
 /* rooms */
+.capability-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: 0.75rem;
+}
+
+.capability-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 0.8rem 0.9rem;
+}
+
+.capability-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.capability-name {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.capability-status {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 0.12rem 0.45rem;
+  font-size: 0.68rem;
+  line-height: 1;
+}
+
+.status-real { color: var(--accent); }
+.status-partial { color: var(--warm); }
+.status-designed { color: var(--ink-dim); }
+
+.capability-description,
+.capability-spoken,
+.capability-records {
+  margin: 0.5rem 0 0;
+}
+
+.capability-spoken,
+.capability-records {
+  color: var(--ink-dim);
+  font-size: 0.76rem;
+}
+
+.capability-open {
+  margin-top: 0.65rem;
+}
+
 .room {
   border: 1px solid var(--line);
   border-radius: 10px;
