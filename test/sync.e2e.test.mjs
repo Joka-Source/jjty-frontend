@@ -119,4 +119,10 @@ test("moment-send: pair two pages by spoken words, send a kept act, verify", { t
   // And B's inbox UI says so in plain words.
   const badge = await pageB.$eval("#inbox-list .badge.ok", (n) => n.textContent);
   assert.equal(badge, "verified");
+  const spaceAction = await pageB.$eval("#inbox-list .space-picker", (node) => node.textContent);
+  assert.match(
+    spaceAction,
+    /choose who you are in spaces before sending here/i,
+    "an arrived moment should expose the same send-to-space action as a kept act",
+  );
 });

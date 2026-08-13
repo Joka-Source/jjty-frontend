@@ -23,4 +23,11 @@ What's fused in (see `vendor/`, one directory per sibling repo):
   device as a full moment, hash-verified on arrival (relay:
   `npm run relay` in jt-sync; point the app at it with `?relay=ws://…`)
 
+Spaces are **PROVISIONAL**. A person can send any kept act or arrived moment
+to a space they belong to, inspect its arrival-ordered local feed, and keep an
+excerpt as a document with the source moment intact. Say "send this to
+<space name>" for fuzzy voice routing; close names always require a choice.
+Space feeds stay on this device until cross-device space sync arrives with the
+relay.
+
 Records conform to the schemas vendored in `contracts/` (from jt-contracts).
