@@ -11,7 +11,19 @@
 // Default engine: wasm (parity proven); ?engine=js forces the reference
 // matcher; if wasm fails to load the app falls back to js and says so.
 
-import { tokenize, matchTranscript } from "./match.js";
+import { tokenize, matchTranscript, matchTranscriptCandidates } from "./match.js";
+
+function documentTokens(blockTexts) {
+  const docTokens = [];
+  const tokenBlock = [];
+  for (const [i, text] of blockTexts.entries()) {
+    for (const tok of tokenize(text)) {
+      docTokens.push(tok);
+      tokenBlock.push(i);
+    }
+  }
+  return { docTokens, tokenBlock };
+}
 
 /** Majority block over a token range; first-seen wins ties (JS reference). */
 export function blockForRange(tokenBlock, start, end) {
@@ -33,14 +45,7 @@ export function blockForRange(tokenBlock, start, end) {
 
 /** The reference JS engine over a list of block texts. */
 export function createJsEngine(blockTexts) {
-  const docTokens = [];
-  const tokenBlock = [];
-  for (const [i, text] of blockTexts.entries()) {
-    for (const tok of tokenize(text)) {
-      docTokens.push(tok);
-      tokenBlock.push(i);
-    }
-  }
+  const { docTokens, tokenBlock } = documentTokens(blockTexts);
   let lastIndex = -1;
   return {
     kind: "js",
@@ -51,9 +56,13 @@ export function createJsEngine(blockTexts) {
         lastIndex: lastIndex >= 0 ? lastIndex : undefined,
       });
       if (!m) return null;
+      const candidates = matchTranscriptCandidates(docTokens, fullTranscript, {
+        lastIndex: lastIndex >= 0 ? lastIndex : undefined,
+        limit: 6,
+      });
       lastIndex = m.end;
       const blockIndex = blockForRange(tokenBlock, m.start, m.end);
-      return { blockIndex, confidence: m.score, start: m.start, end: m.end };
+      return { blockIndex, confidence: m.score, start: m.start, end: m.end, candidates };
     },
     reset() {
       lastIndex = -1;
@@ -81,20 +90,29 @@ async function loadWasm() {
 export async function createWasmEngine(blockTexts) {
   const mod = await loadWasm();
   const engine = new mod.Engine(JSON.stringify(blockTexts));
+  const { docTokens } = documentTokens(blockTexts);
+  let lastIndex = -1;
   return {
     kind: "wasm",
     follow(fullTranscript) {
       const m = engine.match_update(fullTranscript);
       if (m == null) return null;
-      return {
+      const result = {
         blockIndex: m.blockIndex,
         confidence: m.confidence,
         start: m.tokenStart,
         end: m.tokenEnd,
+        candidates: matchTranscriptCandidates(docTokens, fullTranscript, {
+          lastIndex: lastIndex >= 0 ? lastIndex : undefined,
+          limit: 6,
+        }),
       };
+      lastIndex = m.tokenEnd;
+      return result;
     },
     reset() {
       engine.reset_position();
+      lastIndex = -1;
     },
   };
 }

@@ -165,8 +165,19 @@ article p {
   /* opacity is written by jt-water in src/motion.js; no CSS transition */
 }
 
-article p.hl {
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
+mark.jt-highlight {
+  color: inherit;
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  border-radius: 0.16em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  padding: 0.04em 0.08em;
+}
+
+article p.hl-fallback {
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  outline: 1px dashed color-mix(in srgb, var(--accent) 52%, transparent);
+  outline-offset: 2px;
 }
 
 article p.important {
@@ -201,8 +212,10 @@ article p.important {
 
 #marker {
   position: absolute;
-  left: -0.4rem;
-  right: -0.4rem;
+  left: 0;
+  width: 0;
+  height: 0;
+  z-index: 1;
   border-radius: 8px;
   background: color-mix(in srgb, var(--accent) 9%, transparent);
   border-left: 3px solid var(--accent);
@@ -583,8 +596,7 @@ article p.important {
 
   /* keep the marker inside the viewport — no horizontal scroll */
   #marker {
-    left: 0.35rem;
-    right: 0.35rem;
+    max-width: calc(100% - 0.7rem);
   }
 
   .mic-hint {

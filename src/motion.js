@@ -63,29 +63,44 @@ export function createGlider(initial = 0, m = MARKER_MEDIUM, now = () => perform
  */
 export function createMarkerDriver(el, mediumOf = () => MARKER_MEDIUM) {
   const top = createGlider(0, mediumOf);
+  const left = createGlider(0, mediumOf);
+  const width = createGlider(0, mediumOf);
   const height = createGlider(0, mediumOf);
   let raf = 0;
   let placed = false;
 
   function frame() {
     const a = top.sample();
-    const b = height.sample();
+    const b = left.sample();
+    const c = width.sample();
+    const d = height.sample();
     el.style.top = `${a.x.toFixed(2)}px`;
-    el.style.height = `${b.x.toFixed(2)}px`;
-    raf = a.done && b.done ? 0 : requestAnimationFrame(frame);
+    el.style.left = `${b.x.toFixed(2)}px`;
+    el.style.width = `${c.x.toFixed(2)}px`;
+    el.style.height = `${d.x.toFixed(2)}px`;
+    raf = a.done && b.done && c.done && d.done ? 0 : requestAnimationFrame(frame);
   }
 
   return {
-    moveTo(t, h) {
+    moveTo(target, legacyHeight) {
+      const next = typeof target === "object"
+        ? target
+        : { top: target, left: 0, width: el.parentElement?.clientWidth ?? 0, height: legacyHeight };
       if (!placed) {
         // first placement: appear where the reading is, no cross-page swim
-        top.set(t);
-        height.set(h);
+        top.set(next.top);
+        left.set(next.left);
+        width.set(next.width);
+        height.set(next.height);
         placed = true;
       } else {
-        top.to(t);
-        height.to(h);
+        top.to(next.top);
+        left.to(next.left);
+        width.to(next.width);
+        height.to(next.height);
       }
+      // A throttled first animation frame must never leave the guide at zero.
+      frame();
       if (!raf) raf = requestAnimationFrame(frame);
     },
     stop() {

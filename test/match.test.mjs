@@ -39,3 +39,30 @@ test("command grammar (jt-speech intents)", () => {
   assert.equal(n.noteText, "check the roof clause");
   assert.equal(speak("the deposit is one months rent"), null);
 });
+
+test("matcher exposes exact source character spans for normalized tokens", async () => {
+  const match = await import("../src/match.js");
+  assert.equal(typeof match.tokenizeWithSpans, "function");
+  assert.deepEqual(match.tokenizeWithSpans("Don’t re-target café & tea."), [
+    { token: "dont", start: 0, end: 5, text: "Don’t" },
+    { token: "re", start: 6, end: 8, text: "re" },
+    { token: "target", start: 9, end: 15, text: "target" },
+    { token: "cafe", start: 16, end: 20, text: "café" },
+    { token: "and", start: 21, end: 22, text: "&" },
+    { token: "tea", start: 23, end: 26, text: "tea" },
+  ]);
+});
+
+test("matcher ranks repeated target spans instead of collapsing them to one block", async () => {
+  const match = await import("../src/match.js");
+  assert.equal(typeof match.findMatches, "function");
+  const doc = tokenize("opening shared target words closing unrelated shared target words ending");
+  const candidates = match.findMatches(doc, tokenize("shared target words"), { limit: 4 });
+  assert.deepEqual(
+    candidates.slice(0, 2).map(({ start, end, score }) => ({ start, end, score })),
+    [
+      { start: 1, end: 3, score: 1 },
+      { start: 6, end: 8, score: 1 },
+    ],
+  );
+});

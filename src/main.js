@@ -21,7 +21,7 @@
 import "./style.css";
 import "../vendor/katex/katex.min.css";
 import katex from "../vendor/katex/katex.mjs";
-import { tokenize, matchTranscript } from "./match.js";
+import { tokenize, tokenizeWithSpans, matchTranscript } from "./match.js";
 import { splitParagraphs, titleFrom, STARTER_DOC } from "./doc.js";
 import { IntentStream, toCommand, describeCandidate } from "./intents.js";
 import { createMatchEngine, blockForRange } from "./engine.js";
@@ -29,6 +29,8 @@ import { createMarkerDriver, confirmRipple, returnToPlace } from "./motion.js";
 import { ingestText, ingestPaste, ingestPdfBrowser, shortDigest, fmtBytes } from "./ingest.js";
 import { codeFromSpoken, createSyncSurface, momentFromEntry } from "./sync.js";
 import { createActEngine } from "./acts.js";
+import { measureTokenRange } from "./highlight.js";
+import { decideTarget } from "./targeting.js";
 import {
   putDoc,
   getDoc,
@@ -162,8 +164,10 @@ const state = {
   blockTexts: [],
   docTokens: [],
   tokenBlock: [],
+  tokenMeta: [],
   currentBlock: -1,
   lastMatch: null, // { score, blockIndex }
+  lastReadingMatch: null, // frozen when a final segment is ordinary reading
   matcher: null, // js or wasm engine
   engineKind: "",
   pendingAsk: null, // { candidates, reason, evidence }
@@ -215,8 +219,10 @@ async function renderDoc(doc) {
     blockTexts: [],
     docTokens: [],
     tokenBlock: [],
+    tokenMeta: [],
     currentBlock: -1,
     lastMatch: null,
+    lastReadingMatch: null,
     matcher: null,
   });
   marker.classList.remove("on");
@@ -242,9 +248,10 @@ async function renderDoc(doc) {
     article.appendChild(p);
     state.blocks.push(p);
     state.blockTexts.push(def.text);
-    for (const tok of tokenize(def.text)) {
-      state.docTokens.push(tok);
+    for (const [tokenIndex, token] of tokenizeWithSpans(def.text).entries()) {
+      state.docTokens.push(token.token);
       state.tokenBlock.push(i);
+      state.tokenMeta.push({ blockIndex: i, tokenIndex });
     }
   }
 
@@ -255,11 +262,46 @@ async function renderDoc(doc) {
   if (window.__jt) window.__jt.engine = kind;
 }
 
-function moveMarker(blockIdx) {
+function targetForGlobalRange(start, end, preferredBlock = null) {
+  const blockIndex = Number.isInteger(preferredBlock)
+    ? preferredBlock
+    : blockForRange(state.tokenBlock, start, end);
+  const local = [];
+  for (let i = start; i <= end; i++) {
+    const meta = state.tokenMeta[i];
+    if (meta?.blockIndex === blockIndex) local.push(meta.tokenIndex);
+  }
+  if (!local.length) return null;
+  const tokenStart = Math.min(...local);
+  const tokenEnd = Math.max(...local);
+  const spans = tokenizeWithSpans(state.blockTexts[blockIndex] ?? "");
+  const first = spans[tokenStart];
+  const last = spans[tokenEnd];
+  return {
+    blockIndex,
+    tokenStart,
+    tokenEnd,
+    quotedText: first && last
+      ? state.blockTexts[blockIndex].slice(first.start, last.end)
+      : "",
+  };
+}
+
+function moveMarker(blockIdx, target = null) {
   const p = state.blocks[blockIdx];
   if (!p) return;
+  const articleRect = article.getBoundingClientRect();
+  const exact = target
+    ? measureTokenRange(p, target.tokenStart, target.tokenEnd)
+    : null;
+  const rect = exact ?? p.getBoundingClientRect();
   marker.classList.add("on");
-  markerDriver.moveTo(p.offsetTop - 8, p.offsetHeight + 16);
+  markerDriver.moveTo({
+    top: rect.top - articleRect.top - 4,
+    left: rect.left - articleRect.left - 4,
+    width: rect.width + 8,
+    height: rect.height + 8,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -281,6 +323,18 @@ const ACT_TITLES = {
   undo: "undone",
   return: "returned",
 };
+
+function arrivalWords(entry) {
+  if (entry.migration === "legacy") {
+    return "older record — whole block used because exact words were not stored";
+  }
+  return {
+    exact: "exact text found",
+    refound: "text found again after it moved",
+    approximate: "whole block used because the exact words were unavailable",
+    lost: "this text may have moved/changed",
+  }[entry.arrival] ?? "";
+}
 
 function spanLabel(e) {
   return e.blockEnd != null && e.blockEnd !== e.blockIndex
@@ -310,6 +364,7 @@ function entryNode(e, { onUndo, onSend } = {}) {
   if (e.evidence) bits.push(`${e.modality === "voice" ? "heard" : "input"}: “${e.evidence}”`);
   if (e.matchedText) bits.push(`matched: “${e.matchedText}”`);
   if (e.confidence != null) bits.push(`match ${Math.round(e.confidence * 100)}%`);
+  if (arrivalWords(e)) bits.push(arrivalWords(e));
   if (e.noteText) bits.push(`note: “${e.noteText}”`);
   if (e.mathSpeech) bits.push(`words: “${e.mathSpeech}”`);
   if (e.mathLatex) bits.push(`LaTeX: ${e.mathLatex}`);
@@ -323,7 +378,7 @@ function entryNode(e, { onUndo, onSend } = {}) {
   sum.textContent = "full record";
   det.appendChild(sum);
   const pre = document.createElement("pre");
-  pre.textContent = JSON.stringify({ cursor: e.cursor, receipt: e.receipt }, null, 2);
+  pre.textContent = JSON.stringify({ cursor: e.cursor, proof: e.receipt }, null, 2);
   det.appendChild(pre);
   li.appendChild(det);
 
@@ -378,6 +433,7 @@ function renderMathInto(node, latex) {
 
 const engine = createActEngine({
   getBlocks: () => state.blocks,
+  getBlockTexts: () => state.blockTexts,
   getDoc: () => state.doc,
   onChange: renderHistory,
   onApply: (p) => confirmRipple(p, { energy: motionParams().energy }),
@@ -440,6 +496,51 @@ function showAsk(cmd) {
   }
 }
 
+function targetCandidateLabel(candidate) {
+  const text = state.blockTexts[candidate.blockIndex] ?? "";
+  const spans = tokenizeWithSpans(text);
+  const first = spans[candidate.tokenStart];
+  const last = spans[candidate.tokenEnd];
+  if (!first || !last) return candidate.quotedText || `block ${candidate.blockIndex + 1}`;
+  const prefix = text.slice(Math.max(0, first.start - 36), first.start).trimStart();
+  const quote = text.slice(first.start, last.end);
+  const suffix = text.slice(last.end, last.end + 36).trimEnd();
+  return `${prefix} ‹${quote}› ${suffix}`.trim();
+}
+
+function showTargetAsk(cmd, modality, decision) {
+  state.pendingAsk = {
+    kind: "target",
+    cmd,
+    modality,
+    reason: decision.reason,
+    candidates: decision.candidates,
+  };
+  askOptions.textContent = "";
+  for (const [i, candidate] of decision.candidates.entries()) {
+    const btn = document.createElement("button");
+    btn.className = "ask-option target-ask";
+    btn.dataset.candidate = String(i);
+    btn.textContent = targetCandidateLabel(candidate);
+    btn.addEventListener("click", () => resolveAsk(i));
+    askOptions.appendChild(btn);
+  }
+  const dismiss = document.createElement("button");
+  dismiss.className = "ask-option ask-dismiss";
+  dismiss.textContent = "none of these";
+  dismiss.addEventListener("click", hideAsk);
+  askOptions.appendChild(dismiss);
+  askBox.hidden = false;
+  setStatus(true, "I found more than one possible passage — pick the words you mean");
+  if (window.__jt) {
+    window.__jt.ambiguities.push({
+      reason: decision.reason,
+      evidence: cmd.evidence,
+      candidates: decision.candidates.map(targetCandidateLabel),
+    });
+  }
+}
+
 function showSpaceAsk(result, entry, evidence) {
   state.pendingAsk = {
     type: "space",
@@ -495,6 +596,20 @@ function showReturnAsk(documents, { evidence, modality }) {
 async function resolveAsk(i) {
   const ask = state.pendingAsk;
   if (!ask) return;
+  if (ask.kind === "target") {
+    const candidate = ask.candidates[i];
+    const labels = ask.candidates.map(targetCandidateLabel);
+    hideAsk();
+    if (candidate) {
+      await performActAtTarget(ask.cmd, ask.modality, candidate, {
+        asked: true,
+        reason: ask.reason,
+        candidates: labels,
+        chosen: targetCandidateLabel(candidate),
+      });
+    }
+    return;
+  }
   if (ask.kind === "document-return") {
     const doc = ask.documents[i];
     hideAsk();
@@ -515,6 +630,22 @@ async function resolveAsk(i) {
   }
   if (!cand || cand.type === "reading") return;
   await runCommand(toCommand(cand), "pointer");
+}
+
+function performActAtTarget(cmd, modality, target, targetChoice = null) {
+  const blockIndex = target?.blockIndex ?? state.currentBlock;
+  const matchedText =
+    target?.quotedText ?? state.blockTexts[blockIndex]?.slice(0, 120) ?? "";
+  return engine.perform(cmd.act, blockIndex, {
+    modality,
+    evidence: cmd.evidence,
+    confidence: target?.score ?? state.lastMatch?.score ?? null,
+    matchedText,
+    noteText: cmd.noteText ?? "",
+    tokenStart: target?.tokenStart,
+    tokenEnd: target?.tokenEnd,
+    targetChoice,
+  });
 }
 
 async function runCommand(cmd, modality = "voice") {
@@ -588,18 +719,26 @@ async function runCommand(cmd, modality = "voice") {
       });
     }
     case "act": {
-      if (state.currentBlock < 0) {
+      const targetMatch = state.lastReadingMatch ?? state.lastMatch;
+      const targetBlock = targetMatch?.blockIndex ?? state.currentBlock;
+      if (targetBlock < 0) {
         setStatus(true, "read a line first so jt knows where you are");
         return null;
       }
-      const matchedText = state.blockTexts[state.currentBlock]?.slice(0, 120) ?? "";
-      return engine.perform(cmd.act, state.currentBlock, {
-        modality,
-        evidence: cmd.evidence,
-        confidence: state.lastMatch?.score ?? null,
-        matchedText,
-        noteText: cmd.noteText ?? "",
-      });
+      state.currentBlock = targetBlock;
+      if (!targetMatch || targetMatch.blockIndex !== targetBlock) {
+        return performActAtTarget(cmd, modality, null);
+      }
+      const decision = decideTarget(targetMatch);
+      if (decision.kind === "ask") {
+        showTargetAsk(cmd, modality, decision);
+        return null;
+      }
+      if (decision.kind === "none") {
+        setStatus(true, "I could not place those words confidently — read the passage again");
+        return null;
+      }
+      return performActAtTarget(cmd, modality, decision.target);
     }
     default:
       return null;
@@ -755,12 +894,28 @@ function onInterim(fullText) {
   const m = state.matcher.follow(fullText);
   if (!m || m.blockIndex == null || m.blockIndex < 0) return;
   const b = m.blockIndex;
-  state.lastMatch = { score: m.confidence, blockIndex: b };
+  const target = targetForGlobalRange(m.start, m.end, b);
+  const candidates = (m.candidates ?? [])
+    .map((candidate) => ({
+      ...targetForGlobalRange(candidate.start, candidate.end),
+      score: candidate.score,
+      start: candidate.start,
+      end: candidate.end,
+    }))
+    .filter((candidate) => Number.isInteger(candidate.blockIndex));
+  state.lastMatch = {
+    score: m.confidence,
+    blockIndex: b,
+    start: m.start,
+    end: m.end,
+    target,
+    candidates,
+  };
   if (window.__jt) window.__jt.matches.push({ block: b, score: +m.confidence.toFixed(3) });
   if (b !== state.currentBlock) {
     state.currentBlock = b;
     if (window.__jt) window.__jt.current = b;
-    moveMarker(b);
+    moveMarker(b, target);
     state.blocks[b].scrollIntoView({ behavior: "smooth", block: "center" });
   }
   rememberPosition(b);
@@ -772,6 +927,10 @@ async function onFinalSegment(segment) {
   const events = intentStream.push({ text: segment, final: true });
   for (const ev of events) {
     const cmd = toCommand(ev);
+    if (cmd.type === "reading") {
+      if (state.lastMatch) state.lastReadingMatch = state.lastMatch;
+      continue;
+    }
     if (cmd.type !== "reading" && window.__jt) window.__jt.commands.push(cmd.type === "act" ? cmd.act : cmd.type);
     await runCommand(cmd, "voice");
   }
@@ -1200,6 +1359,53 @@ voiceToggle.addEventListener("click", () => {
 // acts, undoes the last, then speaks a genuinely ambiguous range highlight —
 // which the app must ask about, never guess.
 
+function emitSimReport(doc, { error = null, stepsCompleted = 0 } = {}) {
+  const entries = engine.entries;
+  window.__jt.records = entries;
+  window.__jt.done = !error;
+  const report = {
+    sim: true,
+    docId: doc?.id ?? null,
+    engine: state.engineKind,
+    provenance: doc?.provenance ?? null,
+    matches: window.__jt.matches.length,
+    blocksHit: [...new Set(window.__jt.matches.map((match) => match.block))],
+    commands: window.__jt.commands,
+    ambiguities: window.__jt.ambiguities,
+    askPending: !!state.pendingAsk,
+    stepsCompleted,
+    error: error ? String(error?.message ?? error) : null,
+    entries: entries.map((entry) => ({
+      id: entry.id,
+      kind: entry.kind,
+      act: entry.act,
+      blockIndex: entry.blockIndex,
+      blockEnd: entry.blockEnd ?? null,
+      undone: entry.undone,
+      undoes: entry.undoes,
+      confidence: entry.confidence,
+      evidence: entry.evidence,
+      anchor: entry.anchor ?? null,
+      arrival: entry.arrival ?? null,
+      targetChoice: entry.targetChoice ?? null,
+      cursor: entry.cursor,
+      receipt: entry.receipt,
+    })),
+  };
+  window.__jt.report = report;
+  document.getElementById("jt-report")?.remove();
+  const node = document.createElement("script");
+  node.type = "application/json";
+  node.id = "jt-report";
+  node.textContent = JSON.stringify(report);
+  document.body.appendChild(node);
+  setStatus(
+    true,
+    error ? `sim stopped after step ${stepsCompleted}: ${report.error}` : "sim complete — see the history panel",
+  );
+  return report;
+}
+
 async function startSim() {
   const fast = params.get("fast") === "1";
   const tick = fast ? 12 : 300;
@@ -1235,56 +1441,30 @@ async function startSim() {
   ];
 
   let transcript = "";
-  for (const step of script) {
-    const words = step.read != null
-      ? tokenize(state.blockTexts[step.read]).map((w) => mishear[w] ?? w)
-      : step.say.split(" ");
-    let segment = "";
-    for (const w of words) {
-      segment += `${w} `;
-      onInterim(transcript + segment);
-      await sleep(tick);
+  let stepsCompleted = 0;
+  let failure = null;
+  try {
+    for (const step of script) {
+      const words = step.read != null
+        ? tokenize(state.blockTexts[step.read]).map((word) => mishear[word] ?? word)
+        : step.say.split(" ");
+      let segment = "";
+      for (const word of words) {
+        segment += `${word} `;
+        onInterim(transcript + segment);
+        await sleep(tick);
+      }
+      transcript += segment;
+      await onFinalSegment(segment);
+      stepsCompleted++;
+      await sleep(tick * 4);
     }
-    transcript += segment;
-    await onFinalSegment(segment);
-    await sleep(tick * 4);
+  } catch (error) {
+    failure = error;
+  } finally {
+    emitSimReport(doc, { error: failure, stepsCompleted });
   }
-
-  // Serialize the outcome for headless verification.
-  const entries = engine.entries;
-  window.__jt.records = entries;
-  window.__jt.done = true;
-  const report = {
-    sim: true,
-    docId: doc.id,
-    engine: state.engineKind,
-    provenance: doc.provenance ?? null,
-    matches: window.__jt.matches.length,
-    blocksHit: [...new Set(window.__jt.matches.map((m) => m.block))],
-    commands: window.__jt.commands,
-    ambiguities: window.__jt.ambiguities,
-    askPending: !!state.pendingAsk,
-    entries: entries.map((e) => ({
-      id: e.id,
-      kind: e.kind,
-      act: e.act,
-      blockIndex: e.blockIndex,
-      blockEnd: e.blockEnd ?? null,
-      undone: e.undone,
-      undoes: e.undoes,
-      confidence: e.confidence,
-      evidence: e.evidence,
-      cursor: e.cursor,
-      receipt: e.receipt,
-    })),
-  };
-  window.__jt.report = report;
-  const node = document.createElement("script");
-  node.type = "application/json";
-  node.id = "jt-report";
-  node.textContent = JSON.stringify(report);
-  document.body.appendChild(node);
-  setStatus(true, "sim complete — see the history panel");
+  if (failure) throw failure;
 }
 
 // ---------------------------------------------------------------------------
@@ -1312,6 +1492,7 @@ window.__jtApp = {
   micState: () => mic.state,
   exportData: () => shell?.exportData(),
   voiceSegment: (text) => onFinalSegment(text),
+  follow: (text) => onInterim(text),
   perform: (act, blockIndex, opts) => engine.perform(act, blockIndex, { modality: "pointer", evidence: "test hook", ...opts }),
   spaces: {
     feed: () => shell?.spaceFeed() ?? [],
@@ -1328,6 +1509,7 @@ window.__jtApp = {
   },
   currentBlock: () => state.currentBlock,
   addDocument,
+  openDocument: (doc) => openDocument(doc, { navigate: false }),
   segment: (text) => onFinalSegment(text),
   position: {
     read: () => (state.doc ? positionForDoc(state.doc) : null),
