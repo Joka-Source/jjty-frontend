@@ -1,0 +1,24 @@
+{
+  "throughSeq": 11,
+  "transcript": [
+    { "seq": 1, "text": "The rent is due on the first day", "final": false, "source": "speech", "classification": "reading", "confidence": 0.96 },
+    { "seq": 5, "text": "highlight this", "final": true, "source": "speech", "classification": "command", "confidence": 0.99 }
+  ],
+  "match": {
+    "seq": 3,
+    "query": "rent is due on the first day",
+    "blocks": [
+      { "blockId": "lease-0", "blockIndex": 0, "score": 0.31, "spans": [] },
+      { "blockId": "lease-1", "blockIndex": 1, "score": 0.91, "spans": [{ "start": 0, "end": 32, "score": 0.91, "unit": "character", "text": "Rent is due on the first day" }] },
+      { "blockId": "lease-2", "blockIndex": 2, "score": 0.88, "spans": [{ "start": 14, "end": 46, "score": 0.88, "unit": "character", "text": "rent is due on the first day" }] }
+    ],
+    "selected": { "blockId": "lease-1", "blockIndex": 1, "start": 0, "end": 32, "unit": "character" }
+  },
+  "decisions": [
+    { "seq": 4, "result": "ask", "confidence": 0.91, "ambiguities": [{ "label": "passage 2", "confidence": 0.91 }, { "label": "passage 3", "confidence": 0.88 }], "thresholds": { "accept": 0.62, "askBelow": 0.78, "closeGap": 0.04 }, "reason": "Asked because two passages scored within 0.04." },
+    { "seq": 7, "result": "act", "intent": "highlight", "confidence": 0.99, "ambiguities": [], "thresholds": { "accept": 0.62, "askBelow": 0.78, "closeGap": 0.04 }, "reason": "The instruction and passage were clear." }
+  ],
+  "acts": [{ "seq": 8, "act": "highlight", "input": "highlight this", "target": { "blockId": "lease-1", "blockIndex": 1, "start": 0, "end": 32, "text": "Rent is due on the first day" } }],
+  "records": [{ "seq": 9, "record": { "id": "act-demo-1", "kind": "act", "act": "highlight", "blockIndex": 1 }, "schema": { "name": "jt.act.v1", "valid": true, "errors": [] } }],
+  "latencies": [{ "seq": 10, "stage": "matcher", "durationMs": 0.82, "budgetMs": 1 }, { "seq": 11, "stage": "intent", "durationMs": 4.3, "budgetMs": 5 }]
+}
