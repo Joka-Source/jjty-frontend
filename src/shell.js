@@ -409,7 +409,7 @@ export function initShell(ctx) {
     const full = document.createElement("pre");
     full.textContent = JSON.stringify({
       cursor: item.moment.cursor,
-      receipt: item.moment.receipt,
+      proof: item.moment.receipt,
       provenance: item.moment.provenance,
       sourceSpaceContext: item.sourceSpaceContext,
       spaceContext: item.moment.spaceContext,

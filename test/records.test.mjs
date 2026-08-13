@@ -44,10 +44,56 @@ test("makeCursor output validates against cursor.schema.json", () => {
 });
 
 test("makeReceipt output validates against receipt.schema.json", () => {
-  const r = makeReceipt({ ...base, actionId: "act-x", result: "block 3 highlighted" });
+  const r = makeReceipt({
+    ...base,
+    actionId: "act-x",
+    result: "block 3 highlighted",
+    arrival: "exact",
+  });
   assert.ok(validateReceipt(r), errorsOf(validateReceipt));
   assert.equal(r.arrival, "exact");
   assert.equal(r.sourceRevision, "r1");
+});
+
+test("a proof record cannot silently invent an exact arrival", () => {
+  assert.throws(
+    () => makeReceipt({ ...base, actionId: "act-x", result: "block 3 highlighted" }),
+    /arrival must describe/i,
+  );
+  const blockFallback = makeActEntry({ ...base, act: "highlight" });
+  assert.equal(blockFallback.arrival, "approximate");
+  assert.equal(blockFallback.receipt.arrival, "approximate");
+});
+
+test("records preserve durable anchor, chosen-target evidence, and honest arrival", () => {
+  const anchor = {
+    blockIndex: 3,
+    tokenStart: 2,
+    tokenEnd: 5,
+    quotedText: "five day grace period",
+    prefix: "first. A ",
+    suffix: " applies; after",
+    docDigest: `sha256:${"c".repeat(64)}`,
+  };
+  const targetChoice = {
+    asked: true,
+    reason: "two passages were similarly likely",
+    candidates: ["five day grace period", "five day notice period"],
+    chosen: "five day grace period",
+  };
+  const entry = makeActEntry({
+    ...base,
+    act: "highlight",
+    anchor,
+    arrival: "refound",
+    targetChoice,
+  });
+  assert.deepEqual(entry.anchor, anchor);
+  assert.equal(entry.arrival, "refound");
+  assert.equal(entry.receipt.arrival, "refound");
+  assert.deepEqual(entry.targetChoice, targetChoice);
+  assert.match(entry.cursor.history.at(-1).event, /person chose.*five day grace period/i);
+  assert.ok(validateReceipt(entry.receipt), errorsOf(validateReceipt));
 });
 
 test("every act kind produces a valid cursor + receipt pair", () => {

@@ -27,6 +27,27 @@ export function tokenize(text) {
   return n ? n.split(" ") : [];
 }
 
+/**
+ * Split display text into the same normalized tokens while retaining exact
+ * UTF-16 source offsets. `end` is exclusive, matching DOM Range offsets.
+ */
+export function tokenizeWithSpans(text) {
+  const source = String(text ?? "");
+  const spans = [];
+  const words = /[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*|&/gu;
+  for (const match of source.matchAll(words)) {
+    const normalized = tokenize(match[0]);
+    if (normalized.length !== 1) continue;
+    spans.push({
+      token: normalized[0],
+      start: match.index,
+      end: match.index + match[0].length,
+      text: match[0],
+    });
+  }
+  return spans;
+}
+
 /** Character bigrams of a token, including boundary markers. */
 function bigrams(token) {
   const padded = `${token}`;
@@ -58,11 +79,52 @@ export function tokenSimilarity(a, b) {
   return (2 * shared) / (ga.length + gb.length);
 }
 
+export const TARGET_POLICY = Object.freeze({
+  minScore: 0.62,
+  askBelow: 0.78,
+  closeScoreGap: 0.05,
+});
+
 const DEFAULTS = {
-  minScore: 0.62, // below this, report no match
+  minScore: TARGET_POLICY.minScore, // below this, report no match
   anchorWeight: 1.6, // first and last spoken tokens count more
   proximityBonus: 0.04, // max bonus for matching near lastIndex
 };
+
+/** Rank every accepted document window while preserving its exact span. */
+export function findMatches(docTokens, spokenTokens, opts = {}) {
+  const { minScore, anchorWeight, proximityBonus, lastIndex, limit = Infinity } = {
+    ...DEFAULTS,
+    ...opts,
+  };
+  const n = docTokens.length;
+  const m = spokenTokens.length;
+  if (m === 0 || n === 0 || m > n) return [];
+
+  const weights = new Array(m).fill(1);
+  if (m >= 2) {
+    weights[0] = anchorWeight;
+    weights[m - 1] = anchorWeight;
+  }
+  const weightSum = weights.reduce((a, b) => a + b, 0);
+  const matches = [];
+  for (let start = 0; start + m <= n; start++) {
+    let acc = 0;
+    for (let i = 0; i < m; i++) {
+      acc += weights[i] * tokenSimilarity(spokenTokens[i], docTokens[start + i]);
+    }
+    const score = acc / weightSum;
+    if (score < minScore) continue;
+    let rankedScore = score;
+    if (Number.isInteger(lastIndex) && n > 1) {
+      const dist = Math.abs(start - lastIndex);
+      rankedScore += proximityBonus * (1 - Math.min(dist, n) / n);
+    }
+    matches.push({ start, end: start + m - 1, score, rankedScore });
+  }
+  matches.sort((a, b) => b.rankedScore - a.rankedScore || a.start - b.start);
+  return matches.slice(0, Math.max(0, limit)).map(({ rankedScore: _ranked, ...match }) => match);
+}
 
 /**
  * Find the best window of `docTokens` matching `spokenTokens`.
@@ -78,50 +140,7 @@ const DEFAULTS = {
  *   minScore.
  */
 export function findMatch(docTokens, spokenTokens, opts = {}) {
-  const { minScore, anchorWeight, proximityBonus, lastIndex } = {
-    ...DEFAULTS,
-    ...opts,
-  };
-  const n = docTokens.length;
-  const m = spokenTokens.length;
-  if (m === 0 || n === 0 || m > n) return null;
-
-  // Anchor-weighted per-position weights.
-  const weights = new Array(m).fill(1);
-  if (m >= 2) {
-    weights[0] = anchorWeight;
-    weights[m - 1] = anchorWeight;
-  }
-  const weightSum = weights.reduce((a, b) => a + b, 0);
-
-  let best = null;
-  for (let s = 0; s + m <= n; s++) {
-    let acc = 0;
-    let remaining = weightSum;
-    let bailed = false;
-    for (let i = 0; i < m; i++) {
-      acc += weights[i] * tokenSimilarity(spokenTokens[i], docTokens[s + i]);
-      remaining -= weights[i];
-      // Even a perfect tail plus max bonus can't beat the current best: bail.
-      if (best && (acc + remaining) / weightSum + proximityBonus <= best.score) {
-        bailed = true;
-        break;
-      }
-    }
-    if (bailed) continue;
-    const raw = acc / weightSum;
-    let score = raw;
-    if (Number.isInteger(lastIndex) && n > 1) {
-      const dist = Math.abs(s - lastIndex);
-      score += proximityBonus * (1 - Math.min(dist, n) / n);
-    }
-    if (!best || score > best.score) {
-      best = { start: s, end: s + m - 1, score, raw };
-    }
-  }
-
-  if (!best || best.raw < minScore) return null;
-  return { start: best.start, end: best.end, score: best.raw };
+  return findMatches(docTokens, spokenTokens, { ...opts, limit: 1 })[0] ?? null;
 }
 
 /**
@@ -140,4 +159,12 @@ export function matchTranscript(docTokens, transcript, opts = {}) {
   // Very short windows are too ambiguous to act on.
   if (spoken.length < 3) return null;
   return findMatch(docTokens, spoken, rest);
+}
+
+/** Ranked form used when an act must decide whether its target is ambiguous. */
+export function matchTranscriptCandidates(docTokens, transcript, opts = {}) {
+  const { windowSize = 8, ...rest } = opts;
+  const words = tokenize(transcript);
+  if (words.length < 3) return [];
+  return findMatches(docTokens, words.slice(-windowSize), rest);
 }

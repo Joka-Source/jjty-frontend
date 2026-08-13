@@ -1,5 +1,5 @@
 // Headless proof that jt is genuinely phone-first. The same built app is
-// loaded at a phone viewport (390x844, touch) and at the desktop viewport
+// loaded at a phone viewport (375x812, touch) and at the desktop viewport
 // (1280x800). At phone size: the document is full width with no horizontal
 // overflow, the side panels are slide-over sheets opened from a bottom bar,
 // touch targets are at least 44px, and the ambiguity prompt can be answered
@@ -85,14 +85,68 @@ const noHorizontalOverflow = (page) =>
     scrollX: Math.round(window.scrollX),
   }));
 
+const visibleTargetGeometry = (page) =>
+  page.evaluate(() => {
+    const marker = document.getElementById("marker");
+    const marked = document.querySelector("mark.jt-highlight");
+    const block = marked?.closest("p[data-block]") ?? null;
+    const box = (node) => {
+      if (!node) return null;
+      const rect = node.getBoundingClientRect();
+      const style = getComputedStyle(node);
+      return {
+        width: rect.width,
+        height: rect.height,
+        opacity: Number.parseFloat(style.opacity),
+        display: style.display,
+      };
+    };
+    return { marker: box(marker), marked: box(marked), block: box(block) };
+  });
+
+function assertVisibleExactTarget(geometry, viewport) {
+  assert.ok(geometry.marker, `${viewport}: water guide missing`);
+  assert.ok(geometry.marker.height > 0, `${viewport}: water guide has zero height`);
+  assert.ok(geometry.marker.opacity > 0, `${viewport}: water guide is transparent`);
+  assert.ok(geometry.marked, `${viewport}: exact inline highlight missing`);
+  assert.ok(geometry.marked.height > 0, `${viewport}: inline highlight has zero height`);
+  assert.ok(geometry.marked.opacity > 0, `${viewport}: inline highlight is transparent`);
+  assert.ok(
+    geometry.marked.width < geometry.block.width,
+    `${viewport}: mid-block phrase was painted as the whole paragraph`,
+  );
+}
+
 test("phone viewport: full-width document, sheet panels, 44px targets, no sideways scroll", { timeout: 120000 }, async (t) => {
   const page = await bootSim(t, 4933, {
-    width: 390,
-    height: 844,
+    width: 375,
+    height: 812,
     deviceScaleFactor: 3,
     isMobile: true,
     hasTouch: true,
   });
+
+  const simState = await page.evaluate(() => ({
+    reportPresent: !!document.getElementById("jt-report"),
+    entryCount: window.__jtApp.entries().length,
+    harnessFlag: window.__jtHarness ?? null,
+    done: window.__jt?.done,
+    error: window.__jt?.report?.error,
+  }));
+  assert.equal(simState.reportPresent, true, "ordinary 375px sim emitted no report");
+  assert.equal(simState.entryCount, 4, "ordinary 375px sim did not finish all scripted records");
+  assert.equal(simState.harnessFlag, null, "sim depended on a test-harness runtime flag");
+  assert.equal(simState.done, true, `ordinary 375px sim stopped early: ${simState.error}`);
+  const phoneGeometry = await visibleTargetGeometry(page);
+  assertVisibleExactTarget(phoneGeometry, "375px");
+  t.diagnostic(`FIX-FLAGSHIP 375px geometry ${JSON.stringify(phoneGeometry)}`);
+  if (process.env.JT_SCREENSHOT_DIR) {
+    await page.$eval("mark.jt-highlight", (node) => node.scrollIntoView({ block: "center" }));
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await page.screenshot({
+      path: path.join(process.env.JT_SCREENSHOT_DIR, "jt-fix-flagship-375.png"),
+    });
+  }
 
   // 1. No horizontal overflow anywhere.
   const o = await noHorizontalOverflow(page);
@@ -235,6 +289,17 @@ test("phone viewport: full-width document, sheet panels, 44px targets, no sidewa
 
 test("desktop viewport: three-column layout intact, no bottom bar, no sideways scroll", { timeout: 120000 }, async (t) => {
   const page = await bootSim(t, 4934, { width: 1280, height: 800 });
+
+  const desktopGeometry = await visibleTargetGeometry(page);
+  assertVisibleExactTarget(desktopGeometry, "1280px");
+  t.diagnostic(`FIX-FLAGSHIP 1280px geometry ${JSON.stringify(desktopGeometry)}`);
+  if (process.env.JT_SCREENSHOT_DIR) {
+    await page.$eval("mark.jt-highlight", (node) => node.scrollIntoView({ block: "center" }));
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await page.screenshot({
+      path: path.join(process.env.JT_SCREENSHOT_DIR, "jt-fix-flagship-1280.png"),
+    });
+  }
 
   const o = await noHorizontalOverflow(page);
   assert.ok(o.docScroll <= o.innerWidth, `document overflows sideways: ${o.docScroll} > ${o.innerWidth}`);

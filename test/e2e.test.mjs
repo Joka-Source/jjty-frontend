@@ -53,6 +53,8 @@ test("sim replay: records created, schema-valid, undo works", { timeout: 120000 
   const report = JSON.parse(
     await page.$eval("#jt-report", (n) => n.textContent)
   );
+  assert.equal(report.error, null, `sim stopped early: ${report.error}`);
+  assert.equal(report.stepsCompleted, 7, "sim did not finish every live-path step");
 
   // The glide worked: live matching hit both read passages.
   assert.ok(report.matches > 0, "no transcript matches recorded");
@@ -139,6 +141,98 @@ test("sim replay: records created, schema-valid, undo works", { timeout: 120000 
   assert.equal(resolved.askGone, true, "ask should clear after resolution");
   assert.ok(validateCursor(resolved.cursor), `range cursor: ${errorsOf(validateCursor)}`);
   assert.ok(validateReceipt(resolved.receipt), `range receipt: ${errorsOf(validateReceipt)}`);
+
+  await t.test("close target spans ask, show context, and store the chosen evidence", async () => {
+    assert.equal(
+      await page.evaluate(() => typeof window.__jtApp.follow),
+      "function",
+      "the real matcher-follow path is unavailable to the browser proof",
+    );
+    await page.evaluate(() =>
+      window.__jtApp.addDocument(
+        [
+          "alpha context before shared target phrase lives here after alpha context",
+          "middle passage",
+          "beta context before shared target phrase lives here after beta context",
+        ].join("\n\n"),
+        "target choice proof",
+      ),
+    );
+    await page.waitForFunction(() => document.getElementById("doc-title").textContent === "target choice proof");
+    await page.evaluate(() => window.__jtApp.follow("shared target phrase lives here"));
+    const beforeChoice = await page.evaluate(() => window.__jtApp.entries().length);
+    await page.evaluate(() => window.__jtApp.segment("highlight this"));
+    await page.waitForFunction(() => !document.getElementById("ask").hidden);
+    const pending = await page.evaluate(() => ({
+      entries: window.__jtApp.entries().length,
+      labels: [...document.querySelectorAll("#ask-options .target-ask")].map((node) => node.textContent),
+    }));
+    assert.equal(pending.entries, beforeChoice, "uncertain target wrote an act before a choice");
+    assert.equal(pending.labels.length, 2);
+    assert.match(pending.labels[0], /alpha context.*shared target phrase lives here.*alpha context/i);
+    assert.match(pending.labels[1], /beta context.*shared target phrase lives here.*beta context/i);
+
+    await page.click('#ask-options .target-ask[data-candidate="1"]');
+    await page.waitForFunction(
+      (count) => window.__jtApp.entries().length === count + 1,
+      { timeout: 5000 },
+      beforeChoice,
+    );
+    const chosen = await page.evaluate(() => window.__jtApp.entries().at(-1));
+    assert.equal(chosen.act, "highlight");
+    assert.equal(chosen.blockIndex, 2);
+    assert.equal(chosen.targetChoice.asked, true);
+    assert.match(chosen.targetChoice.reason, /more than one passage/i);
+    assert.equal(chosen.targetChoice.candidates.length, 2);
+    assert.match(chosen.targetChoice.chosen, /shared target phrase lives here/i);
+    assert.match(chosen.cursor.history.at(-1).event, /person chose/i);
+
+    assert.equal(
+      await page.evaluate(() => typeof window.__jtApp.openDocument),
+      "function",
+      "the browser proof cannot reopen a revised copy of the current document",
+    );
+    const moved = await page.evaluate(async (entryId) => {
+      const doc = structuredClone(window.__jtApp.currentDoc());
+      doc.text = `newly prepended paragraph\n\n${doc.text}`;
+      doc.blocks = [{ text: "newly prepended paragraph", kind: "paragraph" }, ...doc.blocks];
+      doc.revision += 1;
+      doc.provenance.contentDigest = `sha256:${"d".repeat(64)}`;
+      await window.__jtApp.openDocument(doc);
+      const entry = window.__jtApp.entries().find((row) => row.id === entryId);
+      return {
+        arrival: entry.arrival,
+        blockIndex: entry.blockIndex,
+        history: document.getElementById("history-list").textContent,
+        markPresent: !!document.querySelector(`mark.jt-highlight[data-entry="${entry.id}"]`),
+      };
+    }, chosen.id);
+    assert.equal(moved.arrival, "refound");
+    assert.equal(moved.blockIndex, 3);
+    assert.match(moved.history, /text found again after it moved/i);
+    assert.equal(moved.markPresent, true, "refound text was not visibly highlighted");
+
+    const lost = await page.evaluate(async (entryId) => {
+      const doc = structuredClone(window.__jtApp.currentDoc());
+      doc.text = doc.text.replaceAll("shared target phrase lives here", "changed words are no longer the same");
+      doc.blocks = doc.blocks.map((block) => ({
+        ...block,
+        text: block.text.replaceAll("shared target phrase lives here", "changed words are no longer the same"),
+      }));
+      doc.revision += 1;
+      doc.provenance.contentDigest = `sha256:${"e".repeat(64)}`;
+      await window.__jtApp.openDocument(doc);
+      const entry = window.__jtApp.entries().find((row) => row.id === entryId);
+      return {
+        arrival: entry.arrival,
+        history: document.getElementById("history-list").textContent,
+        markPresent: !!document.querySelector(`mark.jt-highlight[data-entry="${entry.id}"]`),
+      };
+    }, chosen.id);
+    assert.equal(lost.arrival, "lost");
+    assert.match(lost.history, /this text may have moved\/changed/i);
+    assert.equal(lost.markPresent, false, "lost text was painted onto a different passage");
+  });
 
   await t.test("math voice sim enters mode, keeps in history, and validates", async () => {
   // Voice math mode uses the same final-segment pipeline as the mic. Typed

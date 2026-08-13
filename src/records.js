@@ -18,7 +18,11 @@ export function rid(prefix) {
     .slice(2, 7)}`;
 }
 
-export function anchorIdFor(docId, blockIndex) {
+export function anchorIdFor(docId, blockIndex, anchor = null) {
+  if (anchor) {
+    const digest = String(anchor.docDigest ?? "").replace(/^sha256:/, "").slice(0, 12) || "no-digest";
+    return `anc-${docId}-${digest}-b${blockIndex}-t${anchor.tokenStart}-${anchor.tokenEnd}`;
+  }
   return `anc-${docId}-b${blockIndex}`;
 }
 
@@ -38,12 +42,14 @@ export function makeCursor({
   evidence, // what was captured (words heard / control clicked)
   intention, // plain-words statement of what the system believes is wanted
   alternatives = [],
+  anchor = null,
+  historyEvents = [],
   at = nowIso(),
 }) {
   const cursor = {
     schemaVersion: SCHEMA_VERSION,
     id: rid("cur"),
-    anchorId: anchorIdFor(docId, blockIndex),
+    anchorId: anchorIdFor(docId, blockIndex, anchor),
     sourceId: docId,
     originModality: modality,
     capturedEvidence: evidence,
@@ -56,6 +62,7 @@ export function makeCursor({
     history: [
       { at, event: `${modality} input captured` },
       { at, event: "intention resolved and applied" },
+      ...historyEvents.map((event) => ({ at, event })),
     ],
     undoAvailable: true,
     repairRoute: "undo from the history panel, returning to the same block",
@@ -75,9 +82,13 @@ export function makeReceipt({
   blockIndex,
   actionId,
   result,
+  arrival,
   undoRoute = "undo from the history panel",
   at = nowIso(),
 }) {
+  if (!new Set(["exact", "refound", "approximate", "lost"]).has(arrival)) {
+    throw new TypeError("arrival must describe the actual resolution path");
+  }
   return {
     schemaVersion: SCHEMA_VERSION,
     id: rid("rcp"),
@@ -89,7 +100,7 @@ export function makeReceipt({
     result,
     occurredAt: at,
     authority: "the person at this device",
-    arrival: "exact",
+    arrival,
     undoRoute,
     repairRoute: "undo, then redo the act with corrected words",
     returnRoute: returnRouteFor(docId, revision, blockIndex),
@@ -98,9 +109,9 @@ export function makeReceipt({
 
 /** Plain-words labels for the three acts plus undo. Used in UI and records. */
 export const ACT_LABELS = {
-  highlight: "highlight this block",
-  important: "mark this block important",
-  note: "attach a spoken note to this block",
+  highlight: "highlight the selected text",
+  important: "mark the selected text important",
+  note: "attach a spoken note to the selected text",
   math: "keep spoken mathematics",
   undo: "undo a previous act",
 };
@@ -124,19 +135,26 @@ export function makeActEntry({
   mathSpeech = "",
   mathLatex = "",
   mathUnparsed = [],
+  anchor = null,
+  arrival = null,
+  targetChoice = null,
   undoes = null,
   at = nowIso(),
 }) {
+  const resolvedArrival = arrival ?? (anchor ? "exact" : "approximate");
   const span =
     blockEnd != null && blockEnd !== blockIndex
       ? `blocks ${blockIndex} to ${blockEnd}`
       : `block ${blockIndex}`;
+  const target = anchor?.quotedText
+    ? `“${anchor.quotedText}” in block ${blockIndex}`
+    : span;
   const intention =
     act === "undo"
       ? `undo the act recorded as ${undoes}`
       : act === "math"
-        ? `${ACT_LABELS.math} at ${span}`
-        : `${ACT_LABELS[act]} (${span})`;
+        ? `${ACT_LABELS.math} at ${target}`
+        : `${ACT_LABELS[act]} (${target})`;
   const cursor = makeCursor({
     docId,
     revision,
@@ -144,12 +162,17 @@ export function makeActEntry({
     modality,
     evidence,
     intention,
+    anchor,
+    alternatives: targetChoice?.candidates ?? [],
+    historyEvents: targetChoice?.asked
+      ? [`target was uncertain; person chose “${targetChoice.chosen}”`]
+      : [],
     at,
   });
   const actionId = rid("act");
   const result =
     act === "highlight"
-      ? `${span} highlighted`
+      ? `${target} highlighted`
       : act === "important"
         ? `${span} marked important`
       : act === "note"
@@ -163,6 +186,7 @@ export function makeActEntry({
     blockIndex,
     actionId,
     result,
+    arrival: resolvedArrival,
     undoRoute:
       act === "undo"
         ? "redo by performing the original act again"
@@ -180,6 +204,10 @@ export function makeActEntry({
     evidence,
     confidence,
     matchedText,
+    anchor,
+    resolvedAnchor: anchor,
+    arrival: resolvedArrival,
+    targetChoice,
     noteText,
     undone: false,
     undoes,
@@ -223,6 +251,7 @@ export function makeReturnEntry({
     blockIndex,
     actionId: rid("act"),
     result: `returned to block ${blockIndex}`,
+    arrival: "exact",
     undoRoute: "read or choose another block",
     at,
   });

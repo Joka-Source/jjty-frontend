@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "jt-contracts/receipt/v0.1.0",
   "title": "Receipt",
-  "description": "Durable proof of what actually happened when an action ran: against which exact source version, by whom, on what device and build, with what result, and whether the result arrived exactly, arrived degraded, or was refused. A notification is not a receipt; this record is.",
+  "description": "Durable proof of what actually happened when an action ran: against which exact source version, by whom, on what device and build, with what result, and whether its text target was exact, refound, approximate, or lost. A notification is not a receipt; this record is.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schemaVersion", "id", "sourceId", "sourceRevision", "actionId", "result", "arrival", "occurredAt"],
@@ -69,12 +69,12 @@
     },
     "arrival": {
       "type": "string",
-      "enum": ["exact", "degraded", "refused"],
-      "description": "How the result reached its destination: exactly as intended, in a reduced form that was disclosed, or not at all."
+      "enum": ["exact", "refound", "approximate", "lost"],
+      "description": "How the stored text target resolved in the current source: exact, uniquely refound, block-level approximate, or lost."
     },
     "degradationNote": {
       "type": "string",
-      "description": "When arrival was degraded, exactly what was lost or reduced, named plainly."
+      "description": "When arrival was not exact, exactly what moved, changed, or was reduced, named plainly."
     },
     "undoRoute": {
       "type": "string",
