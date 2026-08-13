@@ -1,4 +1,4 @@
-// jt — IndexedDB persistence. Two stores:
+// jt — IndexedDB persistence. Four stores:
 //   docs:    { id, title, text, createdAt, revision }
 //   records: { id, docId, kind, act, blockIndex, confidence, matchedText,
 //              noteText, undone, undoes, createdAt, cursor, receipt }
@@ -7,7 +7,7 @@
 // app-level evidence for the history panel.
 
 const DB_NAME = "jt-web";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 let dbPromise = null;
 
@@ -26,6 +26,9 @@ export function openDb() {
       }
       if (!db.objectStoreNames.contains("inbox")) {
         db.createObjectStore("inbox", { keyPath: "momentId" });
+      }
+      if (!db.objectStoreNames.contains("spaceFeed")) {
+        db.createObjectStore("spaceFeed", { keyPath: "id" });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -85,6 +88,25 @@ export async function getInbox() {
     req.onsuccess = () => {
       const rows = req.result ?? [];
       rows.sort((a, b) => a.receivedAt.localeCompare(b.receivedAt));
+      resolve(rows);
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function putSpaceFeed(item) {
+  const db = await openDb();
+  return tx(db, "spaceFeed", "readwrite", (s) => s.put(item));
+}
+
+/** Space moments are read in arrival order, never newest-first. */
+export async function getSpaceFeed() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction("spaceFeed").objectStore("spaceFeed").getAll();
+    req.onsuccess = () => {
+      const rows = req.result ?? [];
+      rows.sort((a, b) => a.arrivedAt.localeCompare(b.arrivedAt) || a.id.localeCompare(b.id));
       resolve(rows);
     };
     req.onerror = () => reject(req.error);

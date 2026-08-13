@@ -942,6 +942,187 @@ body:not([data-view="read"]) .layout {
   color: #b3462c;
 }
 
+.space-local-note {
+  max-width: 44rem;
+  padding: 0.65rem 0.8rem;
+  border-left: 3px solid var(--warm);
+  background: color-mix(in srgb, var(--warm) 7%, transparent);
+  color: var(--ink-dim);
+  font-size: 0.82rem;
+}
+
+.self-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  font-size: 0.8rem;
+  color: var(--ink-dim);
+}
+
+.self-choice input {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.you-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.08rem 0.4rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+  font-size: 0.65rem;
+}
+
+.make-self {
+  min-height: 30px;
+  margin-left: 0.5rem;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.68rem;
+}
+
+.space-picker {
+  display: flex;
+  align-items: end;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  margin-top: 0.55rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--line);
+}
+
+.space-picker label {
+  display: grid;
+  gap: 0.2rem;
+  min-width: min(13rem, 100%);
+  color: var(--ink-dim);
+  font-size: 0.7rem;
+}
+
+.space-picker select,
+.space-picker button {
+  min-height: 36px;
+}
+
+.space-picker-empty {
+  margin: 0;
+}
+
+.space-picker-empty a {
+  color: var(--accent);
+}
+
+.space-feed-section {
+  margin-top: 0.8rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--line);
+}
+
+.space-feed-section h4 {
+  margin: 0 0 0.55rem;
+  color: var(--ink-dim);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.space-feed {
+  counter-reset: arrival;
+  display: grid;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0 0 0 1.75rem;
+  list-style: none;
+  border-left: 1px solid var(--accent);
+}
+
+.space-feed-item {
+  counter-increment: arrival;
+  position: relative;
+  min-width: 0;
+  padding: 0.7rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel);
+}
+
+.space-feed-item::before {
+  content: counter(arrival);
+  position: absolute;
+  top: 0.65rem;
+  left: -2.32rem;
+  display: grid;
+  place-items: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--accent);
+  font: 600 0.6rem/1 system-ui, sans-serif;
+}
+
+.space-feed-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.space-feed-head span,
+.space-provenance,
+.space-hash-label {
+  color: var(--ink-dim);
+  font-size: 0.7rem;
+}
+
+.space-excerpt {
+  margin: 0.55rem 0;
+  font: 0.95rem/1.5 Charter, Georgia, serif;
+  white-space: pre-line;
+}
+
+.space-provenance {
+  overflow-wrap: anywhere;
+}
+
+.space-hash-label {
+  display: block;
+  margin-top: 0.5rem;
+}
+
+.space-hash {
+  display: block;
+  margin: 0.15rem 0 0.5rem;
+  color: var(--ink-dim);
+  font-size: 0.65rem;
+  overflow-wrap: anywhere;
+}
+
+.space-evidence summary {
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.76rem;
+}
+
+.space-evidence p {
+  color: var(--ink-dim);
+  font-size: 0.75rem;
+}
+
+.space-evidence pre {
+  max-width: 100%;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.keep-space-document {
+  margin-top: 0.6rem;
+}
+
 /* settings */
 .setting {
   border: 1px solid var(--line);
@@ -1091,6 +1272,7 @@ body:not([data-view="read"]) .layout {
   color: var(--ink-dim);
   margin-top: 0.3rem;
   font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
 .read-empty {

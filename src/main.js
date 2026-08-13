@@ -27,9 +27,19 @@ import { IntentStream, toCommand, describeCandidate } from "./intents.js";
 import { createMatchEngine, blockForRange } from "./engine.js";
 import { createMarkerDriver, confirmRipple } from "./motion.js";
 import { ingestText, ingestPaste, ingestPdfBrowser, shortDigest, fmtBytes } from "./ingest.js";
-import { createSyncSurface } from "./sync.js";
+import { codeFromSpoken, createSyncSurface, momentFromEntry } from "./sync.js";
 import { createActEngine } from "./acts.js";
-import { putDoc, getDocs, getRecords, putRecord, putInbox, getInbox } from "./db.js";
+import {
+  putDoc,
+  getDoc,
+  getDocs,
+  getRecords,
+  putRecord,
+  putInbox,
+  getInbox,
+  putSpaceFeed,
+  getSpaceFeed,
+} from "./db.js";
 import { rid, nowIso, makeActEntry } from "./records.js";
 import { loadSettings, MOTION_PARAMS } from "./settings.js";
 import { medium } from "../vendor/jt-water/index.js";
@@ -302,6 +312,7 @@ function entryNode(e, { onUndo, onSend } = {}) {
       send.addEventListener("click", () => onSend(e));
       li.appendChild(send);
     }
+    shell?.attachSpacePicker(li, { entry: e });
   }
   return li;
 }
@@ -399,11 +410,40 @@ function showAsk(cmd) {
   }
 }
 
+function showSpaceAsk(result, entry, evidence) {
+  state.pendingAsk = {
+    type: "space",
+    candidates: result.candidates,
+    entry,
+    evidence,
+  };
+  askOptions.textContent = "";
+  for (const [i, candidate] of result.candidates.entries()) {
+    const btn = document.createElement("button");
+    btn.className = "ask-option space-ask";
+    btn.dataset.candidate = String(i);
+    btn.textContent = candidate.space.name;
+    btn.addEventListener("click", () => resolveAsk(i));
+    askOptions.appendChild(btn);
+  }
+  const dismiss = document.createElement("button");
+  dismiss.className = "ask-option ask-dismiss";
+  dismiss.textContent = "none of these";
+  dismiss.addEventListener("click", hideAsk);
+  askOptions.appendChild(dismiss);
+  askBox.hidden = false;
+  setStatus(true, "those space names sound alike — pick where this should go");
+}
+
 async function resolveAsk(i) {
   const ask = state.pendingAsk;
   if (!ask) return;
   const cand = ask.candidates[i];
   hideAsk();
+  if (ask.type === "space") {
+    if (cand?.space) await shell.sendEntryToSpace(ask.entry, cand.space.id);
+    return;
+  }
   if (!cand || cand.type === "reading") return;
   await runCommand(toCommand(cand), "pointer");
 }
@@ -690,16 +730,24 @@ function renderDocHead(doc) {
   docProv.hidden = true;
   docProvBtn.setAttribute("aria-expanded", "false");
   if (p) {
-    docProv.textContent = [
+    const bits = [
       `came in as ${p.sourceKind}`,
       p.createdBy ? `created by ${p.createdBy}` : "",
       p.pageCount ? `${p.pageCount} pages` : "",
       fmtBytes(p.byteSize),
       `fingerprint ${shortDigest(p.contentDigest)}`,
       `captured ${fmtTime(p.capturedAt)}`,
-    ]
-      .filter(Boolean)
-      .join(" · ");
+    ];
+    if (p.spaceImport) {
+      bits.push(`from space ${p.spaceImport.spaceName}`);
+      bits.push(
+        `original source ${p.original?.sourceTitle ?? p.original?.sourceId ?? "unknown"}`,
+        p.original?.sourceRevision ?? "",
+        p.original?.sourceDigest ?? "",
+        `moment ${p.spaceImport.contentHash}`,
+      );
+    }
+    docProv.textContent = bits.filter(Boolean).join(" · ");
   }
 }
 
@@ -830,6 +878,10 @@ function renderInbox() {
     pre.textContent = JSON.stringify(item.moment, null, 2);
     det.appendChild(pre);
     li.appendChild(det);
+    shell?.attachSpacePicker(li, {
+      moment: item.moment,
+      sourceContentHash: item.contentHash,
+    });
     inboxList.appendChild(li);
   }
   const empty = document.getElementById("inbox-empty");
@@ -895,12 +947,33 @@ async function sendEntry(entryId) {
   }
 }
 
+async function momentForKeptEntry(entry) {
+  const doc = state.doc?.id === entry.docId ? state.doc : await getDoc(entry.docId);
+  if (!doc) throw new Error("the source document for that act is not on this device");
+  const blockTexts = doc.blocks?.length
+    ? doc.blocks.map((block) => block.text)
+    : splitParagraphs(doc.text);
+  return momentFromEntry(entry, doc, blockTexts);
+}
+
 /** "send this to amber brook cedar" — pair by the spoken words, then send
  * the latest kept act. */
 async function sendSpoken(cmd) {
   const latest = [...engine.entries].reverse().find((e) => e.kind === "act" && !e.undone);
   if (!latest) {
     setStatus(true, "nothing kept yet — highlight or note something first");
+    return null;
+  }
+  const destination = shell?.resolvePersonSpace(cmd.recipient) ?? { kind: "none" };
+  if (destination.kind === "match") {
+    return shell.sendEntryToSpace(latest, destination.space.id);
+  }
+  if (destination.kind === "ambiguous") {
+    showSpaceAsk(destination, latest, cmd.evidence);
+    return null;
+  }
+  if (!codeFromSpoken(cmd.recipient)) {
+    setStatus(true, `no space called “${cmd.recipient}” in your current memberships`);
     return null;
   }
   try {
@@ -1115,9 +1188,17 @@ window.__jtApp = {
   // shell hooks (headless drivers)
   view: () => document.body.dataset.view,
   showView: (v) => shell?.show(v),
+  currentDoc: () => state.doc,
   micState: () => mic.state,
   exportData: () => shell?.exportData(),
+  voiceSegment: (text) => onFinalSegment(text),
   perform: (act, blockIndex, opts) => engine.perform(act, blockIndex, { modality: "pointer", evidence: "test hook", ...opts }),
+  spaces: {
+    feed: () => shell?.spaceFeed() ?? [],
+    personSpaces: () => shell?.personSpaces() ?? [],
+    sendEntry: (entry, spaceId) => shell?.sendEntryToSpace(entry, spaceId),
+    placeMoment: (moment, spaceId, options) => shell?.placeMomentInSpace(moment, spaceId, options),
+  },
   math: {
     active: () => mathState.active,
     expression: () => mathState.expression,
@@ -1137,6 +1218,9 @@ async function boot() {
     engineState: () => ({ kind: state.engineKind, mode: ENGINE_MODE }),
     currentDoc: () => state.doc,
     getDocs,
+    getSpaceFeed,
+    putSpaceFeed,
+    putDoc,
     getRecords,
     putRecord,
     makeActEntry,
@@ -1156,7 +1240,18 @@ async function boot() {
     fmtBytes,
     fmtTime,
     setSheet,
+    momentForEntry: momentForKeptEntry,
+    spacesChanged: () => {
+      renderHistory(engine.entries);
+      renderInbox();
+    },
   });
+
+  try {
+    await shell.loadSpaceFeed();
+  } catch {
+    /* first run */
+  }
 
   try {
     for (const item of await getInbox()) inbox.push(item);

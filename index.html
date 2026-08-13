@@ -142,13 +142,17 @@
 
     <!-- spaces: the organizational surface (provisional) -->
     <section class="view" id="view-spaces" hidden>
-      <h1>spaces <span class="early-badge">early &mdash; the shape may change</span></h1>
+      <h1>spaces <span class="early-badge">PROVISIONAL &middot; early &mdash; the shape may change</span></h1>
       <p class="hint">
         jt adopts the real structure of your life at an institution &mdash; your
         college, your batch, your class, your hostel room &mdash; instead of
-        inventing one. this surface is real and works now, on this device;
-        how spaces connect people is still being decided.
+        inventing one.
       </p>
+      <p class="space-local-note" id="space-local-note">
+        space feeds are local to this device for now. cross-device space sync
+        arrives with the relay; this early surface does not pretend it is here yet.
+      </p>
+      <p class="hint" id="space-person">choose who you are on this device to send moments only to spaces you belong to.</p>
       <div class="org-forms">
         <form class="org-form" id="form-institution">
           <h2>your institution</h2>
@@ -169,6 +173,7 @@
           <label class="field"><span>person</span><input id="member-name" placeholder="a name" required /></label>
           <label class="field"><span>role</span><select id="member-role"></select></label>
           <label class="field"><span>roll number</span><input id="member-roll" placeholder="optional, kept verbatim" /></label>
+          <label class="self-choice"><input id="member-self" type="checkbox" checked /><span>this is me on this device</span></label>
           <button type="submit">add member</button>
         </form>
       </div>
@@ -212,7 +217,7 @@
       <div class="setting">
         <h2>your data</h2>
         <button id="export-btn">download everything as JSON</button>
-        <p class="hint">documents, records, arrivals, spaces, settings &mdash; one file, yours.</p>
+        <p class="hint">documents, records, arrivals, spaces, space feeds, settings &mdash; one file, yours.</p>
         <button id="delete-btn" class="danger">delete everything on this device</button>
         <p class="hint" id="delete-state"></p>
       </div>

@@ -19,6 +19,11 @@ import { surfaceArrive } from "./motion.js";
 import { OrgStore, SPACE_KINDS, MEMBER_ROLES, ValidationError } from "./org.js";
 import { LANGS, MOTION_LEVELS, loadPerson, savePerson, clearSettings } from "./settings.js";
 import { nowIso } from "./records.js";
+import {
+  documentFromSpaceFeedItem,
+  makeSpaceFeedItem,
+  resolveSpaceName as matchSpaceName,
+} from "./space-flow.js";
 import pkg from "../package.json" with { type: "json" };
 
 const VIEWS = ["welcome", "home", "read", "history", "share", "spaces", "settings", "rooms"];
@@ -29,6 +34,8 @@ export function initShell(ctx) {
   const { settings } = ctx;
   let view = "read";
   let org = OrgStore.load(localStorage);
+  let person = loadPerson(localStorage);
+  let feed = [];
   const saveOrg = () => org.save(localStorage);
 
   // --- routing -------------------------------------------------------------
@@ -43,6 +50,7 @@ export function initShell(ctx) {
     const prev = view;
     view = next;
     document.body.dataset.view = next;
+    if (prev !== next) scrollTo(0, 0);
     for (const v of VIEWS) {
       const sec = sectionOf(v);
       if (sec) sec.hidden = v !== next;
@@ -253,7 +261,192 @@ export function initShell(ctx) {
         : String(err.message ?? err);
   }
 
+  function personSpaces() {
+    return person ? org.spacesOf(person.id).filter(Boolean) : [];
+  }
+
+  function nextArrivalTime() {
+    const now = Date.now();
+    const previous = feed.length ? Date.parse(feed[feed.length - 1].arrivedAt) : 0;
+    return new Date(Math.max(now, previous + 1)).toISOString();
+  }
+
+  async function placeMomentInSpace(moment, spaceId, { sourceContentHash = null } = {}) {
+    const space = org.spaces.get(spaceId);
+    if (!space || !personSpaces().some((candidate) => candidate.id === spaceId)) {
+      throw new Error("that space is not one of your current spaces");
+    }
+    const item = await makeSpaceFeedItem({
+      moment,
+      space,
+      spaceContext: org.spaceContextFor(spaceId, { visibility: "space" }),
+      person,
+      at: nextArrivalTime(),
+      sourceContentHash,
+    });
+    await ctx.putSpaceFeed(item);
+    feed.push(item);
+    feed.sort((a, b) => a.arrivedAt.localeCompare(b.arrivedAt) || a.id.localeCompare(b.id));
+    if (view === "spaces") renderOrg();
+    ctx.setStatus(true, `sent to ${space.name} — saved in its local feed`);
+    return item;
+  }
+
+  async function sendEntryToSpace(entry, spaceId) {
+    return placeMomentInSpace(await ctx.momentForEntry(entry), spaceId);
+  }
+
+  function attachSpacePicker(node, source) {
+    const picker = document.createElement("div");
+    picker.className = "space-picker";
+    const available = personSpaces();
+    if (!available.length) {
+      const empty = document.createElement("p");
+      empty.className = "hint space-picker-empty";
+      empty.append("choose who you are in ");
+      const link = document.createElement("a");
+      link.href = "#/spaces";
+      link.textContent = "spaces";
+      empty.append(link, " before sending here");
+      picker.appendChild(empty);
+      node.appendChild(picker);
+      return picker;
+    }
+
+    const label = document.createElement("label");
+    const text = document.createElement("span");
+    text.textContent = "send to space";
+    const select = document.createElement("select");
+    select.setAttribute("aria-label", "space destination");
+    fillSelect(select, available, { value: (space) => space.id, label: (space) => space.name });
+    label.append(text, select);
+    const send = document.createElement("button");
+    send.type = "button";
+    send.className = "space-send-confirm";
+    send.textContent = "send to space";
+    send.addEventListener("click", async () => {
+      send.disabled = true;
+      try {
+        if (source.entry) await sendEntryToSpace(source.entry, select.value);
+        else await placeMomentInSpace(source.moment, select.value, {
+          sourceContentHash: source.sourceContentHash ?? null,
+        });
+      } catch (err) {
+        ctx.setStatus(true, String(err?.message ?? err));
+      } finally {
+        send.disabled = false;
+      }
+    });
+    picker.append(label, send);
+    node.appendChild(picker);
+    return picker;
+  }
+
+  function momentExcerpt(moment) {
+    return moment.blocks
+      .map((block) => (block.kind === "math" ? block.spoken || block.content : block.content))
+      .filter(Boolean)
+      .join("\n\n");
+  }
+
+  function renderFeedItem(item) {
+    const li = document.createElement("li");
+    li.className = "space-feed-item";
+    li.dataset.feedId = item.id;
+    li.dataset.arrivedAt = item.arrivedAt;
+
+    const head = document.createElement("div");
+    head.className = "space-feed-head";
+    const title = document.createElement("strong");
+    title.textContent = item.moment.provenance?.sourceTitle || "a moment";
+    const time = document.createElement("span");
+    time.textContent = ctx.fmtTime(item.arrivedAt);
+    head.append(title, time);
+    li.appendChild(head);
+
+    const excerpt = document.createElement("p");
+    excerpt.className = "space-excerpt";
+    excerpt.textContent = momentExcerpt(item.moment);
+    li.appendChild(excerpt);
+
+    const provenance = document.createElement("p");
+    provenance.className = "space-provenance";
+    const source = item.moment.provenance ?? {};
+    provenance.textContent = [
+      `source ${source.sourceTitle ?? source.sourceId ?? "unknown"}`,
+      source.sourceRevision,
+      source.sourceDigest,
+    ].filter(Boolean).join(" · ");
+    li.appendChild(provenance);
+
+    const hashLabel = document.createElement("span");
+    hashLabel.className = "space-hash-label";
+    hashLabel.textContent = "moment hash";
+    const hash = document.createElement("code");
+    hash.className = "space-hash";
+    hash.textContent = item.contentHash;
+    li.append(hashLabel, hash);
+
+    const details = document.createElement("details");
+    details.className = "space-evidence";
+    const summary = document.createElement("summary");
+    summary.textContent = "evidence and provenance";
+    details.appendChild(summary);
+    const evidence = document.createElement("p");
+    evidence.textContent = [
+      item.moment.cursor?.capturedEvidence && `captured evidence: “${item.moment.cursor.capturedEvidence}”`,
+      item.moment.cursor?.proposedIntention,
+      item.moment.receipt?.result,
+    ].filter(Boolean).join(" · ");
+    details.appendChild(evidence);
+    const full = document.createElement("pre");
+    full.textContent = JSON.stringify({
+      cursor: item.moment.cursor,
+      receipt: item.moment.receipt,
+      provenance: item.moment.provenance,
+      sourceSpaceContext: item.sourceSpaceContext,
+      spaceContext: item.moment.spaceContext,
+    }, null, 2);
+    details.appendChild(full);
+    li.appendChild(details);
+
+    const keep = document.createElement("button");
+    keep.type = "button";
+    keep.className = "keep-space-document";
+    keep.textContent = "keep to my documents";
+    keep.addEventListener("click", async () => {
+      const doc = await documentFromSpaceFeedItem(item);
+      await ctx.putDoc(doc);
+      await ctx.openDocument(doc);
+      ctx.setStatus(true, "kept in your documents with its source intact");
+    });
+    li.appendChild(keep);
+    return li;
+  }
+
+  function appendSpaceFeed(row, space) {
+    const section = document.createElement("section");
+    section.className = "space-feed-section";
+    const heading = document.createElement("h4");
+    heading.textContent = "moments — arrival order";
+    section.appendChild(heading);
+    const items = feed.filter((item) => item.spaceId === space.id);
+    if (!items.length) {
+      const empty = document.createElement("p");
+      empty.className = "hint";
+      empty.textContent = "no moments here yet";
+      section.appendChild(empty);
+    } else {
+      const list = document.createElement("ol");
+      list.className = "space-feed";
+      for (const item of items) list.appendChild(renderFeedItem(item));
+      section.appendChild(list);
+    }
+    row.appendChild(section);
+  }
+
   function renderOrg() {
+    person = loadPerson(localStorage);
     fillSelect($("space-kind"), SPACE_KINDS);
     fillSelect($("member-role"), MEMBER_ROLES);
     const insts = [...org.institutions.values()];
@@ -266,6 +459,18 @@ export function initShell(ctx) {
     $("form-space").hidden = insts.length === 0;
     $("form-member").hidden = spaces.length === 0;
     $("org-empty").hidden = insts.length > 0;
+    $("space-person").textContent = person
+      ? `you are ${person.name} on this device — send-to-space shows only current memberships.`
+      : "choose who you are on this device to send moments only to spaces you belong to.";
+
+    let people = {};
+    try {
+      people = JSON.parse(localStorage.getItem("jt.people") || "{}");
+    } catch {
+      people = {};
+    }
+    const nameFor = (personId) =>
+      Object.entries(people).find(([, id]) => id === personId)?.[0] ?? personId.replace(/^per-/, "");
 
     const tree = $("org-tree");
     tree.textContent = "";
@@ -291,6 +496,7 @@ export function initShell(ctx) {
       for (const s of instSpaces) {
         const row = document.createElement("div");
         row.className = "org-space";
+        row.dataset.spaceId = s.id;
         const name = document.createElement("strong");
         name.textContent = s.name;
         row.appendChild(name);
@@ -303,10 +509,30 @@ export function initShell(ctx) {
         ul.className = "org-members";
         for (const m of members) {
           const li = document.createElement("li");
+          li.dataset.personId = m.personId;
           const idBits = m.institutionalIdentity?.rollNumber
             ? ` · roll ${m.institutionalIdentity.rollNumber}`
             : "";
-          li.textContent = `${m.personId.replace(/^per-/, "")} — ${m.role}${idBits}`;
+          const memberName = nameFor(m.personId);
+          li.append(`${memberName} — ${m.role}${idBits}`);
+          if (person?.id === m.personId) {
+            const mine = document.createElement("span");
+            mine.className = "you-badge";
+            mine.textContent = "you on this device";
+            li.appendChild(mine);
+          } else {
+            const choose = document.createElement("button");
+            choose.type = "button";
+            choose.className = "make-self";
+            choose.textContent = "this is me";
+            choose.addEventListener("click", () => {
+              person = { id: m.personId, name: memberName };
+              savePerson(person, localStorage);
+              renderOrg();
+              ctx.spacesChanged();
+            });
+            li.appendChild(choose);
+          }
           ul.appendChild(li);
         }
         if (!members.length) {
@@ -316,6 +542,7 @@ export function initShell(ctx) {
           ul.appendChild(li);
         }
         row.appendChild(ul);
+        appendSpaceFeed(row, s);
         box.appendChild(row);
       }
       tree.appendChild(box);
@@ -368,18 +595,24 @@ export function initShell(ctx) {
         localStorage.setItem("jt.people", JSON.stringify(people));
       }
       const roll = $("member-roll").value.trim();
+      const personId = people[name];
       org.addMember({
-        personId: people[name],
+        personId,
         spaceId: $("member-space").value,
         role: $("member-role").value,
         institutionalIdentity: roll ? { rollNumber: roll } : undefined,
         joinedAt: nowIso(),
       });
+      if ($("member-self").checked) {
+        person = { id: personId, name };
+        savePerson(person, localStorage);
+      }
       saveOrg();
       $("member-name").value = "";
       $("member-roll").value = "";
       orgError(null);
       renderOrg();
+      ctx.spacesChanged();
     } catch (err) {
       orgError(err);
     }
@@ -480,6 +713,7 @@ export function initShell(ctx) {
         records,
         arrived: ctx.getInbox(),
         spaces: org.toJSON(),
+        spaceFeeds: await ctx.getSpaceFeed(),
       },
       null,
       2
@@ -502,7 +736,7 @@ export function initShell(ctx) {
     if (!armed) {
       armed = true;
       $("delete-btn").textContent = "press again to really delete everything";
-      state.textContent = "this removes every document, record, arrival, space and setting from this device. there is no undo for this one.";
+      state.textContent = "this removes every document, record, arrival, space, space feed and setting from this device. there is no undo for this one.";
       return;
     }
     clearSettings();
@@ -554,6 +788,18 @@ export function initShell(ctx) {
     show,
     route,
     exportData,
+    async loadSpaceFeed() {
+      feed = await ctx.getSpaceFeed();
+      feed.sort((a, b) => a.arrivedAt.localeCompare(b.arrivedAt) || a.id.localeCompare(b.id));
+      if (view === "spaces") renderOrg();
+      return feed;
+    },
+    spaceFeed: () => feed,
+    personSpaces,
+    resolvePersonSpace: (query) => matchSpaceName(query, personSpaces()),
+    sendEntryToSpace,
+    placeMomentInSpace,
+    attachSpacePicker,
     view: () => view,
     libraryChanged: () => {
       if (view === "home") renderHome();
