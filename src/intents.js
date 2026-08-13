@@ -25,6 +25,7 @@ export const INTENT_TO_ACT = {
  *   {type:"undo", evidence}
  *   {type:"show", evidence}
  *   {type:"open", documentName, evidence}
+ *   {type:"return", documentName?, evidence}
  *   {type:"send", recipient, evidence}
  *   {type:"ask", candidates, reason, evidence}   // ambiguity — must ask
  *   {type:"reading", text}
@@ -64,6 +65,8 @@ export function toCommand(ev) {
       return { type: "show", evidence };
     case "document.open":
       return { type: "open", documentName: ev.args.documentName ?? "", evidence };
+    case "document.return":
+      return { type: "return", documentName: ev.args.documentName ?? "", evidence };
     case "send.to":
       return { type: "send", recipient: ev.args.recipient ?? "", evidence };
     default:
@@ -89,6 +92,10 @@ export function describeCandidate(cand) {
       return "show what you have done";
     case "document.open":
       return `open “${cand.args.documentName ?? ""}”`;
+    case "document.return":
+      return cand.args.documentName
+        ? `go back to “${cand.args.documentName}”`
+        : "go back to where I was";
     case "send.to":
       return `send this to “${cand.args.recipient ?? ""}”`;
     default:

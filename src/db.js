@@ -1,13 +1,15 @@
-// jt — IndexedDB persistence. Two stores:
+// jt — IndexedDB persistence. Four stores:
 //   docs:    { id, title, text, createdAt, revision }
 //   records: { id, docId, kind, act, blockIndex, confidence, matchedText,
 //              noteText, undone, undoes, createdAt, cursor, receipt }
+//   inbox:   verified moments received from another device
+//   positions: { docId, revision, blockIndex, blockCount, updatedAt }
 // The `cursor` and `receipt` fields are schema-pure records conforming to
 // jt-contracts cursor.schema.json / receipt.schema.json. Everything else is
 // app-level evidence for the history panel.
 
 const DB_NAME = "jt-web";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 let dbPromise = null;
 
@@ -26,6 +28,9 @@ export function openDb() {
       }
       if (!db.objectStoreNames.contains("inbox")) {
         db.createObjectStore("inbox", { keyPath: "momentId" });
+      }
+      if (!db.objectStoreNames.contains("positions")) {
+        db.createObjectStore("positions", { keyPath: "docId" });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -64,6 +69,29 @@ export async function getDoc(id) {
   return new Promise((resolve, reject) => {
     const req = db.transaction("docs").objectStore("docs").get(id);
     req.onsuccess = () => resolve(req.result ?? null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function putPosition(position) {
+  const db = await openDb();
+  return tx(db, "positions", "readwrite", (s) => s.put(position));
+}
+
+export async function getPosition(docId) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction("positions").objectStore("positions").get(docId);
+    req.onsuccess = () => resolve(req.result ?? null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+export async function getPositions() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction("positions").objectStore("positions").getAll();
+    req.onsuccess = () => resolve(req.result ?? []);
     req.onerror = () => reject(req.error);
   });
 }

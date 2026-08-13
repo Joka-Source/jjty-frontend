@@ -83,6 +83,12 @@ export const LEXICON = [
         triggers: ["open", "open the document", "open document", "open up", "open the file"],
         threshold: 0.86,
     },
+    {
+        // B4-RETURN local extension; candidate for upstream jt-speech.
+        intent: "document.return",
+        triggers: ["take me back", "where was i", "go back to"],
+        threshold: 0.9,
+    },
 ];
 /** Range connectors for two-anchor highlight ("from X to Y"). */
 export const RANGE_FROM = ["from"];

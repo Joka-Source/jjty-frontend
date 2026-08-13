@@ -128,6 +128,13 @@ export function initShell(ctx) {
         prov.textContent = "added by hand";
       }
       li.appendChild(prov);
+      const position = await ctx.positionForDoc(d);
+      const place = document.createElement("div");
+      place.className = "home-position";
+      place.textContent = position
+        ? `block ${position.blockIndex + 1} of ${position.blockCount} · ${ctx.relativeReadTime(position.updatedAt)}`
+        : "not started";
+      li.appendChild(place);
       list.appendChild(li);
     }
   }
@@ -478,6 +485,7 @@ export function initShell(ctx) {
         },
         documents: docs,
         records,
+        positions: await ctx.getPositions(),
         arrived: ctx.getInbox(),
         spaces: org.toJSON(),
       },

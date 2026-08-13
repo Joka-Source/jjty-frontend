@@ -25,17 +25,32 @@ import { tokenize, matchTranscript } from "./match.js";
 import { splitParagraphs, titleFrom, STARTER_DOC } from "./doc.js";
 import { IntentStream, toCommand, describeCandidate } from "./intents.js";
 import { createMatchEngine, blockForRange } from "./engine.js";
-import { createMarkerDriver, confirmRipple } from "./motion.js";
+import { createMarkerDriver, confirmRipple, returnToPlace } from "./motion.js";
 import { ingestText, ingestPaste, ingestPdfBrowser, shortDigest, fmtBytes } from "./ingest.js";
 import { createSyncSurface } from "./sync.js";
 import { createActEngine } from "./acts.js";
-import { putDoc, getDocs, getRecords, putRecord, putInbox, getInbox } from "./db.js";
+import {
+  putDoc,
+  getDocs,
+  getRecords,
+  putRecord,
+  putInbox,
+  getInbox,
+  putPosition,
+  getPosition,
+  getPositions,
+} from "./db.js";
 import { rid, nowIso, makeActEntry } from "./records.js";
 import { loadSettings, MOTION_PARAMS } from "./settings.js";
 import { medium } from "../vendor/jt-water/index.js";
 import { initShell } from "./shell.js";
 import "./pwa.js";
 import { initInstallUx } from "./install.js";
+import {
+  createPositionMemory,
+  relativeReadTime,
+  matchDocumentName,
+} from "./position.js";
 import {
   mathControl,
   translateSpokenMath,
@@ -158,6 +173,7 @@ const mathState = {
 };
 
 const markerDriver = createMarkerDriver(marker, markerMedium);
+const positionMemory = createPositionMemory({ save: putPosition, load: getPosition });
 const intentStream = new IntentStream();
 let shell = null; // the surface router (initShell) — set during boot
 
@@ -165,6 +181,25 @@ function setStatus(on, text) {
   statusDot.classList.toggle("on", on);
   statusText.textContent = text;
 }
+
+function blockCountOf(doc) {
+  return doc?.blocks?.length || splitParagraphs(doc?.text ?? "").length;
+}
+
+function rememberPosition(blockIndex) {
+  if (!state.doc) return;
+  positionMemory.remember(state.doc, blockIndex, state.blocks.length);
+  shell?.libraryChanged();
+}
+
+async function positionForDoc(doc) {
+  return positionMemory.read(doc, blockCountOf(doc));
+}
+
+addEventListener("pagehide", () => void positionMemory.flushAll());
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") void positionMemory.flushAll();
+});
 
 // ---------------------------------------------------------------------------
 // Rendering
@@ -199,6 +234,7 @@ async function renderDoc(doc) {
     p.addEventListener("click", () => {
       state.currentBlock = i;
       moveMarker(i);
+      rememberPosition(i);
     });
     article.appendChild(p);
     state.blocks.push(p);
@@ -240,12 +276,13 @@ const ACT_TITLES = {
   note: "note added",
   math: "mathematics kept",
   undo: "undone",
+  return: "returned",
 };
 
 function spanLabel(e) {
   return e.blockEnd != null && e.blockEnd !== e.blockIndex
-    ? `blocks ${e.blockIndex}–${e.blockEnd}`
-    : `block ${e.blockIndex}`;
+    ? `blocks ${e.blockIndex + 1}–${e.blockEnd + 1}`
+    : `block ${e.blockIndex + 1}`;
 }
 
 /** Build the DOM for one history entry. Shared by the reading-side panel
@@ -267,7 +304,7 @@ function entryNode(e, { onUndo, onSend } = {}) {
   const ev = document.createElement("div");
   ev.className = "entry-evidence";
   const bits = [];
-  if (e.evidence) bits.push(`heard: “${e.evidence}”`);
+  if (e.evidence) bits.push(`${e.modality === "voice" ? "heard" : "input"}: “${e.evidence}”`);
   if (e.matchedText) bits.push(`matched: “${e.matchedText}”`);
   if (e.confidence != null) bits.push(`match ${Math.round(e.confidence * 100)}%`);
   if (e.noteText) bits.push(`note: “${e.noteText}”`);
@@ -399,9 +436,48 @@ function showAsk(cmd) {
   }
 }
 
+function showReturnAsk(documents, { evidence, modality }) {
+  state.pendingAsk = { kind: "document-return", documents, evidence, modality };
+  askOptions.textContent = "";
+  for (const [i, doc] of documents.entries()) {
+    const btn = document.createElement("button");
+    btn.className = "ask-option";
+    btn.dataset.candidate = String(i);
+    btn.textContent = `go back to “${doc.title}”`;
+    btn.addEventListener("click", () => resolveAsk(i));
+    askOptions.appendChild(btn);
+  }
+  const dismiss = document.createElement("button");
+  dismiss.className = "ask-option ask-dismiss";
+  dismiss.textContent = "none of these";
+  dismiss.addEventListener("click", hideAsk);
+  askOptions.appendChild(dismiss);
+  askBox.hidden = false;
+  setStatus(true, "I found more than one document — pick one");
+  if (window.__jt) {
+    window.__jt.ambiguities.push({
+      reason: "document names are equally close",
+      evidence,
+      candidates: documents.map((doc) => `go back to “${doc.title}”`),
+    });
+  }
+}
+
 async function resolveAsk(i) {
   const ask = state.pendingAsk;
   if (!ask) return;
+  if (ask.kind === "document-return") {
+    const doc = ask.documents[i];
+    hideAsk();
+    if (doc) {
+      await openDocument(doc, {
+        modality: ask.modality,
+        returnReason: ask.evidence,
+        requirePosition: true,
+      });
+    }
+    return;
+  }
   const cand = ask.candidates[i];
   hideAsk();
   if (!cand || cand.type === "reading") return;
@@ -434,6 +510,30 @@ async function runCommand(cmd, modality = "voice") {
       if (found) await openDocument(found);
       else setStatus(true, `no document called “${cmd.documentName}” here`);
       return null;
+    }
+    case "return": {
+      let target = state.doc;
+      if (cmd.documentName) {
+        const result = matchDocumentName(await getDocs(), cmd.documentName);
+        if (result.kind === "none") {
+          setStatus(true, `no document called “${cmd.documentName}” here`);
+          return null;
+        }
+        if (result.kind === "ambiguous") {
+          showReturnAsk(result.documents, { evidence: cmd.evidence, modality });
+          return null;
+        }
+        target = result.document;
+      }
+      if (!target) {
+        setStatus(true, "there is no open document to go back to");
+        return null;
+      }
+      return openDocument(target, {
+        modality,
+        returnReason: cmd.evidence,
+        requirePosition: true,
+      });
     }
     case "send":
       return sendSpoken(cmd);
@@ -630,6 +730,7 @@ function onInterim(fullText) {
     moveMarker(b);
     state.blocks[b].scrollIntoView({ behavior: "smooth", block: "center" });
   }
+  rememberPosition(b);
 }
 
 async function onFinalSegment(segment) {
@@ -708,14 +809,40 @@ docProvBtn.addEventListener("click", () => {
   docProvBtn.setAttribute("aria-expanded", String(!docProv.hidden));
 });
 
-async function openDocument(doc, { navigate = true } = {}) {
+async function openDocument(
+  doc,
+  {
+    navigate = true,
+    modality = "pointer",
+    returnReason = "opened from documents",
+    requirePosition = false,
+  } = {}
+) {
   await renderDoc(doc);
   await engine.load(doc.id);
   renderDocHead(doc);
   await refreshLibrary();
   if (narrowScreen.matches) setSheet(null); // picking a document closes the sheet
   if (navigate) shell?.show("read");
-  setStatus(true, `open: ${doc.title}`);
+  const position = await positionForDoc(doc);
+  if (!position) {
+    setStatus(
+      true,
+      requirePosition ? `I have not kept a place in “${doc.title}” yet` : `open: ${doc.title}`
+    );
+    return null;
+  }
+  state.currentBlock = position.blockIndex;
+  state.lastMatch = null;
+  moveMarker(position.blockIndex);
+  returnToPlace(state.blocks[position.blockIndex], markerMedium());
+  const entry = await engine.recordReturn(position.blockIndex, {
+    modality,
+    evidence: returnReason,
+    matchedText: state.blockTexts[position.blockIndex]?.slice(0, 120) ?? "",
+  });
+  setStatus(true, `back at block ${position.blockIndex + 1} of ${position.blockCount}`);
+  return entry;
 }
 
 /** Store an IngestResult (jt-connectors shape) as a jt document. */
@@ -1125,6 +1252,13 @@ window.__jtApp = {
     segment: (text) => onFinalSegment(text),
     keep: (modality = "pointer") => keepMath(modality),
   },
+  currentBlock: () => state.currentBlock,
+  addDocument,
+  segment: (text) => onFinalSegment(text),
+  position: {
+    read: () => (state.doc ? positionForDoc(state.doc) : null),
+    flush: () => positionMemory.flushAll(),
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -1138,12 +1272,16 @@ async function boot() {
     currentDoc: () => state.doc,
     getDocs,
     getRecords,
+    getPositions,
+    positionForDoc,
+    relativeReadTime,
     putRecord,
     makeActEntry,
     getInbox: () => inbox,
     engine,
     entryNode,
-    openDocument,
+    openDocument: (doc) =>
+      openDocument(doc, { modality: "pointer", returnReason: "opened from home" }),
     ingestFile,
     addIngested,
     addDocument,
@@ -1175,7 +1313,11 @@ async function boot() {
   const docs = await getDocs();
   if (docs.length) {
     const latest = docs.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
-    await openDocument(latest, { navigate: false });
+    await openDocument(latest, {
+      navigate: false,
+      modality: "pointer",
+      returnReason: "page reopened",
+    });
   } else {
     renderDocHead(null); // designed empty reading surface
     await refreshLibrary();

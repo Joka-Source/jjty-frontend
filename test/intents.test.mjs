@@ -61,3 +61,15 @@ test("evidence rides along on every intent", () => {
   assert.ok(cmd.evidence.includes("important"));
   assert.ok(cmd.confidence > 0.8);
 });
+
+test("return phrases map to current and named document commands", () => {
+  assert.deepEqual(
+    (({ type, documentName }) => ({ type, documentName }))(first("take me back")),
+    { type: "return", documentName: "" }
+  );
+  assert.equal(first("where was I").type, "return");
+  assert.deepEqual(
+    (({ type, documentName }) => ({ type, documentName }))(first("go back to river survey")),
+    { type: "return", documentName: "river survey" }
+  );
+});

@@ -2,7 +2,7 @@
 // paired cursor + receipt records to IndexedDB, and reverses acts on undo
 // (undo itself is an act with its own records — the trail never thins).
 
-import { makeActEntry } from "./records.js";
+import { makeActEntry, makeReturnEntry } from "./records.js";
 import { putRecord, getRecords } from "./db.js";
 
 export function createActEngine({ getBlocks, getDoc, onChange, onApply, renderMath }) {
@@ -139,9 +139,27 @@ export function createActEngine({ getBlocks, getDoc, onChange, onApply, renderMa
     return undoEntry;
   }
 
+  async function recordReturn(blockIndex, { modality, evidence, matchedText } = {}) {
+    const doc = getDoc();
+    if (!doc || blockIndex < 0) return null;
+    const entry = makeReturnEntry({
+      docId: doc.id,
+      revision: doc.revision,
+      blockIndex,
+      modality,
+      evidence,
+      matchedText,
+    });
+    await putRecord(entry);
+    entries.push(entry);
+    onChange?.(entries);
+    return entry;
+  }
+
   return {
     load,
     perform,
+    recordReturn,
     undo,
     get entries() {
       return entries;

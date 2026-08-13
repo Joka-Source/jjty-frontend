@@ -33,7 +33,7 @@ export interface Span {
     tStart?: number;
     tEnd?: number;
 }
-export type IntentName = "highlight.this" | "highlight.range" | "annotate.this" | "mark.important" | "send.to" | "undo" | "acts.show" | "document.open";
+export type IntentName = "highlight.this" | "highlight.range" | "annotate.this" | "mark.important" | "send.to" | "undo" | "acts.show" | "document.open" | "document.return";
 export interface HighlightThisArgs {
     /** deictic target: whatever the matcher's cursor currently covers */
     target: "current";
@@ -54,7 +54,10 @@ export interface SendToArgs {
 export interface OpenDocumentArgs {
     documentName: string;
 }
-export type IntentArgs = HighlightThisArgs | HighlightRangeArgs | AnnotateThisArgs | MarkImportantArgs | SendToArgs | OpenDocumentArgs | Record<string, never>;
+export interface ReturnDocumentArgs {
+    documentName?: string;
+}
+export type IntentArgs = HighlightThisArgs | HighlightRangeArgs | AnnotateThisArgs | MarkImportantArgs | SendToArgs | OpenDocumentArgs | ReturnDocumentArgs | Record<string, never>;
 /** A single resolved parse of a command span. */
 export interface IntentResult {
     type: "intent";

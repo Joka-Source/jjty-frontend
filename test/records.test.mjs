@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { validateCursor, validateReceipt, errorsOf, root } from "./validate.mjs";
-import { makeCursor, makeReceipt, makeActEntry } from "../src/records.js";
+import { makeCursor, makeReceipt, makeActEntry, makeReturnEntry } from "../src/records.js";
 
 function fixtures(kind) {
   const dir = path.join(root, "contracts", "fixtures", kind);
@@ -75,4 +75,25 @@ test("undo entries reference the reversed act", () => {
   assert.equal(entry.undoes, "evt-abc");
   assert.match(entry.cursor.proposedIntention, /evt-abc/);
   assert.match(entry.receipt.result, /evt-abc/);
+});
+
+test("a return is a valid lightweight non-undoable record pair", () => {
+  const entry = makeReturnEntry({
+    docId: "doc-test1",
+    revision: 2,
+    blockIndex: 4,
+    modality: "voice",
+    evidence: "where was I",
+    matchedText: "The river turns north here.",
+    at: "2026-08-13T06:30:00.000Z",
+  });
+  assert.equal(entry.kind, "return");
+  assert.equal(entry.act, "return");
+  assert.equal(entry.blockIndex, 4);
+  assert.equal(entry.cursor.state, "return");
+  assert.equal(entry.cursor.undoAvailable, false);
+  assert.equal(entry.cursor.capturedEvidence, "where was I");
+  assert.equal(entry.receipt.result, "returned to block 4");
+  assert.ok(validateCursor(entry.cursor), errorsOf(validateCursor));
+  assert.ok(validateReceipt(entry.receipt), errorsOf(validateReceipt));
 });
