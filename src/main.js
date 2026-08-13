@@ -61,6 +61,11 @@ import {
   translateSpokenMath,
   makeSpokenMathDocument,
 } from "./math.js";
+import {
+  executeVerb as executeRegisteredVerb,
+  historyTitleFor,
+  verbRegistry,
+} from "./registry/index.js";
 
 const article = document.getElementById("doc");
 const marker = document.getElementById("marker");
@@ -315,15 +320,6 @@ function fmtTime(iso) {
   }
 }
 
-const ACT_TITLES = {
-  highlight: "highlighted",
-  important: "marked important",
-  note: "note added",
-  math: "mathematics kept",
-  undo: "undone",
-  return: "returned",
-};
-
 function arrivalWords(entry) {
   if (entry.migration === "legacy") {
     return "older record — whole block used because exact words were not stored";
@@ -350,7 +346,7 @@ function entryNode(e, { onUndo, onSend } = {}) {
   const head = document.createElement("div");
   head.className = "entry-head";
   const title = document.createElement("strong");
-  title.textContent = `${ACT_TITLES[e.act] ?? e.act} — ${spanLabel(e)}`;
+  title.textContent = `${historyTitleFor(e)} — ${spanLabel(e)}`;
   head.appendChild(title);
   const time = document.createElement("span");
   time.className = "entry-time";
@@ -408,7 +404,11 @@ function renderHistory(entries) {
     historyList.appendChild(
       entryNode(e, {
         onUndo: (entry) =>
-          engine.undo(entry.id, { modality: "pointer", evidence: "undo button clicked" }),
+          executeVerb("undo", {
+            entryId: entry.id,
+            modality: "pointer",
+            evidence: "undo button clicked",
+          }),
         onSend: (entry) => sendEntry(entry.id),
       })
     );
@@ -601,11 +601,16 @@ async function resolveAsk(i) {
     const labels = ask.candidates.map(targetCandidateLabel);
     hideAsk();
     if (candidate) {
-      await performActAtTarget(ask.cmd, ask.modality, candidate, {
-        asked: true,
-        reason: ask.reason,
-        candidates: labels,
-        chosen: targetCandidateLabel(candidate),
+      await executeVerb(ask.cmd.verbId, {
+        ...ask.cmd,
+        modality: ask.modality,
+        target: candidate,
+        targetChoice: {
+          asked: true,
+          reason: ask.reason,
+          candidates: labels,
+          chosen: targetCandidateLabel(candidate),
+        },
       });
     }
     return;
@@ -614,10 +619,10 @@ async function resolveAsk(i) {
     const doc = ask.documents[i];
     hideAsk();
     if (doc) {
-      await openDocument(doc, {
+      await executeVerb("return", {
+        document: doc,
         modality: ask.modality,
-        returnReason: ask.evidence,
-        requirePosition: true,
+        evidence: ask.evidence,
       });
     }
     return;
@@ -625,124 +630,170 @@ async function resolveAsk(i) {
   const cand = ask.candidates[i];
   hideAsk();
   if (ask.type === "space") {
-    if (cand?.space) await shell.sendEntryToSpace(ask.entry, cand.space.id);
+    if (cand?.space) await executeVerb("send-to-space", { entry: ask.entry, spaceId: cand.space.id });
     return;
   }
   if (!cand || cand.type === "reading") return;
   await runCommand(toCommand(cand), "pointer");
 }
 
-function performActAtTarget(cmd, modality, target, targetChoice = null) {
-  const blockIndex = target?.blockIndex ?? state.currentBlock;
+function performActAtTarget(verbId, args, target, targetChoice = null) {
+  const blockIndex = target?.blockIndex ?? args.blockIndex ?? state.currentBlock;
   const matchedText =
-    target?.quotedText ?? state.blockTexts[blockIndex]?.slice(0, 120) ?? "";
-  return engine.perform(cmd.act, blockIndex, {
-    modality,
-    evidence: cmd.evidence,
-    confidence: target?.score ?? state.lastMatch?.score ?? null,
+    target?.quotedText ?? args.matchedText ?? state.blockTexts[blockIndex]?.slice(0, 120) ?? "";
+  return engine.perform(verbId, blockIndex, {
+    modality: args.modality,
+    evidence: args.evidence,
+    confidence: target?.score ?? args.confidence ?? state.lastMatch?.score ?? null,
     matchedText,
-    noteText: cmd.noteText ?? "",
-    tokenStart: target?.tokenStart,
-    tokenEnd: target?.tokenEnd,
+    noteText: args.noteText ?? "",
+    tokenStart: target?.tokenStart ?? args.tokenStart,
+    tokenEnd: target?.tokenEnd ?? args.tokenEnd,
     targetChoice,
+    blockEnd: args.blockEnd,
+    arrival: args.arrival,
   });
 }
 
-async function runCommand(cmd, modality = "voice") {
-  switch (cmd.type) {
-    case "reading":
-      return null; // the interim matcher already followed it
-    case "ask":
-      showAsk(cmd);
-      return null;
-    case "undo": {
-      const done = await engine.undo(null, { modality, evidence: cmd.evidence });
-      if (!done) setStatus(true, "nothing left to undo");
-      return done;
-    }
-    case "show": {
-      if (narrowScreen.matches) setSheet("history");
-      document.querySelector(".history")?.classList.add("attention");
-      setTimeout(() => document.querySelector(".history")?.classList.remove("attention"), 1500);
-      setStatus(true, `everything you have done is in the panel on the right (${engine.entries.length} so far)`);
-      return null;
-    }
-    case "open": {
-      const docs = await getDocs();
-      const want = cmd.documentName.toLowerCase();
-      const found = docs.find((d) => d.title.toLowerCase().includes(want));
-      if (found) await openDocument(found);
-      else setStatus(true, `no document called “${cmd.documentName}” here`);
-      return null;
-    }
-    case "return": {
-      let target = state.doc;
-      if (cmd.documentName) {
-        const result = matchDocumentName(await getDocs(), cmd.documentName);
-        if (result.kind === "none") {
-          setStatus(true, `no document called “${cmd.documentName}” here`);
-          return null;
-        }
-        if (result.kind === "ambiguous") {
-          showReturnAsk(result.documents, { evidence: cmd.evidence, modality });
-          return null;
-        }
-        target = result.document;
-      }
-      if (!target) {
-        setStatus(true, "there is no open document to go back to");
-        return null;
-      }
-      return openDocument(target, {
-        modality,
-        returnReason: cmd.evidence,
-        requirePosition: true,
-      });
-    }
-    case "send":
-      return sendSpoken(cmd);
-    case "range": {
-      const from = findAnchorBlock(cmd.fromAnchor, "head");
-      const to = findAnchorBlock(cmd.toAnchor, "tail");
-      if (from < 0 || to < 0) {
-        setStatus(true, "couldn't find those words in the document");
-        return null;
-      }
-      const lo = Math.min(from, to);
-      const hi = Math.max(from, to);
-      return engine.perform("highlight", lo, {
-        blockEnd: hi,
-        modality,
-        evidence: cmd.evidence,
-        confidence: cmd.confidence ?? null,
-        matchedText: state.blockTexts[lo]?.slice(0, 120) ?? "",
-      });
-    }
-    case "act": {
-      const targetMatch = state.lastReadingMatch ?? state.lastMatch;
-      const targetBlock = targetMatch?.blockIndex ?? state.currentBlock;
-      if (targetBlock < 0) {
-        setStatus(true, "read a line first so jt knows where you are");
-        return null;
-      }
-      state.currentBlock = targetBlock;
-      if (!targetMatch || targetMatch.blockIndex !== targetBlock) {
-        return performActAtTarget(cmd, modality, null);
-      }
-      const decision = decideTarget(targetMatch);
-      if (decision.kind === "ask") {
-        showTargetAsk(cmd, modality, decision);
-        return null;
-      }
-      if (decision.kind === "none") {
-        setStatus(true, "I could not place those words confidently — read the passage again");
-        return null;
-      }
-      return performActAtTarget(cmd, modality, decision.target);
-    }
-    default:
-      return null;
+async function performTargeted(verbId, args) {
+  if (args.target || Number.isInteger(args.blockIndex)) {
+    return performActAtTarget(verbId, args, args.target ?? null, args.targetChoice ?? null);
   }
+  const targetMatch = state.lastReadingMatch ?? state.lastMatch;
+  const targetBlock = targetMatch?.blockIndex ?? state.currentBlock;
+  if (targetBlock < 0) {
+    setStatus(true, "read a line first so jt knows where you are");
+    return null;
+  }
+  state.currentBlock = targetBlock;
+  if (!targetMatch || targetMatch.blockIndex !== targetBlock) {
+    return performActAtTarget(verbId, args, null);
+  }
+  const decision = decideTarget(targetMatch);
+  if (decision.kind === "ask") {
+    showTargetAsk({ ...args, verbId }, args.modality, decision);
+    return null;
+  }
+  if (decision.kind === "none") {
+    setStatus(true, "I could not place those words confidently — read the passage again");
+    return null;
+  }
+  return performActAtTarget(verbId, args, decision.target);
+}
+
+async function performRange(verbId, args) {
+  const from = findAnchorBlock(args.fromAnchor, "head");
+  const to = findAnchorBlock(args.toAnchor, "tail");
+  if (from < 0 || to < 0) {
+    setStatus(true, "couldn't find those words in the document");
+    return null;
+  }
+  const lo = Math.min(from, to);
+  const hi = Math.max(from, to);
+  return engine.perform(verbId, lo, {
+    blockEnd: hi,
+    modality: args.modality,
+    evidence: args.evidence,
+    confidence: args.confidence ?? null,
+    matchedText: state.blockTexts[lo]?.slice(0, 120) ?? "",
+  });
+}
+
+async function undoVerb(args) {
+  if (args.entry) {
+    const entry = args.entry;
+    entry.undone = true;
+    entry.cursor = { ...entry.cursor, undoAvailable: false };
+    await putRecord(entry);
+    const undoEntry = makeActEntry({
+      docId: entry.docId,
+      revision: args.document?.revision ?? 1,
+      blockIndex: entry.blockIndex,
+      blockEnd: entry.blockEnd,
+      verbId: "undo",
+      modality: args.modality ?? "pointer",
+      evidence: args.evidence ?? "undo button clicked",
+      undoes: entry.id,
+    });
+    await putRecord(undoEntry);
+    return undoEntry;
+  }
+  const done = await engine.undo(args.entryId ?? null, {
+    modality: args.modality ?? "voice",
+    evidence: args.evidence ?? "undo",
+  });
+  if (!done) setStatus(true, "nothing left to undo");
+  return done;
+}
+
+function showHistory() {
+  if (narrowScreen.matches) setSheet("history");
+  document.querySelector(".history")?.classList.add("attention");
+  setTimeout(() => document.querySelector(".history")?.classList.remove("attention"), 1500);
+  setStatus(true, `everything you have done is in the panel on the right (${engine.entries.length} so far)`);
+  return null;
+}
+
+async function openDocumentVerb(args) {
+  if (args.document) return openDocument(args.document, args.options);
+  const docs = await getDocs();
+  const want = (args.documentName ?? "").toLowerCase();
+  const found = docs.find((doc) => doc.title.toLowerCase().includes(want));
+  if (found) return openDocument(found);
+  setStatus(true, `no document called “${args.documentName}” here`);
+  return null;
+}
+
+async function returnVerb(args) {
+  let target = args.document ?? state.doc;
+  if (!args.document && args.documentName) {
+    const result = matchDocumentName(await getDocs(), args.documentName);
+    if (result.kind === "none") {
+      setStatus(true, `no document called “${args.documentName}” here`);
+      return null;
+    }
+    if (result.kind === "ambiguous") {
+      showReturnAsk(result.documents, { evidence: args.evidence, modality: args.modality });
+      return null;
+    }
+    target = result.document;
+  }
+  if (!target) {
+    setStatus(true, "there is no open document to go back to");
+    return null;
+  }
+  return openDocument(target, {
+    modality: args.modality,
+    returnReason: args.evidence,
+    requirePosition: true,
+  });
+}
+
+const verbExecutionContext = {
+  performTargeted,
+  performRange,
+  undo: undoVerb,
+  showHistory,
+  openDocument: openDocumentVerb,
+  returnTo: returnVerb,
+  sendTo: (args) => sendSpoken(args),
+  sendToSpace: ({ entry, spaceId }) => shell?.sendEntryToSpace(entry, spaceId),
+  keepMath: ({ modality = "pointer" } = {}) => keepMath(modality),
+  openRoom: (room) => shell?.openRoom(room),
+};
+
+function executeVerb(id, args = {}) {
+  return executeRegisteredVerb(id, verbExecutionContext, args);
+}
+
+async function runCommand(cmd, modality = "voice") {
+  if (cmd.type === "reading") return null;
+  if (cmd.type === "ask") {
+    showAsk(cmd);
+    return null;
+  }
+  if (!cmd.verbId) return null;
+  return executeVerb(cmd.verbId, { ...cmd, modality });
 }
 
 // ---------------------------------------------------------------------------
@@ -871,7 +922,7 @@ async function onMathFinalSegment(segment) {
     return "exit";
   }
   if (control === "keep") {
-    await keepMath("voice");
+    await executeVerb("math-keep", { modality: "voice" });
     return "keep";
   }
   if (!mathState.active) return null;
@@ -880,7 +931,7 @@ async function onMathFinalSegment(segment) {
 }
 
 mathModeToggle.addEventListener("click", () => setMathMode(!mathState.active));
-mathKeep.addEventListener("click", () => keepMath("pointer"));
+mathKeep.addEventListener("click", () => executeVerb("math-keep", { modality: "pointer" }));
 mathSpoken.addEventListener("input", () => {
   renderMathPreview(translateSpokenMath(mathSpoken.value), { syncWords: false });
 });
@@ -947,7 +998,7 @@ async function refreshLibrary() {
     const btn = document.createElement("button");
     btn.className = `doc-btn${state.doc?.id === d.id ? " open" : ""}`;
     btn.textContent = d.title;
-    btn.addEventListener("click", () => openDocument(d));
+    btn.addEventListener("click", () => executeVerb("open-document", { document: d }));
     li.appendChild(btn);
     if (d.provenance) {
       const prov = document.createElement("div");
@@ -1488,12 +1539,21 @@ window.__jtApp = {
   // shell hooks (headless drivers)
   view: () => document.body.dataset.view,
   showView: (v) => shell?.show(v),
+  registry: verbRegistry,
   currentDoc: () => state.doc,
   micState: () => mic.state,
   exportData: () => shell?.exportData(),
   voiceSegment: (text) => onFinalSegment(text),
   follow: (text) => onInterim(text),
-  perform: (act, blockIndex, opts) => engine.perform(act, blockIndex, { modality: "pointer", evidence: "test hook", ...opts }),
+  perform: (act, blockIndex, opts) => {
+    const verb = verbRegistry.resolve(act);
+    return executeVerb(verb?.id ?? act, {
+      blockIndex,
+      modality: "pointer",
+      evidence: "test hook",
+      ...opts,
+    });
+  },
   spaces: {
     feed: () => shell?.spaceFeed() ?? [],
     personSpaces: () => shell?.personSpaces() ?? [],
@@ -1505,11 +1565,11 @@ window.__jtApp = {
     expression: () => mathState.expression,
     kept: () => mathState.kept,
     segment: (text) => onFinalSegment(text),
-    keep: (modality = "pointer") => keepMath(modality),
+    keep: (modality = "pointer") => executeVerb("math-keep", { modality }),
   },
   currentBlock: () => state.currentBlock,
   addDocument,
-  openDocument: (doc) => openDocument(doc, { navigate: false }),
+  openDocument: (doc) => executeVerb("open-document", { document: doc, options: { navigate: false } }),
   segment: (text) => onFinalSegment(text),
   position: {
     read: () => (state.doc ? positionForDoc(state.doc) : null),
@@ -1534,10 +1594,7 @@ async function boot() {
     getPositions,
     positionForDoc,
     relativeReadTime,
-    putRecord,
-    makeActEntry,
     getInbox: () => inbox,
-    engine,
     entryNode,
     openDocument: (doc) =>
       openDocument(doc, { modality: "pointer", returnReason: "opened from home" }),
@@ -1558,6 +1615,7 @@ async function boot() {
       renderHistory(engine.entries);
       renderInbox();
     },
+    executeVerb,
   });
 
   try {

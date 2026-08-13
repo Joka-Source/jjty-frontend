@@ -6,7 +6,7 @@ import { makeActEntry, makeReturnEntry } from "./records.js";
 import { putRecord, getRecords } from "./db.js";
 import { contentDigest } from "./ingest.js";
 import { createAnchor, migrateLegacyEntry, resolveAnchor } from "./anchors.js";
-import { applyInlineHighlight, removeInlineHighlight } from "./highlight.js";
+import { verbRegistry } from "./registry/index.js";
 
 export function createActEngine({
   getBlocks,
@@ -27,7 +27,7 @@ export function createActEngine({
       doc?.provenance?.contentDigest ?? (await contentDigest(doc?.text ?? blockTexts.join("\n\n")));
     for (let i = 0; i < entries.length; i++) {
       const original = entries[i];
-      if (original.kind !== "act" || original.act === "undo") continue;
+      if (original.kind !== "act") continue;
       let entry = original.anchor
         ? { ...original }
         : migrateLegacyEntry(original, { blockTexts, docDigest });
@@ -69,66 +69,30 @@ export function createActEngine({
   }
 
   function applyEffect(entry, { confirm = false } = {}) {
+    const verb = verbRegistry.resolve(entry.verbId ?? entry.act);
+    const effectVerb = verbRegistry.get(verb?.effectVerbId) ?? verb;
+    if (!effectVerb?.applyEffect) return;
     for (const p of affectedBlocks(entry)) {
-      if (entry.act === "highlight") {
-        const resolved = entry.resolvedAnchor;
-        if (
-          resolved &&
-          resolved.blockIndex === Number(p.dataset.block) &&
-          (entry.arrival === "exact" || entry.arrival === "refound")
-        ) {
-          applyInlineHighlight(p, entry.id, resolved.tokenStart, resolved.tokenEnd);
-        } else {
-          p.classList.add("hl-fallback");
-          p.dataset.fallbackEntry = entry.id;
-        }
-      }
-      if (entry.act === "important") p.classList.add("important");
-      if (entry.act === "note") {
-        const note = document.createElement("span");
-        note.className = "note";
-        note.dataset.entry = entry.id;
-        note.textContent = entry.noteText;
-        p.appendChild(note);
-      }
-      if (entry.act === "math") {
-        const math = document.createElement("span");
-        math.className = "kept-math";
-        math.dataset.entry = entry.id;
-        math.dataset.latex = entry.mathLatex;
-        if (renderMath) renderMath(math, entry);
-        else math.textContent = entry.mathLatex;
-        p.appendChild(math);
-      }
+      effectVerb.applyEffect(p, entry, { renderMath });
       if (confirm) onApply?.(p, entry);
     }
   }
 
   function reverseEffect(entry) {
+    const verb = verbRegistry.resolve(entry.verbId ?? entry.act);
+    const effectVerb = verbRegistry.get(verb?.effectVerbId) ?? verb;
+    if (!effectVerb?.reverseEffect) return;
     for (const p of affectedBlocks(entry)) {
-      if (entry.act === "highlight") {
-        removeInlineHighlight(p, entry.id);
-        if (p.dataset.fallbackEntry === entry.id) {
-          p.classList.remove("hl-fallback");
-          delete p.dataset.fallbackEntry;
-        }
-      }
-      if (entry.act === "important") p.classList.remove("important");
-      if (entry.act === "note") {
-        p.querySelector(`.note[data-entry="${entry.id}"]`)?.remove();
-      }
-      if (entry.act === "math") {
-        p.querySelector(`.kept-math[data-entry="${entry.id}"]`)?.remove();
-      }
+      effectVerb.reverseEffect(p, entry, { renderMath });
     }
   }
 
   /**
    * Perform an act on a block. Returns the persisted history entry.
-   * act: "highlight" | "important" | "note"
+   * verbId may be a canonical registry id or a stored-record alias.
    */
   async function perform(
-    act,
+    verbId,
     blockIndex,
     {
       modality,
@@ -146,6 +110,8 @@ export function createActEngine({
       arrival: requestedArrival,
     } = {}
   ) {
+    const verb = verbRegistry.resolve(verbId);
+    if (!verb?.recordAct) throw new TypeError(`verb cannot create an act: ${verbId}`);
     const doc = getDoc();
     if (!doc || blockIndex < 0) return null;
     const blockTexts = getBlockTexts();
@@ -161,7 +127,8 @@ export function createActEngine({
       revision: doc.revision,
       blockIndex,
       blockEnd,
-      act,
+      act: verb.recordAct,
+      verbId: verb.id,
       modality,
       evidence,
       confidence,
@@ -202,6 +169,7 @@ export function createActEngine({
       blockIndex: target.blockIndex,
       blockEnd: target.blockEnd,
       act: "undo",
+      verbId: "undo",
       modality,
       evidence,
       undoes: target.id,

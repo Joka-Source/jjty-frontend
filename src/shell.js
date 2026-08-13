@@ -25,8 +25,10 @@ import {
   resolveSpaceName as matchSpaceName,
 } from "./space-flow.js";
 import pkg from "../package.json" with { type: "json" };
+import { renderCapabilities } from "./capabilities.js";
+import { verbRegistry } from "./registry/index.js";
 
-const VIEWS = ["welcome", "home", "read", "history", "share", "spaces", "settings", "rooms"];
+const VIEWS = ["welcome", "home", "read", "history", "share", "spaces", "settings", "capabilities", "rooms"];
 
 const $ = (id) => document.getElementById(id);
 
@@ -44,7 +46,7 @@ export function initShell(ctx) {
     return v === "read" ? null : $(`view-${v}`);
   }
 
-  function show(next, { silent = false } = {}) {
+  function show(next, { silent = false, hash = null } = {}) {
     if (!VIEWS.includes(next)) next = "home";
     if (!settings.welcomed && !ctx.SIM) next = "welcome";
     const prev = view;
@@ -61,7 +63,7 @@ export function initShell(ctx) {
     }
     $("tab-home")?.classList.toggle("current", next === "home");
     ctx.setSheet(null);
-    const wantHash = next === "read" ? "#/read" : `#/${next}`;
+    const wantHash = hash ?? (next === "read" ? "#/read" : `#/${next}`);
     if (location.hash !== wantHash) history.replaceState(null, "", wantHash);
     refresh(next);
     const sec = sectionOf(next);
@@ -69,14 +71,23 @@ export function initShell(ctx) {
   }
 
   function route() {
-    const m = location.hash.match(/^#\/(\w+)/);
-    show(m && VIEWS.includes(m[1]) && m[1] !== "welcome" ? m[1] : "home", { silent: true });
+    const m = location.hash.match(/^#\/([a-z]+)(?:\/([a-z0-9-]+))?/);
+    const next = m && VIEWS.includes(m[1]) && m[1] !== "welcome" ? m[1] : "home";
+    if (next === "rooms" && m?.[2] && renderDesignedRoom(m[2])) {
+      show("rooms", { silent: true, hash: `#/rooms/${m[2]}` });
+      return;
+    }
+    show(next, { silent: true });
   }
 
   addEventListener("hashchange", () => {
-    const m = location.hash.match(/^#\/(\w+)/);
+    const m = location.hash.match(/^#\/([a-z]+)(?:\/([a-z0-9-]+))?/);
     const target = m ? m[1] : "home";
-    if (target !== view) show(target);
+    if (target === "rooms" && m?.[2] && renderDesignedRoom(m[2])) {
+      show("rooms", { hash: `#/rooms/${m[2]}` });
+    } else if (target !== view || location.hash !== `#/${target}`) {
+      show(target);
+    }
   });
 
   function refresh(v) {
@@ -84,6 +95,33 @@ export function initShell(ctx) {
     if (v === "history") renderHistoryAll();
     if (v === "spaces") renderOrg();
     if (v === "settings") renderSettingsState();
+    if (v === "capabilities") {
+      renderCapabilities($("capability-list"), verbRegistry, { openRoom });
+    }
+  }
+
+  function renderDesignedRoom(id) {
+    const verb = verbRegistry.get(id);
+    if (!verb || verb.status !== "designed") return false;
+    const room = $("designed-room");
+    room.textContent = "";
+    const title = document.createElement("h2");
+    title.textContent = id.replaceAll("-", " ");
+    room.appendChild(title);
+    const copy = document.createElement("p");
+    copy.className = "hint";
+    copy.textContent = verb.roomDescription;
+    room.appendChild(copy);
+    const state = document.createElement("p");
+    state.className = "room-soon";
+    state.textContent = "designed — not built. this room explains the intended work and does not pretend to run it.";
+    room.appendChild(state);
+    return true;
+  }
+
+  function openRoom({ id }) {
+    if (!renderDesignedRoom(id)) throw new Error(`no designed room for ${id}`);
+    show("rooms", { hash: `#/rooms/${id}` });
   }
 
   // --- welcome (first run) -------------------------------------------------
@@ -122,7 +160,7 @@ export function initShell(ctx) {
       const btn = document.createElement("button");
       btn.className = `doc-btn${current?.id === d.id ? " open" : ""}`;
       btn.textContent = d.title;
-      btn.addEventListener("click", () => ctx.openDocument(d));
+      btn.addEventListener("click", () => ctx.executeVerb("open-document", { document: d }));
       li.appendChild(btn);
       const prov = document.createElement("div");
       prov.className = "prov";
@@ -186,24 +224,19 @@ export function initShell(ctx) {
   async function undoAnywhere(e, byDoc) {
     const current = ctx.currentDoc();
     if (current && e.docId === current.id) {
-      await ctx.engine.undo(e.id, { modality: "pointer", evidence: "undo button clicked" });
+      await ctx.executeVerb("undo", {
+        entryId: e.id,
+        modality: "pointer",
+        evidence: "undo button clicked",
+      });
     } else {
       const doc = byDoc.get(e.docId);
-      e.undone = true;
-      e.cursor = { ...e.cursor, undoAvailable: false };
-      await ctx.putRecord(e);
-      await ctx.putRecord(
-        ctx.makeActEntry({
-          docId: e.docId,
-          revision: doc?.revision ?? 1,
-          blockIndex: e.blockIndex,
-          blockEnd: e.blockEnd,
-          act: "undo",
-          modality: "pointer",
-          evidence: "undo button clicked",
-          undoes: e.id,
-        })
-      );
+      await ctx.executeVerb("undo", {
+        entry: e,
+        document: doc,
+        modality: "pointer",
+        evidence: "undo button clicked",
+      });
     }
     renderHistoryAll();
   }
@@ -334,7 +367,9 @@ export function initShell(ctx) {
     send.addEventListener("click", async () => {
       send.disabled = true;
       try {
-        if (source.entry) await sendEntryToSpace(source.entry, select.value);
+        if (source.entry) {
+          await ctx.executeVerb("send-to-space", { entry: source.entry, spaceId: select.value });
+        }
         else await placeMomentInSpace(source.moment, select.value, {
           sourceContentHash: source.sourceContentHash ?? null,
         });
@@ -424,7 +459,7 @@ export function initShell(ctx) {
     keep.addEventListener("click", async () => {
       const doc = await documentFromSpaceFeedItem(item);
       await ctx.putDoc(doc);
-      await ctx.openDocument(doc);
+      await ctx.executeVerb("open-document", { document: doc });
       ctx.setStatus(true, "kept in your documents with its source intact");
     });
     li.appendChild(keep);
@@ -795,6 +830,7 @@ export function initShell(ctx) {
   return {
     show,
     route,
+    openRoom,
     exportData,
     async loadSpaceFeed() {
       feed = await ctx.getSpaceFeed();
