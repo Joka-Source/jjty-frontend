@@ -20,6 +20,7 @@
     "vite": "8.2.1"
   },
   "dependencies": {
+    "@jt/glass": "file:../jt-glass",
     "pdfjs-dist": "^6.2.108"
   }
 }

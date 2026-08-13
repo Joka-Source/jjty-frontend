@@ -8,6 +8,8 @@
 // jt-contracts cursor.schema.json / receipt.schema.json. Everything else is
 // app-level evidence for the history panel.
 
+import { emitGlass } from "./glass-tap.js";
+
 const DB_NAME = "jt-web";
 const DB_VERSION = 3;
 
@@ -101,7 +103,13 @@ export async function getPositions() {
 
 export async function putRecord(entry) {
   const db = await openDb();
-  return tx(db, "records", "readwrite", (s) => s.put(entry));
+  const written = await tx(db, "records", "readwrite", (s) => s.put(entry));
+  emitGlass({
+    kind: "recordWritten",
+    record: entry,
+    schema: { name: "jt act", valid: null, errors: [] },
+  });
+  return written;
 }
 
 export async function putInbox(item) {

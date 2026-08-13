@@ -7,6 +7,7 @@ import { putRecord, getRecords } from "./db.js";
 import { contentDigest } from "./ingest.js";
 import { createAnchor, migrateLegacyEntry, resolveAnchor } from "./anchors.js";
 import { verbRegistry } from "./registry/index.js";
+import { emitGlass } from "./glass-tap.js";
 
 export function createActEngine({
   getBlocks,
@@ -143,6 +144,18 @@ export function createActEngine({
     });
     applyEffect(entry, { confirm: true });
     await putRecord(entry);
+    emitGlass({
+      kind: "actCommitted",
+      act: verb.id,
+      input: evidence ?? "",
+      target: {
+        blockId: `${doc.id}-block-${blockIndex}`,
+        blockIndex,
+        ...(Number.isInteger(tokenStart) ? { start: tokenStart } : {}),
+        ...(Number.isInteger(tokenEnd) ? { end: tokenEnd } : {}),
+        ...(anchor?.quotedText ? { text: anchor.quotedText } : {}),
+      },
+    });
     entries.push(entry);
     onChange?.(entries);
     return entry;
@@ -175,6 +188,12 @@ export function createActEngine({
       undoes: target.id,
     });
     await putRecord(undoEntry);
+    emitGlass({
+      kind: "actCommitted",
+      act: "undo",
+      input: evidence,
+      target: { blockId: `${doc.id}-block-${target.blockIndex}`, blockIndex: target.blockIndex },
+    });
     entries.push(undoEntry);
     onChange?.(entries);
     return undoEntry;
@@ -192,6 +211,12 @@ export function createActEngine({
       matchedText,
     });
     await putRecord(entry);
+    emitGlass({
+      kind: "actCommitted",
+      act: "return",
+      input: evidence ?? "",
+      target: { blockId: `${doc.id}-block-${blockIndex}`, blockIndex },
+    });
     entries.push(entry);
     onChange?.(entries);
     return entry;

@@ -21,7 +21,7 @@
 import "./style.css";
 import "../vendor/katex/katex.min.css";
 import katex from "../vendor/katex/katex.mjs";
-import { tokenize, tokenizeWithSpans, matchTranscript } from "./match.js";
+import { tokenize, tokenizeWithSpans, matchTranscript, TARGET_POLICY } from "./match.js";
 import { splitParagraphs, titleFrom, STARTER_DOC } from "./doc.js";
 import { IntentStream, toCommand, describeCandidate } from "./intents.js";
 import { createMatchEngine, blockForRange } from "./engine.js";
@@ -66,6 +66,8 @@ import {
   historyTitleFor,
   verbRegistry,
 } from "./registry/index.js";
+import { emitGlass } from "./glass-tap.js";
+import { mountGlassDevRoute } from "./glass-route.js";
 
 const article = document.getElementById("doc");
 const marker = document.getElementById("marker");
@@ -655,6 +657,22 @@ function performActAtTarget(verbId, args, target, targetChoice = null) {
   });
 }
 
+function emitCommandResult(intent, result, reason, { confidence, ambiguities = [] } = {}) {
+  emitGlass({
+    kind: "intentResult",
+    result,
+    ...(intent ? { intent } : {}),
+    ...(confidence !== undefined ? { confidence } : {}),
+    ambiguities,
+    thresholds: {
+      accept: TARGET_POLICY.minScore,
+      askBelow: TARGET_POLICY.askBelow,
+      closeGap: TARGET_POLICY.closeScoreGap,
+    },
+    reason,
+  });
+}
+
 async function performTargeted(verbId, args) {
   if (args.target || Number.isInteger(args.blockIndex)) {
     return performActAtTarget(verbId, args, args.target ?? null, args.targetChoice ?? null);
@@ -662,22 +680,40 @@ async function performTargeted(verbId, args) {
   const targetMatch = state.lastReadingMatch ?? state.lastMatch;
   const targetBlock = targetMatch?.blockIndex ?? state.currentBlock;
   if (targetBlock < 0) {
+    emitCommandResult(verbId, "none", "No passage was available for this instruction.");
     setStatus(true, "read a line first so jt knows where you are");
     return null;
   }
   state.currentBlock = targetBlock;
   if (!targetMatch || targetMatch.blockIndex !== targetBlock) {
+    emitCommandResult(verbId, "act", "Used the passage already in view.");
     return performActAtTarget(verbId, args, null);
   }
   const decision = decideTarget(targetMatch);
   if (decision.kind === "ask") {
+    emitCommandResult(
+      verbId,
+      "ask",
+      decision.reason === "more than one passage was similarly likely"
+        ? `Asked because two passages scored within ${TARGET_POLICY.closeScoreGap.toFixed(2)}.`
+        : "Asked because the passage match was uncertain.",
+      {
+        confidence: targetMatch.score,
+        ambiguities: decision.candidates.map((candidate) => ({
+          label: targetCandidateLabel(candidate),
+          confidence: candidate.score,
+        })),
+      },
+    );
     showTargetAsk({ ...args, verbId }, args.modality, decision);
     return null;
   }
   if (decision.kind === "none") {
+    emitCommandResult(verbId, "none", "No passage cleared the match threshold.", { confidence: targetMatch.score });
     setStatus(true, "I could not place those words confidently — read the passage again");
     return null;
   }
+  emitCommandResult(verbId, "act", "The instruction and passage were clear.", { confidence: decision.target.score });
   return performActAtTarget(verbId, args, decision.target);
 }
 
@@ -685,18 +721,21 @@ async function performRange(verbId, args) {
   const from = findAnchorBlock(args.fromAnchor, "head");
   const to = findAnchorBlock(args.toAnchor, "tail");
   if (from < 0 || to < 0) {
+    emitCommandResult(verbId, "none", "One or both spoken passage anchors were not found.", { confidence: args.confidence });
     setStatus(true, "couldn't find those words in the document");
     return null;
   }
   const lo = Math.min(from, to);
   const hi = Math.max(from, to);
-  return engine.perform(verbId, lo, {
+  const ranged = await engine.perform(verbId, lo, {
     blockEnd: hi,
     modality: args.modality,
     evidence: args.evidence,
     confidence: args.confidence ?? null,
     matchedText: state.blockTexts[lo]?.slice(0, 120) ?? "",
   });
+  emitCommandResult(verbId, ranged ? "act" : "none", ranged ? "The requested passage range was highlighted." : "The passage range could not be highlighted.", { confidence: args.confidence });
+  return ranged;
 }
 
 async function undoVerb(args) {
@@ -716,13 +755,24 @@ async function undoVerb(args) {
       undoes: entry.id,
     });
     await putRecord(undoEntry);
+    emitGlass({
+      kind: "actCommitted",
+      act: "undo",
+      input: args.evidence ?? "undo button clicked",
+      target: { blockId: `${entry.docId}-block-${entry.blockIndex}`, blockIndex: entry.blockIndex },
+    });
+    emitCommandResult("undo", "act", "The saved act was undone.");
     return undoEntry;
   }
   const done = await engine.undo(args.entryId ?? null, {
     modality: args.modality ?? "voice",
     evidence: args.evidence ?? "undo",
   });
-  if (!done) setStatus(true, "nothing left to undo");
+  if (done) emitCommandResult("undo", "act", "The last saved act was undone.");
+  else {
+    emitCommandResult("undo", "none", "There was nothing left to undo.");
+    setStatus(true, "nothing left to undo");
+  }
   return done;
 }
 
@@ -731,15 +781,25 @@ function showHistory() {
   document.querySelector(".history")?.classList.add("attention");
   setTimeout(() => document.querySelector(".history")?.classList.remove("attention"), 1500);
   setStatus(true, `everything you have done is in the panel on the right (${engine.entries.length} so far)`);
+  emitCommandResult("show-history", "handled", "The saved acts panel opened.");
   return null;
 }
 
 async function openDocumentVerb(args) {
-  if (args.document) return openDocument(args.document, args.options);
+  if (args.document) {
+    const opened = await openDocument(args.document, args.options);
+    emitCommandResult("open-document", "handled", `Opened “${args.document.title}”.`);
+    return opened;
+  }
   const docs = await getDocs();
   const want = (args.documentName ?? "").toLowerCase();
   const found = docs.find((doc) => doc.title.toLowerCase().includes(want));
-  if (found) return openDocument(found);
+  if (found) {
+    const opened = await openDocument(found);
+    emitCommandResult("open-document", "handled", `Opened “${found.title}”.`);
+    return opened;
+  }
+  emitCommandResult("open-document", "none", `No document called “${args.documentName}” was found.`);
   setStatus(true, `no document called “${args.documentName}” here`);
   return null;
 }
@@ -749,24 +809,31 @@ async function returnVerb(args) {
   if (!args.document && args.documentName) {
     const result = matchDocumentName(await getDocs(), args.documentName);
     if (result.kind === "none") {
+      emitCommandResult("return", "none", `No document called “${args.documentName}” was found.`);
       setStatus(true, `no document called “${args.documentName}” here`);
       return null;
     }
     if (result.kind === "ambiguous") {
+      emitCommandResult("return", "ask", "Asked because more than one document name was close.", {
+        ambiguities: result.documents.map((document) => ({ label: document.title, confidence: 0 })),
+      });
       showReturnAsk(result.documents, { evidence: args.evidence, modality: args.modality });
       return null;
     }
     target = result.document;
   }
   if (!target) {
+    emitCommandResult("return", "none", "There was no open document to return to.");
     setStatus(true, "there is no open document to go back to");
     return null;
   }
-  return openDocument(target, {
+  const opened = await openDocument(target, {
     modality: args.modality,
     returnReason: args.evidence,
     requirePosition: true,
   });
+  emitCommandResult("return", opened ? "handled" : "none", opened ? `Returned to “${target.title}”.` : `No saved place was found in “${target.title}”.`);
+  return opened;
 }
 
 const verbExecutionContext = {
@@ -777,7 +844,11 @@ const verbExecutionContext = {
   openDocument: openDocumentVerb,
   returnTo: returnVerb,
   sendTo: (args) => sendSpoken(args),
-  sendToSpace: ({ entry, spaceId }) => shell?.sendEntryToSpace(entry, spaceId),
+  sendToSpace: async ({ entry, spaceId }) => {
+    const sent = await shell?.sendEntryToSpace(entry, spaceId);
+    emitCommandResult("send-to-space", sent ? "handled" : "none", sent ? "The saved act was sent." : "The saved act could not be sent.");
+    return sent;
+  },
   keepMath: ({ modality = "pointer" } = {}) => keepMath(modality),
   openRoom: (room) => shell?.openRoom(room),
 };
@@ -942,7 +1013,10 @@ mathSpoken.addEventListener("input", () => {
 function onInterim(fullText) {
   if (mathState.active) return;
   if (!state.matcher) return;
+  emitGlass({ kind: "transcriptEvent", text: fullText, final: false, source: SIM ? "sim" : "speech" });
+  const matchStarted = performance.now();
   const m = state.matcher.follow(fullText);
+  emitGlass({ kind: "latencyMark", stage: "matcher", durationMs: performance.now() - matchStarted, budgetMs: 1 });
   if (!m || m.blockIndex == null || m.blockIndex < 0) return;
   const b = m.blockIndex;
   const target = targetForGlobalRange(m.start, m.end, b);
@@ -962,6 +1036,35 @@ function onInterim(fullText) {
     target,
     candidates,
   };
+  const blocks = state.blockTexts.map((_text, blockIndex) => ({
+    blockId: `${state.doc?.id ?? "document"}-block-${blockIndex}`,
+    blockIndex,
+    score: 0,
+    spans: [],
+  }));
+  for (const candidate of candidates) {
+    const block = blocks[candidate.blockIndex];
+    block.score = Math.max(block.score, candidate.score);
+    block.spans.push({
+      start: candidate.tokenStart,
+      end: candidate.tokenEnd,
+      score: candidate.score,
+      unit: "token",
+      ...(candidate.quotedText ? { text: candidate.quotedText } : {}),
+    });
+  }
+  emitGlass({
+    kind: "matchScores",
+    query: fullText,
+    blocks,
+    selected: {
+      blockId: `${state.doc?.id ?? "document"}-block-${b}`,
+      blockIndex: b,
+      start: target.tokenStart,
+      end: target.tokenEnd,
+      unit: "token",
+    },
+  });
   if (window.__jt) window.__jt.matches.push({ block: b, score: +m.confidence.toFixed(3) });
   if (b !== state.currentBlock) {
     state.currentBlock = b;
@@ -973,14 +1076,35 @@ function onInterim(fullText) {
 }
 
 async function onFinalSegment(segment) {
+  emitGlass({ kind: "transcriptEvent", text: segment, final: true, source: SIM ? "sim" : "speech" });
   const mathResult = await onMathFinalSegment(segment);
   if (mathResult) return;
+  const intentStarted = performance.now();
   const events = intentStream.push({ text: segment, final: true });
+  emitGlass({ kind: "latencyMark", stage: "intent", durationMs: performance.now() - intentStarted, budgetMs: 5 });
   for (const ev of events) {
     const cmd = toCommand(ev);
+    const classification = cmd.type === "reading" ? "reading" : cmd.type === "ask" ? "unresolved" : "command";
+    emitGlass({
+      kind: "segmentationDecision",
+      segmentText: segment,
+      classification,
+      confidence: ev.confidence ?? (classification === "unresolved" ? 0.5 : 1),
+      reason: cmd.reason ?? (classification === "reading" ? "This sounds like document text." : "This matches a known instruction."),
+    });
     if (cmd.type === "reading") {
+      emitCommandResult(null, "reading", "No instruction was found.", { confidence: ev.confidence });
       if (state.lastMatch) state.lastReadingMatch = state.lastMatch;
       continue;
+    }
+    if (cmd.type === "ask") {
+      emitCommandResult(null, "ask", cmd.reason, {
+        confidence: ev.confidence,
+        ambiguities: (cmd.candidates ?? []).map((candidate) => ({
+          label: describeCandidate(candidate),
+          confidence: candidate.confidence ?? ev.confidence ?? 0,
+        })),
+      });
     }
     if (cmd.type !== "reading" && window.__jt) window.__jt.commands.push(cmd.type === "act" ? cmd.act : cmd.type);
     await runCommand(cmd, "voice");
@@ -1291,25 +1415,40 @@ async function momentForKeptEntry(entry) {
 async function sendSpoken(cmd) {
   const latest = [...engine.entries].reverse().find((e) => e.kind === "act" && !e.undone);
   if (!latest) {
+    emitCommandResult("send", "none", "There was no saved act to send.");
     setStatus(true, "nothing kept yet — highlight or note something first");
     return null;
   }
   const destination = shell?.resolvePersonSpace(cmd.recipient) ?? { kind: "none" };
   if (destination.kind === "match") {
-    return shell.sendEntryToSpace(latest, destination.space.id);
+    const sent = await shell.sendEntryToSpace(latest, destination.space.id);
+    emitCommandResult("send", sent ? "handled" : "none", sent ? `Sent to “${destination.space.name}”.` : `Could not send to “${destination.space.name}”.`);
+    return sent;
   }
   if (destination.kind === "ambiguous") {
+    emitCommandResult("send", "ask", "Asked because more than one destination name was close.", {
+      ambiguities: destination.candidates.map(({ space }) => ({ label: space.name, confidence: 0 })),
+    });
     showSpaceAsk(destination, latest, cmd.evidence);
     return null;
   }
   if (!codeFromSpoken(cmd.recipient)) {
+    emitCommandResult("send", "none", `No destination called “${cmd.recipient}” was found.`);
     setStatus(true, `no space called “${cmd.recipient}” in your current memberships`);
     return null;
   }
   try {
     if (!sync.state.paired) await sync.join(cmd.recipient);
-    return await sendEntry(latest.id);
+    const sent = await sendEntry(latest.id);
+    const verified = sent?.delivered === true && sent?.hashMatch === true;
+    emitCommandResult(
+      "send",
+      verified ? "handled" : "none",
+      verified ? "The saved act was sent and checked." : sent ? "The other device could not verify the saved act." : "The saved act could not be sent.",
+    );
+    return sent;
   } catch (err) {
+    emitCommandResult("send", "none", "The saved act could not be sent.");
     setStatus(true, String(err?.message ?? err));
     return null;
   }
@@ -1581,6 +1720,10 @@ window.__jtApp = {
 // Boot
 
 async function boot() {
+  if (await mountGlassDevRoute()) {
+    window.__jtApp.booted = true;
+    return;
+  }
   shell = initShell({
     settings,
     SIM,
