@@ -207,6 +207,19 @@ function parseCommand(entry, words, triggerStart, spanStart, ev) {
             });
             return out;
         }
+        case "document.return": {
+            const named = normalize(m.phrase) === "go back to";
+            if (!named) {
+                finish("document.return", { documentName: "" }, i, { complete: true });
+                return out;
+            }
+            const end = freeTextEnd(words, i, 6);
+            const documentName = words.slice(i, end).map((w) => w.text).join(" ");
+            if (!documentName)
+                return out;
+            finish("document.return", { documentName }, end, { complete: true });
+            return out;
+        }
     }
     return out;
 }

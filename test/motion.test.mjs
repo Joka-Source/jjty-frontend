@@ -4,7 +4,7 @@
 // and a strictly decaying confirmation ripple.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createGlider, MARKER_MEDIUM, disturb, comeToRest } from "../src/motion.js";
+import { createGlider, createReturnMotion, MARKER_MEDIUM, disturb, comeToRest } from "../src/motion.js";
 
 test("glide approaches the target monotonically and never overshoots", () => {
   let t = 0;
@@ -61,4 +61,22 @@ test("comeToRest stops at the predictable resting point", () => {
   assert.equal(end.done, true);
   assert.equal(end.x, c.restingPoint);
   assert.equal(end.v, 0);
+});
+
+test("reading return travel and marker fade are both sampled from water", () => {
+  let t = 0;
+  const motion = createReturnMotion(100, 600, MARKER_MEDIUM, () => t);
+  let priorY = 100;
+  let priorOpacity = 1;
+  for (t = 0; t <= 3000; t += 16) {
+    const sample = motion.sample();
+    assert.ok(sample.scrollY >= priorY - 1e-9, "return travel moved away from its target");
+    assert.ok(sample.scrollY <= 600 + 1e-9, "return travel overshot its target");
+    assert.ok(sample.opacity <= priorOpacity + 1e-9, "return marker became louder while fading");
+    assert.ok(sample.opacity >= -1e-9, "return marker faded below zero");
+    priorY = sample.scrollY;
+    priorOpacity = sample.opacity;
+  }
+  t = 5000;
+  assert.deepEqual(motion.sample(), { scrollY: 600, opacity: 0, done: true });
 });

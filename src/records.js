@@ -194,3 +194,54 @@ export function makeActEntry({
   }
   return entry;
 }
+
+/** A reading return is durable evidence but not an undoable content act. */
+export function makeReturnEntry({
+  docId,
+  revision,
+  blockIndex,
+  modality,
+  evidence,
+  matchedText = "",
+  at = nowIso(),
+}) {
+  const cursor = makeCursor({
+    docId,
+    revision,
+    blockIndex,
+    modality,
+    evidence,
+    intention: `return to block ${blockIndex}`,
+    at,
+  });
+  cursor.state = "return";
+  cursor.undoAvailable = false;
+  cursor.repairRoute = "open the document and choose another block";
+  const receipt = makeReceipt({
+    docId,
+    revision,
+    blockIndex,
+    actionId: rid("act"),
+    result: `returned to block ${blockIndex}`,
+    undoRoute: "read or choose another block",
+    at,
+  });
+  return {
+    id: rid("evt"),
+    docId,
+    kind: "return",
+    act: "return",
+    blockIndex,
+    blockEnd: null,
+    modality,
+    evidence,
+    confidence: null,
+    matchedText,
+    noteText: "",
+    undone: false,
+    undoes: null,
+    createdAt: at,
+    cursor,
+    receipt,
+  };
+}

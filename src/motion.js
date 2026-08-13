@@ -120,6 +120,55 @@ export function surfaceArrive(el, m = MARKER_MEDIUM) {
   requestAnimationFrame(frame);
 }
 
+/** Pure return trajectory: viewport travel and the quiet label fade are both
+ * sampled from jt-water. `now` is injectable so node tests need no DOM. */
+export function createReturnMotion(from, to, m = MARKER_MEDIUM, now = () => performance.now()) {
+  const travel = glide(from, to, m);
+  const fade = glide(1, 0, m);
+  const t0 = now();
+  const fadeDelay = 0.75;
+  return {
+    sample() {
+      const elapsed = Math.max(0, (now() - t0) / 1000);
+      const a = travel.at(elapsed);
+      const b = fade.at(Math.max(0, elapsed - fadeDelay));
+      return {
+        scrollY: a.x,
+        opacity: b.x,
+        done: a.done && b.done && elapsed >= fadeDelay,
+      };
+    },
+  };
+}
+
+/** Return the viewport to a block and show a short-lived place label. There is
+ * deliberately no `scrollIntoView({behavior:"smooth"})` or CSS transition. */
+export function returnToPlace(block, m = MARKER_MEDIUM) {
+  document.querySelector(".return-marker")?.remove();
+  const label = document.createElement("span");
+  label.className = "return-marker";
+  label.textContent = "you were here";
+  label.setAttribute("aria-hidden", "true");
+  block.appendChild(label);
+
+  const rect = block.getBoundingClientRect();
+  const target = Math.max(0, window.scrollY + rect.top - window.innerHeight * 0.36);
+  const motion = createReturnMotion(window.scrollY, target, m);
+  function frame() {
+    const sample = motion.sample();
+    window.scrollTo({ top: sample.scrollY, behavior: "auto" });
+    label.style.opacity = sample.opacity.toFixed(3);
+    if (sample.done) {
+      label.remove();
+      return;
+    }
+    requestAnimationFrame(frame);
+  }
+  label.style.opacity = "1";
+  requestAnimationFrame(frame);
+  return label;
+}
+
 /**
  * Act confirmation: a small disturbance at the block — the page registers
  * the act physically, then comes back to rest. Subtle: a few px, ~0.4s.
