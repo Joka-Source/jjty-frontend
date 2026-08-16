@@ -47,7 +47,7 @@ import {
 } from "./db.js";
 import { rid, nowIso, makeActEntry } from "./records.js";
 import { loadSettings, MOTION_PARAMS } from "./settings.js";
-import { medium } from "../vendor/jt-water/index.js";
+import { medium } from "jt-water";
 import { initShell } from "./shell.js";
 import "./pwa.js";
 import { initInstallUx } from "./install.js";

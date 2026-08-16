@@ -2,7 +2,7 @@
 // interface:
 //   js:   the reference matcher (src/match.js), block resolution by token
 //         majority — the original pipeline.
-//   wasm: jt-core compiled to wasm (vendor/jt-core), the deterministic
+//   wasm: jt-core compiled to wasm (the sibling repo's pkg), the deterministic
 //         portable kernel; bit-identical scoring to the JS reference,
 //         proven by test/parity.test.mjs before it became the default.
 //
@@ -72,13 +72,13 @@ export function createJsEngine(blockTexts) {
 
 let wasmReady = null;
 
-/** Load the vendored jt-core wasm once. In Vite the wasm URL resolves via
+/** Load the jt-core package's wasm once. In Vite the wasm URL resolves via
  * ?url; in node tests initSync is used instead (see parity test). */
 async function loadWasm() {
   if (!wasmReady) {
     wasmReady = (async () => {
-      const mod = await import("../vendor/jt-core/jt_core.js");
-      const wasmUrl = (await import("../vendor/jt-core/jt_core_bg.wasm?url")).default;
+      const mod = await import("jt-core");
+      const wasmUrl = (await import("jt-core/jt_core_bg.wasm?url")).default;
       await mod.default({ module_or_path: wasmUrl });
       return mod;
     })();

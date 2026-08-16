@@ -4,7 +4,7 @@
 // only place a rAF loop touches the DOM, and the pure trajectory helpers are
 // exported for node tests.
 
-import { glide, disturb, comeToRest, WATER, medium } from "../vendor/jt-water/index.js";
+import { glide, disturb, comeToRest, WATER, medium } from "jt-water";
 
 export { glide, disturb, comeToRest, WATER, medium };
 
