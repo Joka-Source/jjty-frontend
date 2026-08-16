@@ -6,7 +6,7 @@ import path from "node:path";
 import puppeteer from "puppeteer-core";
 import { root } from "./validate.mjs";
 
-const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+const CHROME = process.env.CHROME_PATH ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
 async function waitFor(url, ms = 15000) {
   const end = Date.now() + ms;
@@ -27,8 +27,8 @@ async function boot(t) {
   assert.ok(existsSync(path.join(root, "dist", "index.html")), "run vite build before e2e");
   const port = 4937;
   const server = spawn(
-    "npx",
-    ["vite", "preview", "--host", "127.0.0.1", "--port", String(port), "--strictPort"],
+    process.execPath,
+    [path.join(root, "node_modules", "vite", "bin", "vite.js"), "preview", "--host", "127.0.0.1", "--port", String(port), "--strictPort"],
     { cwd: root, stdio: ["ignore", "pipe", "pipe"] },
   );
   t.after(() => server.kill("SIGTERM"));
@@ -37,7 +37,7 @@ async function boot(t) {
   const browser = await puppeteer.launch({
     executablePath: CHROME,
     headless: true,
-    args: ["--disable-gpu", "--no-first-run"],
+    args: ["--disable-gpu", "--no-first-run", "--no-sandbox", "--disable-setuid-sandbox"],
   });
   t.after(() => browser.close());
   const page = await browser.newPage();

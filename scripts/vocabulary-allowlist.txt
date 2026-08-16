@@ -1,0 +1,11 @@
+# ES module path; this internal import is not rendered as copy.
+src/main.js|shell|./shell.js
+
+# Browser event type; this internal DOM event name is not rendered as copy.
+src/main.js|drop|drop
+
+# ES module path; this existing module name is not rendered as copy.
+src/registry/index.js|drop|./verbs/cross-device-drop.js
+
+# Registry identifier; this existing internal verb ID is not rendered as copy.
+src/registry/verbs/cross-device-drop.js|drop|cross-device-drop

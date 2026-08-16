@@ -12,7 +12,7 @@ import path from "node:path";
 import puppeteer from "puppeteer-core";
 import { root } from "./validate.mjs";
 
-const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+const CHROME = process.env.CHROME_PATH ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
 async function waitFor(url, ms = 15000) {
   const end = Date.now() + ms;
@@ -29,40 +29,25 @@ async function waitFor(url, ms = 15000) {
 }
 
 /** Build (if needed), serve dist/, open a page at `viewport`, run the sim to
- * completion, and hand the page back. The preview server announces its own
- * URL (no --strictPort): if a preferred port is taken — say by a server a
- * previous run has not fully released — vite shifts to a free one and we
- * follow whatever it printed, so tests never race each other for a port. */
+ * completion, and hand the page back. */
 async function bootSim(t, port, viewport) {
   assert.ok(existsSync(CHROME), "Google Chrome required for headless e2e");
   if (!existsSync(path.join(root, "dist", "index.html"))) {
     execFileSync("npx", ["vite", "build"], { cwd: root, stdio: "inherit" });
   }
   const server = spawn(
-    "npx",
-    ["vite", "preview", "--host", "127.0.0.1", "--port", String(port)],
-    { cwd: root, stdio: ["ignore", "pipe", "ignore"] }
+    process.execPath,
+    [path.join(root, "node_modules", "vite", "bin", "vite.js"), "preview", "--host", "127.0.0.1", "--port", String(port), "--strictPort"],
+    { cwd: root, stdio: "ignore" }
   );
   t.after(() => server.kill("SIGTERM"));
-  const url = await new Promise((resolve, reject) => {
-    let out = "";
-    const timer = setTimeout(() => reject(new Error(`vite preview never announced a URL\n${out}`)), 20000);
-    server.stdout.on("data", (chunk) => {
-      out += String(chunk);
-      const m = out.match(/(http:\/\/127\.0\.0\.1:\d+)\//);
-      if (m) {
-        clearTimeout(timer);
-        resolve(m[1]);
-      }
-    });
-    server.on("exit", () => reject(new Error(`vite preview exited early\n${out}`)));
-  });
+  const url = `http://127.0.0.1:${port}`;
   await waitFor(`${url}/`);
 
   const browser = await puppeteer.launch({
     executablePath: CHROME,
     headless: true,
-    args: ["--disable-gpu", "--no-first-run"],
+    args: ["--disable-gpu", "--no-first-run", "--no-sandbox", "--disable-setuid-sandbox"],
   });
   t.after(() => browser.close());
   const page = await browser.newPage();
