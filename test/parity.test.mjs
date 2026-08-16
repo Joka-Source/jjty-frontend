@@ -17,8 +17,8 @@ import { splitParagraphs, STARTER_DOC } from "../src/doc.js";
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 async function loadWasmForNode() {
-  const mod = await import("../vendor/jt-core/jt_core.js");
-  const bytes = readFileSync(path.join(root, "vendor", "jt-core", "jt_core_bg.wasm"));
+  const mod = await import("jt-core");
+  const bytes = readFileSync(path.join(root, "node_modules", "jt-core", "jt_core_bg.wasm"));
   mod.initSync({ module: bytes });
   return mod;
 }

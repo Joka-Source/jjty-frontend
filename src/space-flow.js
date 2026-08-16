@@ -5,8 +5,8 @@
 // tolerant phrase scoring so voice and picker destinations agree.
 
 import { normalize, phraseSimilarity } from "../vendor/jt-speech/fuzzy.js";
-import { envelopeHash } from "../vendor/jt-sync/hash.js";
-import { contentDigest } from "../vendor/jt-connectors/index.js";
+import { envelopeHash } from "jt-sync/src/hash.ts";
+import { contentDigest } from "jt-connectors";
 import { nowIso, rid } from "./records.js";
 
 const MATCH_THRESHOLD = 0.72;

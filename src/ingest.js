@@ -14,8 +14,8 @@ import {
   looksLikeMarkdownName,
   contentDigest,
   byteSize,
-} from "../vendor/jt-connectors/index.js";
-import { makeResult } from "../vendor/jt-connectors/core/result.js";
+} from "jt-connectors";
+import { makeResult } from "jt-connectors/src/core/result.ts";
 
 export { ingestText, ingestPaste, looksLikeMarkdownName, contentDigest, byteSize };
 

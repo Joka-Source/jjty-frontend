@@ -7,7 +7,7 @@ import {
 } from "../src/space-flow.js";
 import { momentFromEntry } from "../src/sync.js";
 import { makeActEntry } from "../src/records.js";
-import { envelopeHash } from "../vendor/jt-sync/hash.js";
+import { envelopeHash } from "jt-sync/src/hash.ts";
 
 const spaces = [
   { id: "spc-cse-a", name: "CSE-A" },

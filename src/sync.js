@@ -5,10 +5,10 @@
 // recomputes the hash over the full envelope; only verified moments show
 // the verified badge.
 
-import { MomentChannel } from "../vendor/jt-sync/client.js";
-import { MemoryLogStore } from "../vendor/jt-sync/log.js";
-import { isValidPairCode } from "../vendor/jt-sync/pairing.js";
-import { contentDigest } from "../vendor/jt-connectors/index.js";
+import { MomentChannel } from "jt-sync/src/client.ts";
+import { MemoryLogStore } from "jt-sync/src/log.ts";
+import { isValidPairCode } from "jt-sync/src/pairing.ts";
+import { contentDigest } from "jt-connectors";
 import { verbRegistry } from "./registry/index.js";
 
 export { isValidPairCode };
