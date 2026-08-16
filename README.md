@@ -47,6 +47,22 @@ The golden record fixtures in `tests/fixtures/` are vendored verbatim from
 `jt-contracts/fixtures/` (v0.1.0); valid ones must round-trip semantically
 unchanged, invalid ones must be rejected.
 
+## Build from a fresh shell
+
+Source the environment helper when running individual Rust commands, or run
+the full repository verification wrapper:
+
+```sh
+. ./scripts/env.sh
+cargo test
+
+./scripts/verify.sh
+```
+
+`scripts/env.sh` finds the existing user Rust toolchain without installing or
+changing it. `scripts/verify.sh` runs the native tests, wasm build, and JS/Rust
+conformance check documented above.
+
 ## Determinism notes
 
 - All scoring is `f64` with a fixed operation order, matching the reference
