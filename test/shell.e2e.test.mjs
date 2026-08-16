@@ -12,7 +12,7 @@ import path from "path";
 import puppeteer from "puppeteer-core";
 import { root } from "./validate.mjs";
 
-const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+const CHROME = process.env.CHROME_PATH ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
 async function waitFor(url, ms = 15000) {
   const end = Date.now() + ms;
@@ -34,30 +34,18 @@ async function bootShell(t, port, viewport) {
     execFileSync("npx", ["vite", "build"], { cwd: root, stdio: "inherit" });
   }
   const server = spawn(
-    "npx",
-    ["vite", "preview", "--host", "127.0.0.1", "--port", String(port)],
-    { cwd: root, stdio: ["ignore", "pipe", "ignore"] }
+    process.execPath,
+    [path.join(root, "node_modules", "vite", "bin", "vite.js"), "preview", "--host", "127.0.0.1", "--port", String(port), "--strictPort"],
+    { cwd: root, stdio: "ignore" }
   );
   t.after(() => server.kill("SIGTERM"));
-  const url = await new Promise((resolve, reject) => {
-    let out = "";
-    const timer = setTimeout(() => reject(new Error(`vite preview never announced a URL\n${out}`)), 20000);
-    server.stdout.on("data", (chunk) => {
-      out += String(chunk);
-      const m = out.match(/(http:\/\/127\.0\.0\.1:\d+)\//);
-      if (m) {
-        clearTimeout(timer);
-        resolve(m[1]);
-      }
-    });
-    server.on("exit", () => reject(new Error(`vite preview exited early\n${out}`)));
-  });
+  const url = `http://127.0.0.1:${port}`;
   await waitFor(`${url}/`);
 
   const browser = await puppeteer.launch({
     executablePath: CHROME,
     headless: true,
-    args: ["--disable-gpu", "--no-first-run"],
+    args: ["--disable-gpu", "--no-first-run", "--no-sandbox", "--disable-setuid-sandbox"],
   });
   t.after(() => browser.close());
   const page = await browser.newPage();

@@ -12,13 +12,17 @@ import path from "node:path";
 import puppeteer from "puppeteer-core";
 import { validateCursor, validateReceipt, errorsOf, root } from "./validate.mjs";
 
-const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+const CHROME = process.env.CHROME_PATH ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const PORT = 4934;
-const SYNC_REPO = "/Users/apple/projects/jt-sync";
+const SYNC_REPO = process.env.JT_SYNC_REPO ?? path.join(root, "vendor", "jt-sync-runner");
 
 function startRelay(t) {
   return new Promise((resolve, reject) => {
-    const relay = spawn("npx", ["tsx", "src/relay-main.ts", "0"], {
+    const relay = spawn(process.execPath, [
+      path.join(root, "node_modules", "tsx", "dist", "cli.mjs"),
+      path.join(SYNC_REPO, "src", "relay-main.ts"),
+      "0",
+    ], {
       cwd: SYNC_REPO,
       stdio: ["ignore", "pipe", "inherit"],
     });
@@ -56,21 +60,24 @@ test("moment-send: pair two pages by spoken words, send a kept act, verify", { t
     execFileSync("npx", ["vite", "build"], { cwd: root, stdio: "inherit" });
   }
   const relayUrl = await startRelay(t);
+  console.error(`[sync-e2e] relay ready ${relayUrl}`);
 
   const server = spawn(
-    "npx",
-    ["vite", "preview", "--host", "127.0.0.1", "--port", String(PORT), "--strictPort"],
+    process.execPath,
+    [path.join(root, "node_modules", "vite", "bin", "vite.js"), "preview", "--host", "127.0.0.1", "--port", String(PORT), "--strictPort"],
     { cwd: root, stdio: "ignore" }
   );
   t.after(() => server.kill("SIGTERM"));
   await waitFor(`http://127.0.0.1:${PORT}/`);
+  console.error("[sync-e2e] preview ready");
 
   const browser = await puppeteer.launch({
     executablePath: CHROME,
     headless: true,
-    args: ["--disable-gpu", "--no-first-run"],
+    args: ["--disable-gpu", "--no-first-run", "--no-sandbox", "--disable-setuid-sandbox"],
   });
   t.after(() => browser.close());
+  console.error("[sync-e2e] browser ready");
 
   // Device A: run the sim so there are kept acts, with the relay wired.
   const pageA = await browser.newPage();
@@ -79,6 +86,7 @@ test("moment-send: pair two pages by spoken words, send a kept act, verify", { t
     { waitUntil: "load" }
   );
   await pageA.waitForSelector("#jt-report", { timeout: 60000 });
+  console.error("[sync-e2e] simulated sender ready");
 
   // Device B: a second, plain page on the same relay.
   const pageB = await browser.newPage();
@@ -86,17 +94,21 @@ test("moment-send: pair two pages by spoken words, send a kept act, verify", { t
     waitUntil: "load",
   });
   await pageB.waitForFunction(() => !!window.__jtApp, { timeout: 20000 });
+  console.error("[sync-e2e] receiver ready");
 
   // A opens sharing and gets the three spoken words.
   const code = await pageA.evaluate(() => window.__jtApp.syncOpen());
   assert.match(code, /^[a-z]+-[a-z]+-[a-z]+$/, `not a spoken-word code: ${code}`);
+  console.error("[sync-e2e] pair code created");
 
   // B joins by "hearing" the words (spoken form, spaces not dashes).
   await pageB.evaluate((words) => window.__jtApp.syncJoin(words), code.split("-").join(" "));
   await pageA.waitForFunction(() => window.__jtApp.syncState().paired, { timeout: 10000 });
+  console.error("[sync-e2e] pages paired");
 
   // A sends its latest kept act as a moment.
   const sent = await pageA.evaluate(() => window.__jtApp.syncSendLatest());
+  console.error("[sync-e2e] send call returned");
   assert.ok(sent, "nothing was sent");
   assert.equal(sent.delivered, true, "receiver did not verify the delivery");
   assert.equal(sent.hashMatch, true, "receiver hash differs from sender hash");
@@ -104,6 +116,7 @@ test("moment-send: pair two pages by spoken words, send a kept act, verify", { t
 
   // B received it: verified, hash matches, full moment intact.
   await pageB.waitForFunction(() => window.__jtApp.inbox().length > 0, { timeout: 10000 });
+  console.error("[sync-e2e] moment received");
   const item = await pageB.evaluate(() => window.__jtApp.inbox()[0]);
   assert.equal(item.verified, true, "arrival not hash-verified");
   assert.equal(item.contentHash, sent.localHash, "content hash changed in transit");
@@ -125,4 +138,5 @@ test("moment-send: pair two pages by spoken words, send a kept act, verify", { t
     /choose who you are in spaces before sending here/i,
     "an arrived moment should expose the same send-to-space action as a kept act",
   );
+  console.error("[sync-e2e] delivery verified");
 });

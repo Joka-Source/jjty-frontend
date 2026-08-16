@@ -5,7 +5,7 @@ import path from "node:path";
 import puppeteer from "puppeteer-core";
 import { root } from "./validate.mjs";
 
-const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+const CHROME = process.env.CHROME_PATH ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const MIME = {
   ".css": "text/css",
   ".html": "text/html",

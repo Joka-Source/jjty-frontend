@@ -12,7 +12,7 @@ import path from "node:path";
 import puppeteer from "puppeteer-core";
 import { validateCursor, validateReceipt, errorsOf, root } from "./validate.mjs";
 
-const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+const CHROME = process.env.CHROME_PATH ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const PORT = 4931;
 
 async function waitFor(url, ms = 15000) {
@@ -34,7 +34,7 @@ test("sim replay: records created, schema-valid, undo works", { timeout: 120000 
   if (!existsSync(path.join(root, "dist", "index.html"))) {
     execFileSync("npx", ["vite", "build"], { cwd: root, stdio: "inherit" });
   }
-  const server = spawn("npx", ["vite", "preview", "--host", "127.0.0.1", "--port", String(PORT), "--strictPort"], {
+  const server = spawn(process.execPath, [path.join(root, "node_modules", "vite", "bin", "vite.js"), "preview", "--host", "127.0.0.1", "--port", String(PORT), "--strictPort"], {
     cwd: root,
     stdio: "ignore",
   });
@@ -44,7 +44,7 @@ test("sim replay: records created, schema-valid, undo works", { timeout: 120000 
   const browser = await puppeteer.launch({
     executablePath: CHROME,
     headless: true,
-    args: ["--disable-gpu", "--no-first-run"],
+    args: ["--disable-gpu", "--no-first-run", "--no-sandbox", "--disable-setuid-sandbox"],
   });
   t.after(() => browser.close());
   const page = await browser.newPage();
