@@ -147,6 +147,126 @@ article p {
   padding: 0.15em 0.4em;
 }
 
+.pdf-tools {
+  position: sticky;
+  top: 3.35rem;
+  z-index: 5;
+  max-width: 44rem;
+  margin: 0.5rem auto 0;
+  padding: 0.55rem 0.7rem;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg) 94%, transparent);
+  backdrop-filter: blur(12px);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 0.78rem;
+}
+
+.pdf-tools[hidden] {
+  display: none;
+}
+
+.pdf-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.pdf-tools button,
+.pdf-tools input {
+  min-height: 2rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+}
+
+.pdf-tools button {
+  padding: 0.3rem 0.55rem;
+  cursor: pointer;
+}
+
+.pdf-tools button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.pdf-search-label {
+  color: var(--ink-dim);
+}
+
+#pdf-search-input {
+  flex: 1 1 11rem;
+  padding: 0.3rem 0.5rem;
+}
+
+#pdf-search-count {
+  min-width: 4.5rem;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.pdf-message {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--warm);
+}
+
+#doc.pdf-document {
+  max-width: none;
+  overflow-x: auto;
+}
+
+.pdf-page {
+  position: relative;
+  width: var(--pdf-page-width);
+  height: var(--pdf-page-height);
+  margin: 0 auto 1.25rem;
+  overflow: hidden;
+  background: white;
+  box-shadow: 0 2px 18px color-mix(in srgb, black 16%, transparent);
+}
+
+.pdf-canvas,
+.pdf-text-layer {
+  position: absolute;
+  inset: 0;
+}
+
+.pdf-canvas {
+  display: block;
+}
+
+.pdf-text-layer {
+  cursor: text;
+  transition: none;
+}
+
+.pdf-text-layer.important {
+  outline: 3px solid color-mix(in srgb, var(--warm) 70%, transparent);
+  outline-offset: -3px;
+}
+
+.pdf-text-layer.pdf-search-fallback {
+  outline: 3px solid color-mix(in srgb, var(--accent) 62%, transparent);
+  outline-offset: -3px;
+}
+
+::highlight(jt-pdf-search) {
+  color: transparent;
+  background: color-mix(in srgb, var(--warm) 55%, transparent);
+}
+
+.pdf-text-layer mark.jt-highlight {
+  color: transparent;
+  background: color-mix(in srgb, var(--accent) 34%, transparent);
+}
+
 .return-marker {
   position: absolute;
   right: 0.4rem;

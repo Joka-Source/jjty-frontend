@@ -327,6 +327,19 @@
             <p class="math-disclosure">rule-based translator; 65k dataset untouched pending provenance.</p>
           </div>
         </section>
+        <section class="pdf-tools" id="pdf-tools" aria-label="PDF reading tools" hidden>
+          <div class="pdf-zoom" aria-label="PDF zoom">
+            <button id="pdf-zoom-out" type="button" aria-label="zoom out">&minus;</button>
+            <output id="pdf-zoom-value" aria-live="polite">100%</output>
+            <button id="pdf-zoom-in" type="button" aria-label="zoom in">+</button>
+          </div>
+          <label class="pdf-search-label" for="pdf-search-input">find in this PDF</label>
+          <input id="pdf-search-input" type="search" autocomplete="off" />
+          <button id="pdf-search-previous" type="button" aria-label="previous match">previous</button>
+          <button id="pdf-search-next" type="button" aria-label="next match">next</button>
+          <output id="pdf-search-count" aria-live="polite"></output>
+          <p id="pdf-message" class="pdf-message" aria-live="polite"></p>
+        </section>
         <article id="doc">
           <div id="marker" aria-hidden="true"></div>
           <div class="read-empty" id="read-empty" hidden>

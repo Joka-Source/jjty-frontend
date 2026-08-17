@@ -20,6 +20,7 @@
 
 import "./style.css";
 import "../vendor/katex/katex.min.css";
+import "pdfjs-dist/web/pdf_viewer.css";
 import katex from "../vendor/katex/katex.mjs";
 import { tokenize, tokenizeWithSpans, matchTranscript, TARGET_POLICY } from "./match.js";
 import { splitParagraphs, titleFrom, STARTER_DOC } from "./doc.js";
@@ -29,7 +30,12 @@ import { createMarkerDriver, confirmRipple, returnToPlace } from "./motion.js";
 import { ingestText, ingestPaste, ingestPdfBrowser, shortDigest, fmtBytes } from "./ingest.js";
 import { codeFromSpoken, createSyncSurface, momentFromEntry } from "./sync.js";
 import { createActEngine } from "./acts.js";
-import { measureTokenRange } from "./highlight.js";
+import { domRangeForCharacters, measureTokenRange } from "./highlight.js";
+import {
+  createPdfReadingModel,
+  normalizePdfGeometry,
+  renderPdfPages,
+} from "./pdf-reading.js";
 import { decideTarget } from "./targeting.js";
 import {
   putDoc,
@@ -107,6 +113,15 @@ const mathUnparsed = document.getElementById("math-unparsed");
 const mathKeep = document.getElementById("math-keep");
 const mathSession = document.getElementById("math-session");
 const mathSessionList = document.getElementById("math-session-list");
+const pdfTools = document.getElementById("pdf-tools");
+const pdfZoomOut = document.getElementById("pdf-zoom-out");
+const pdfZoomValue = document.getElementById("pdf-zoom-value");
+const pdfZoomIn = document.getElementById("pdf-zoom-in");
+const pdfSearchInput = document.getElementById("pdf-search-input");
+const pdfSearchPrevious = document.getElementById("pdf-search-previous");
+const pdfSearchNext = document.getElementById("pdf-search-next");
+const pdfSearchCount = document.getElementById("pdf-search-count");
+const pdfMessage = document.getElementById("pdf-message");
 
 // ---------------------------------------------------------------------------
 // Phone layout: on a narrow screen the two side panels become slide-over
@@ -178,6 +193,7 @@ const state = {
   matcher: null, // js or wasm engine
   engineKind: "",
   pendingAsk: null, // { candidates, reason, evidence }
+  pdf: null, // source document + stable text/search model + current visual scale
 };
 
 const mathState = {
@@ -218,8 +234,75 @@ document.addEventListener("visibilitychange", () => {
 // ---------------------------------------------------------------------------
 // Rendering
 
+async function loadPdfJs() {
+  const pdfjs = await import("pdfjs-dist");
+  const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
+  pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+  return pdfjs;
+}
+
+function pdfSourceBytes(sourceBytes) {
+  if (sourceBytes instanceof Uint8Array) return sourceBytes.slice();
+  if (Array.isArray(sourceBytes)) return new Uint8Array(sourceBytes);
+  return new Uint8Array(Object.values(sourceBytes ?? {}));
+}
+
+function selectPdfBlock(blockIndex) {
+  state.currentBlock = blockIndex;
+  moveMarker(blockIndex);
+  rememberPosition(blockIndex);
+}
+
+async function createPdfSurface(doc, pages, container = article, scale = 1) {
+  const pdfjs = await loadPdfJs();
+  const model = createPdfReadingModel({ pages, zoom: scale });
+  const loadingTask = pdfjs.getDocument({ data: pdfSourceBytes(doc.sourceBytes) });
+  const pdfDocument = await loadingTask.promise;
+  const blocks = await renderPdfPages({
+    pdfjs,
+    pdfDocument,
+    container,
+    pages: model.pages,
+    scale: model.zoom,
+    onBlockClick: selectPdfBlock,
+  });
+  return { pdfjs, model, loadingTask, pdfDocument, blocks };
+}
+
+function appendTextBlocks(blockDefs) {
+  for (const [i, def] of blockDefs.entries()) {
+    const p = document.createElement("p");
+    p.textContent = def.text;
+    p.dataset.block = String(i);
+    if (def.locator?.startsWith("page:")) {
+      p.dataset.page = def.locator.slice(5);
+      p.classList.add("paged");
+    }
+    p.addEventListener("click", () => selectPdfBlock(i));
+    article.appendChild(p);
+    state.blocks.push(p);
+    state.blockTexts.push(def.text);
+  }
+}
+
+function resetPdfTools() {
+  pdfTools.hidden = true;
+  pdfSearchInput.value = "";
+  pdfSearchCount.textContent = "";
+  pdfMessage.textContent = "";
+  pdfZoomOut.disabled = false;
+  pdfZoomIn.disabled = false;
+  pdfSearchPrevious.disabled = true;
+  pdfSearchNext.disabled = true;
+  article.classList.remove("pdf-document");
+  globalThis.CSS?.highlights?.delete("jt-pdf-search");
+}
+
 async function renderDoc(doc) {
+  await state.pdf?.loadingTask?.destroy?.();
   for (const p of state.blocks) p.remove();
+  for (const page of article.querySelectorAll(":scope > .pdf-page")) page.remove();
+  resetPdfTools();
   Object.assign(state, {
     doc,
     blocks: [],
@@ -231,6 +314,7 @@ async function renderDoc(doc) {
     lastMatch: null,
     lastReadingMatch: null,
     matcher: null,
+    pdf: null,
   });
   marker.classList.remove("on");
   markerDriver.stop();
@@ -239,23 +323,33 @@ async function renderDoc(doc) {
     ? doc.blocks
     : splitParagraphs(doc.text).map((text) => ({ text, kind: "paragraph" }));
 
-  for (const [i, def] of blockDefs.entries()) {
-    const p = document.createElement("p");
-    p.textContent = def.text;
-    p.dataset.block = String(i);
-    if (def.locator?.startsWith("page:")) {
-      p.dataset.page = def.locator.slice(5);
-      p.classList.add("paged");
+  const hasPdfSource = doc.provenance?.sourceKind === "pdf" && doc.sourceBytes;
+  if (hasPdfSource) {
+    try {
+      state.pdf = await createPdfSurface(doc, blockDefs);
+      state.blocks = state.pdf.blocks;
+      state.blockTexts = [...state.pdf.model.blockTexts];
+      article.classList.add("pdf-document");
+      pdfTools.hidden = false;
+      pdfZoomValue.textContent = `${Math.round(state.pdf.model.zoom * 100)}%`;
+      pdfZoomOut.disabled = state.pdf.model.zoom <= 0.75;
+      pdfZoomIn.disabled = state.pdf.model.zoom >= 2.5;
+      pdfMessage.textContent = doc.refusal?.message ?? "";
+    } catch (error) {
+      appendTextBlocks(blockDefs);
+      pdfMessage.textContent = "the PDF pages could not be rendered; the saved text is shown instead.";
+      pdfTools.hidden = false;
+      setStatus(true, `PDF rendering failed: ${error?.message ?? error}`);
     }
-    p.addEventListener("click", () => {
-      state.currentBlock = i;
-      moveMarker(i);
-      rememberPosition(i);
-    });
-    article.appendChild(p);
-    state.blocks.push(p);
-    state.blockTexts.push(def.text);
-    for (const [tokenIndex, token] of tokenizeWithSpans(def.text).entries()) {
+  } else {
+    appendTextBlocks(blockDefs);
+    if (doc.provenance?.sourceKind === "pdf") {
+      setStatus(true, "the original PDF pages are unavailable; showing the saved text");
+    }
+  }
+
+  for (const [i, text] of state.blockTexts.entries()) {
+    for (const [tokenIndex, token] of tokenizeWithSpans(text).entries()) {
       state.docTokens.push(token.token);
       state.tokenBlock.push(i);
       state.tokenMeta.push({ blockIndex: i, tokenIndex });
@@ -310,6 +404,103 @@ function moveMarker(blockIdx, target = null) {
     height: rect.height + 8,
   });
 }
+
+function anchorGeometryFor(blockIndex, tokenStart, tokenEnd) {
+  const block = state.blocks[blockIndex];
+  const page = block?.closest(".pdf-page");
+  if (!page) return null;
+  const rect = measureTokenRange(block, tokenStart, tokenEnd);
+  if (!rect) return null;
+  return normalizePdfGeometry(rect, page.getBoundingClientRect(), Number(page.dataset.page));
+}
+
+function clearPdfSearchPaint() {
+  globalThis.CSS?.highlights?.delete("jt-pdf-search");
+  for (const block of state.blocks) block?.classList.remove("pdf-search-fallback");
+}
+
+function paintPdfSearchHit(searchState, { scroll = true } = {}) {
+  clearPdfSearchPaint();
+  if (!searchState?.hit) return;
+  const { blockIndex, charStart, charEnd } = searchState.hit;
+  const block = state.blocks[blockIndex];
+  if (!block) return;
+  const range = domRangeForCharacters(block, charStart, charEnd);
+  if (range && globalThis.CSS?.highlights && typeof globalThis.Highlight === "function") {
+    globalThis.CSS.highlights.set("jt-pdf-search", new Highlight(range));
+  } else {
+    block.classList.add("pdf-search-fallback");
+  }
+  if (scroll) block.closest(".pdf-page")?.scrollIntoView({ behavior: "auto", block: "center" });
+}
+
+function showPdfSearchState(searchState, options) {
+  const message = searchState.message ? ` · ${searchState.message}` : "";
+  pdfSearchCount.textContent = `${searchState.countLabel}${message}`;
+  pdfSearchPrevious.disabled = searchState.total === 0;
+  pdfSearchNext.disabled = searchState.total === 0;
+  paintPdfSearchHit(searchState, options);
+}
+
+function heldPdfBlockIndex() {
+  const activeEntry = [...engine.entries]
+    .reverse()
+    .find((entry) => entry.kind === "act" && !entry.undone && entry.arrival !== "lost");
+  return activeEntry?.blockIndex ?? state.pdf?.model.searchState().hit?.blockIndex ?? state.currentBlock;
+}
+
+async function setPdfZoom(nextZoom) {
+  if (!state.pdf) return;
+  const previousZoom = state.pdf.model.zoom;
+  const zoom = state.pdf.model.setZoom(nextZoom);
+  if (zoom === previousZoom) return;
+  const heldIndex = heldPdfBlockIndex();
+  const beforeTop = state.blocks[heldIndex]?.getBoundingClientRect().top ?? null;
+  const staging = document.createElement("div");
+  pdfZoomOut.disabled = true;
+  pdfZoomIn.disabled = true;
+  try {
+    const blocks = await renderPdfPages({
+      pdfjs: state.pdf.pdfjs,
+      pdfDocument: state.pdf.pdfDocument,
+      container: staging,
+      pages: state.pdf.model.pages,
+      scale: zoom,
+      onBlockClick: selectPdfBlock,
+    });
+    markerDriver.stop();
+    for (const page of article.querySelectorAll(":scope > .pdf-page")) page.remove();
+    article.append(...staging.childNodes);
+    state.blocks = blocks;
+    state.pdf.blocks = blocks;
+    await engine.load(state.doc.id);
+    const afterTop = state.blocks[heldIndex]?.getBoundingClientRect().top ?? null;
+    if (beforeTop !== null && afterTop !== null) {
+      window.scrollBy({ top: afterTop - beforeTop, left: 0, behavior: "auto" });
+    }
+    if (Number.isInteger(heldIndex) && heldIndex >= 0) moveMarker(heldIndex);
+    showPdfSearchState(state.pdf.model.searchState(), { scroll: false });
+    pdfZoomValue.textContent = `${Math.round(zoom * 100)}%`;
+  } catch (error) {
+    state.pdf.model.setZoom(previousZoom);
+    setStatus(true, `PDF zoom failed: ${error?.message ?? error}`);
+  } finally {
+    pdfZoomOut.disabled = state.pdf.model.zoom <= 0.75;
+    pdfZoomIn.disabled = state.pdf.model.zoom >= 2.5;
+  }
+}
+
+pdfZoomOut.addEventListener("click", () => void setPdfZoom(state.pdf?.model.zoom - 0.25));
+pdfZoomIn.addEventListener("click", () => void setPdfZoom(state.pdf?.model.zoom + 0.25));
+pdfSearchInput.addEventListener("input", () => {
+  if (state.pdf) showPdfSearchState(state.pdf.model.setSearchQuery(pdfSearchInput.value));
+});
+pdfSearchPrevious.addEventListener("click", () => {
+  if (state.pdf) showPdfSearchState(state.pdf.model.previousSearchHit());
+});
+pdfSearchNext.addEventListener("click", () => {
+  if (state.pdf) showPdfSearchState(state.pdf.model.nextSearchHit());
+});
 
 // ---------------------------------------------------------------------------
 // History panel
@@ -438,8 +629,13 @@ const engine = createActEngine({
   getBlockTexts: () => state.blockTexts,
   getDoc: () => state.doc,
   onChange: renderHistory,
-  onApply: (p) => confirmRipple(p, { energy: motionParams().energy }),
+  onApply: (p) => {
+    if (!p.classList.contains("pdf-text-layer")) {
+      confirmRipple(p, { energy: motionParams().energy });
+    }
+  },
   renderMath: (node, entry) => renderMathInto(node, entry.mathLatex),
+  getAnchorGeometry: anchorGeometryFor,
 });
 
 // ---------------------------------------------------------------------------
@@ -1222,24 +1418,32 @@ async function openDocument(
 
 /** Store an IngestResult (jt-connectors shape) as a jt document. */
 async function addIngested(result, nameHint = "") {
-  if (!result.blocks.length) {
-    setStatus(true, "nothing readable in that — try another file");
+  const viewableImagePdf = result.refusal?.kind === "image-only" && result.sourceBytes;
+  if (!result.blocks.length && !viewableImagePdf) {
+    setStatus(true, result.refusal?.message ?? "nothing readable in that — try another file");
     return null;
   }
   const text = result.blocks.map((b) => b.text).join("\n\n");
   const doc = {
     id: rid("doc"),
-    title: result.provenance.title || nameHint || titleFrom(text, "untitled"),
+    title:
+      result.provenance.title ||
+      nameHint ||
+      result.provenance.name ||
+      titleFrom(text, "untitled"),
     text,
     blocks: result.blocks,
     provenance: result.provenance,
     warnings: result.warnings,
+    ...(result.sourceBytes ? { sourceBytes: result.sourceBytes } : {}),
+    ...(result.refusal ? { refusal: result.refusal } : {}),
     createdAt: nowIso(),
     revision: 1,
   };
   await putDoc(doc);
   await openDocument(doc);
-  if (result.warnings.length) setStatus(true, `opened with notes: ${result.warnings[0]}`);
+  if (result.refusal) setStatus(true, result.refusal.message);
+  else if (result.warnings.length) setStatus(true, `opened with notes: ${result.warnings[0]}`);
   return doc;
 }
 
@@ -1251,9 +1455,7 @@ async function addDocument(text, nameHint = "") {
 async function ingestFile(f) {
   if (/\.pdf$/i.test(f.name) || f.type === "application/pdf") {
     setStatus(true, `reading ${f.name}…`);
-    const pdfjs = await import("pdfjs-dist");
-    const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
-    pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+    const pdfjs = await loadPdfJs();
     const bytes = new Uint8Array(await f.arrayBuffer());
     const result = await ingestPdfBrowser(pdfjs, bytes, { name: f.name });
     return addIngested(result, f.name.replace(/\.pdf$/i, ""));

@@ -71,6 +71,7 @@ test("pdf ingestion: per-page blocks, page locators, provenance from raw bytes",
   const expected = createHash("sha256").update(bytes).digest("hex");
   assert.equal(r.provenance.contentDigest, `sha256:${expected}`);
   assert.equal(r.provenance.byteSize, bytes.byteLength);
+  assert.deepEqual(r.sourceBytes, bytes, "rendering bytes must remain available after text extraction");
   assert.deepEqual(
     r.blocks.map((b) => b.locator),
     ["page:1", "page:2"]
@@ -78,4 +79,100 @@ test("pdf ingestion: per-page blocks, page locators, provenance from raw bytes",
   assert.deepEqual(r.blocks.map((b) => b.kind), ["page", "page"]);
   assert.ok(r.warnings.some((w) => w.includes("page 3")));
   assert.equal(shortDigest(r.provenance.contentDigest).length, 10);
+});
+
+test("encrypted PDF ingestion refuses explicitly and preserves provenance", async () => {
+  const loadingTask = {
+    promise: Promise.reject(Object.assign(new Error("No password given"), { name: "PasswordException" })),
+    destroy: async () => {},
+  };
+  const bytes = new TextEncoder().encode("%PDF encrypted bytes");
+  const result = await ingestPdfBrowser(
+    { getDocument: () => loadingTask },
+    bytes,
+    { name: "locked.pdf" },
+  );
+
+  assert.deepEqual(result.refusal, {
+    kind: "encrypted",
+    message:
+      "this PDF is encrypted. enter its password in another reader, then save an unlocked copy for jt.",
+  });
+  assert.equal(result.blocks.length, 0);
+  assert.equal(result.provenance.sourceKind, "pdf");
+  assert.match(result.provenance.contentDigest, /^sha256:[0-9a-f]{64}$/);
+});
+
+test("image-only PDF ingestion says there is no text layer", async () => {
+  const loadingTask = {
+    promise: Promise.resolve({
+      numPages: 2,
+      getMetadata: async () => ({ info: {} }),
+      getPage: async () => ({ getTextContent: async () => ({ items: [] }) }),
+    }),
+    destroy: async () => {},
+  };
+  const result = await ingestPdfBrowser(
+    { getDocument: () => loadingTask },
+    new TextEncoder().encode("%PDF image-only bytes"),
+    { name: "scan.pdf" },
+  );
+
+  assert.deepEqual(result.refusal, {
+    kind: "image-only",
+    message:
+      "this PDF has no text layer. its pages can still be viewed, but jt cannot anchor acts to the image.",
+  });
+  assert.equal(result.blocks.length, 0);
+  assert.equal(result.provenance.pageCount, 2);
+  assert.deepEqual(
+    result.sourceBytes,
+    new TextEncoder().encode("%PDF image-only bytes"),
+    "image-only pages must remain viewable",
+  );
+});
+
+test("corrupt PDF ingestion refuses explicitly", async () => {
+  const loadingTask = {
+    promise: Promise.reject(Object.assign(new Error("Invalid PDF structure"), { name: "InvalidPDFException" })),
+    destroy: async () => {},
+  };
+  const result = await ingestPdfBrowser(
+    { getDocument: () => loadingTask },
+    new TextEncoder().encode("not a pdf"),
+    { name: "broken.pdf" },
+  );
+
+  assert.deepEqual(result.refusal, {
+    kind: "corrupt",
+    message:
+      "this PDF is corrupt or not a valid PDF. try the original file or download it again.",
+  });
+  assert.equal(result.blocks.length, 0);
+});
+
+test("PDF ingestion does not call all-page read failures image-only", async () => {
+  const loadingTask = {
+    promise: Promise.resolve({
+      numPages: 2,
+      getMetadata: async () => ({ info: {} }),
+      getPage: async (pageNumber) => {
+        throw new Error(`broken page ${pageNumber}`);
+      },
+    }),
+    destroy: async () => {},
+  };
+  const result = await ingestPdfBrowser(
+    { getDocument: () => loadingTask },
+    new TextEncoder().encode("%PDF broken pages"),
+    { name: "unreadable.pdf" },
+  );
+
+  assert.deepEqual(result.refusal, {
+    kind: "corrupt",
+    message: "this PDF is corrupt or not a valid PDF. try the original file or download it again.",
+  });
+  assert.equal(result.blocks.length, 0);
+  assert.ok(result.warnings.some((warning) => warning.includes("page 1 could not be read")));
+  assert.ok(result.warnings.some((warning) => warning.includes("page 2 could not be read")));
 });
