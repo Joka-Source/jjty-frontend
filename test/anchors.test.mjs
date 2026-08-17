@@ -97,3 +97,32 @@ test("legacy ordinal rows migrate visibly as approximate rather than exact", asy
   assert.equal(migrated.anchor.quotedText, originalBlocks[1]);
   assert.equal(migrated.anchor.docDigest, originalDigest);
 });
+
+test("PDF geometry is audit evidence and quote context still chooses the address", async () => {
+  const anchors = await anchorApi();
+  const geometry = {
+    page: 2,
+    x: 0.125,
+    y: 0.25,
+    width: 0.5,
+    height: 0.04,
+  };
+  const anchor = anchors.createAnchor({
+    blockTexts: originalBlocks,
+    blockIndex: 1,
+    tokenStart: 1,
+    tokenEnd: 3,
+    docDigest: originalDigest,
+    geometry,
+  });
+  assert.deepEqual(anchor.geometry, geometry);
+
+  const moved = ["A new page was inserted before the quote.", ...originalBlocks];
+  assert.deepEqual(anchors.resolveAnchor(anchor, { blockTexts: moved }), {
+    arrival: "refound",
+    blockIndex: 2,
+    tokenStart: 1,
+    tokenEnd: 3,
+    quotedText: "quick brown fox",
+  });
+});

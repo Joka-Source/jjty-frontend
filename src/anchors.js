@@ -16,7 +16,7 @@ function quoteAt(text, tokenStart, tokenEnd) {
   };
 }
 
-export function createAnchor({ blockTexts, blockIndex, tokenStart, tokenEnd, docDigest }) {
+export function createAnchor({ blockTexts, blockIndex, tokenStart, tokenEnd, docDigest, geometry }) {
   const text = String(blockTexts[blockIndex] ?? "");
   const quote = quoteAt(text, tokenStart, tokenEnd);
   if (!quote) return null;
@@ -28,6 +28,7 @@ export function createAnchor({ blockTexts, blockIndex, tokenStart, tokenEnd, doc
     prefix: text.slice(Math.max(0, quote.charStart - CONTEXT_CHARS), quote.charStart),
     suffix: text.slice(quote.charEnd, quote.charEnd + CONTEXT_CHARS),
     docDigest: String(docDigest ?? ""),
+    ...(geometry ? { geometry: { ...geometry } } : {}),
   };
 }
 

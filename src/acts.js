@@ -16,6 +16,7 @@ export function createActEngine({
   onChange,
   onApply,
   renderMath,
+  getAnchorGeometry = () => null,
 }) {
   // In-memory mirror of this document's history, newest last.
   let entries = [];
@@ -120,7 +121,14 @@ export function createActEngine({
       doc.provenance?.contentDigest ?? (await contentDigest(doc.text ?? blockTexts.join("\n\n")));
     const anchor =
       Number.isInteger(tokenStart) && Number.isInteger(tokenEnd)
-        ? createAnchor({ blockTexts, blockIndex, tokenStart, tokenEnd, docDigest })
+        ? createAnchor({
+            blockTexts,
+            blockIndex,
+            tokenStart,
+            tokenEnd,
+            docDigest,
+            geometry: getAnchorGeometry(blockIndex, tokenStart, tokenEnd),
+          })
         : null;
     const arrival = requestedArrival ?? (anchor ? "exact" : "approximate");
     const entry = makeActEntry({

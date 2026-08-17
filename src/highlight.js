@@ -14,7 +14,31 @@ function readableTextNodes(block) {
   return nodes;
 }
 
+export function mapStableTextSegments(segments, stableText) {
+  const text = String(stableText ?? "");
+  let from = 0;
+  return segments.map((raw) => {
+    const segment = String(raw ?? "");
+    const found = text.indexOf(segment, from);
+    const charStart = found >= 0 ? found : from;
+    const charEnd = charStart + segment.length;
+    from = charEnd;
+    return { text: segment, charStart, charEnd };
+  });
+}
+
 function textMap(block) {
+  if (block.classList.contains("pdf-text-layer")) {
+    const text = block.dataset.blockText ?? "";
+    const nodes = readableTextNodes(block).filter((node) => node.data.length > 0);
+    const mapped = mapStableTextSegments(nodes.map((node) => node.data), text);
+    const positions = mapped.map(({ charStart, charEnd }, index) => ({
+      node: nodes[index],
+      start: charStart,
+      end: charEnd,
+    }));
+    return { text, positions };
+  }
   const nodes = readableTextNodes(block);
   let text = "";
   const positions = [];
@@ -24,6 +48,17 @@ function textMap(block) {
     positions.push({ node, start, end: text.length });
   }
   return { text, positions };
+}
+
+export function domRangeForCharacters(block, charStart, charEnd) {
+  const { positions } = textMap(block);
+  const start = boundaryAt(positions, charStart);
+  const end = boundaryAt(positions, charEnd, true);
+  if (!start || !end || charEnd <= charStart) return null;
+  const range = document.createRange();
+  range.setStart(start.node, start.offset);
+  range.setEnd(end.node, end.offset);
+  return range;
 }
 
 function boundaryAt(positions, offset, preferEnd = false) {

@@ -19,6 +19,31 @@ import { makeResult } from "jt-connectors/src/core/result.ts";
 
 export { ingestText, ingestPaste, looksLikeMarkdownName, contentDigest, byteSize };
 
+const PDF_REFUSALS = Object.freeze({
+  encrypted: {
+    kind: "encrypted",
+    message:
+      "this PDF is encrypted. enter its password in another reader, then save an unlocked copy for jt.",
+  },
+  corrupt: {
+    kind: "corrupt",
+    message: "this PDF is corrupt or not a valid PDF. try the original file or download it again.",
+  },
+  imageOnly: {
+    kind: "image-only",
+    message:
+      "this PDF has no text layer. its pages can still be viewed, but jt cannot anchor acts to the image.",
+  },
+});
+
+function pdfLoadRefusal(error) {
+  const name = String(error?.name ?? "");
+  const message = String(error?.message ?? "");
+  return /password/i.test(name) || /password/i.test(message)
+    ? PDF_REFUSALS.encrypted
+    : PDF_REFUSALS.corrupt;
+}
+
 /**
  * Pure: turn one pdfjs text-content item list into a page's text.
  * Mirrors jt-connectors src/node/pdf.ts so browser and node output match.
@@ -45,7 +70,19 @@ export function pageTextFromItems(items) {
 export async function ingestPdfBrowser(pdfjs, bytes, { name, capturedAt } = {}) {
   const warnings = [];
   const loadingTask = pdfjs.getDocument({ data: bytes.slice() });
-  const doc = await loadingTask.promise;
+  let doc;
+  try {
+    doc = await loadingTask.promise;
+  } catch (error) {
+    await loadingTask.destroy?.();
+    const result = await makeResult(
+      bytes,
+      [],
+      { sourceKind: "pdf", name, capturedAt },
+      warnings,
+    );
+    return { ...result, sourceBytes: bytes.slice(), refusal: pdfLoadRefusal(error) };
+  }
 
   let title;
   try {
@@ -57,26 +94,35 @@ export async function ingestPdfBrowser(pdfjs, bytes, { name, capturedAt } = {}) 
   }
 
   const drafts = [];
+  let pagesInspected = 0;
+  let pageReadFailures = 0;
   for (let pageNum = 1; pageNum <= doc.numPages; pageNum++) {
     try {
       const page = await doc.getPage(pageNum);
       const content = await page.getTextContent();
+      pagesInspected++;
       const text = pageTextFromItems(content.items);
       drafts.push({ text, kind: "page", locator: `page:${pageNum}` });
       if (!text.trim()) warnings.push(`page ${pageNum} has no extractable text`);
     } catch (err) {
+      pageReadFailures++;
       warnings.push(`page ${pageNum} could not be read: ${err?.message ?? err}`);
     }
   }
   const pageCount = doc.numPages;
   await loadingTask.destroy();
 
-  return makeResult(
+  const result = await makeResult(
     bytes,
     drafts,
     { sourceKind: "pdf", name, title, pageCount, capturedAt },
     warnings
   );
+  if (result.blocks.length) return { ...result, sourceBytes: bytes.slice() };
+  const refusal = pagesInspected === 0 && (pageReadFailures > 0 || pageCount === 0)
+    ? PDF_REFUSALS.corrupt
+    : PDF_REFUSALS.imageOnly;
+  return { ...result, sourceBytes: bytes.slice(), refusal };
 }
 
 /** Short human form of a digest for the library panel. */
