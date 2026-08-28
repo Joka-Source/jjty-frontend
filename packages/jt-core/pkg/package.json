@@ -1,0 +1,17 @@
+{
+  "name": "jt-core",
+  "type": "module",
+  "description": "jt core: deterministic portable kernel — fuzzy transcript-to-document matching and record lifecycle. Compiles native, to wasm32 (web), and as a cdylib for JNI.",
+  "version": "0.1.0",
+  "license": "UNLICENSED",
+  "files": [
+    "jt_core_bg.wasm",
+    "jt_core.js",
+    "jt_core.d.ts"
+  ],
+  "main": "jt_core.js",
+  "types": "jt_core.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "postinstall": "node scripts/resolve-local-dependencies.mjs",
+    "build:core": "wasm-pack build packages/jt-core --target web --release",
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "icons:generate": "node scripts/generate-icons.mjs",
@@ -27,11 +28,11 @@
     "ws": "8.21.3"
   },
   "dependencies": {
-    "@jt/glass": "file:../jt-glass",
-    "jt-connectors": "file:../jt-connectors",
-    "jt-core": "file:../jt-core/pkg",
-    "jt-sync": "file:../jt-sync",
-    "jt-water": "file:../jt-water",
+    "@jt/glass": "file:packages/jt-glass",
+    "jt-connectors": "file:packages/jt-connectors",
+    "jt-core": "file:packages/jt-core/pkg",
+    "jt-sync": "file:packages/jt-sync",
+    "jt-water": "file:packages/jt-water",
     "pdfjs-dist": "^6.2.108"
   }
 }
