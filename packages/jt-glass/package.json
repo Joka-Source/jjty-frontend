@@ -1,0 +1,24 @@
+{
+  "name": "@jt/glass",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "jt glass engine — inspect and replay how jt understood and acted.",
+  "scripts": {
+    "build": "node --no-warnings scripts/build.mjs",
+    "dev": "node scripts/serve.mjs",
+    "test": "node --test",
+    "check": "npm test && npm run build"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    },
+    "./tap": {
+      "types": "./src/tap.ts",
+      "import": "./src/tap.ts"
+    },
+    "./styles.css": "./src/styles.css"
+  }
+}
