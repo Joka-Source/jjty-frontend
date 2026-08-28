@@ -1,0 +1,53 @@
+{
+  "description": "Shared conformance vectors: the Rust port and the reference JS matcher must produce identical output for every case. Numbers are compared for exact f64 equality after JSON parse; NaN is encoded as the string \"NaN\".",
+  "docs": {
+    "watson": [
+      "In the year 1878 I took my degree of Doctor of Medicine of the University of London.",
+      "The campaign brought honours and promotion to many, but for me it had nothing but misfortune and disaster.",
+      "Worn with pain, and weak from the prolonged hardships which I had undergone, I was removed to the base hospital.",
+      "I had neither kith nor kin in England, and was therefore as free as air.",
+      "There I stayed for some time at a private hotel in the Strand, leading a comfortless, meaningless existence.",
+      "So alarming did the state of my finances become, that I soon realized that I must make a complete alteration in my style of living."
+    ],
+    "repeat": [
+      "one two three alpha beta gamma delta epsilon zeta eta theta one two three closing words here"
+    ],
+    "tiny": ["a b c d e f g"]
+  },
+  "cases": [
+    { "kind": "normalize", "text": "  Hello,   World! " },
+    { "kind": "normalize", "text": "don't DON'T don’t" },
+    { "kind": "normalize", "text": "R&D at AT&T" },
+    { "kind": "normalize", "text": "café naïve résumé" },
+    { "kind": "normalize", "text": "a'b'c o'brien's" },
+    { "kind": "normalize", "text": "--- ... !!!" },
+    { "kind": "normalize", "text": "" },
+    { "kind": "normalize", "text": "Bär 12½ ﬁne" },
+    { "kind": "tokenize", "text": "The quick, brown fox -- jumps!" },
+    { "kind": "tokenize", "text": "   " },
+    { "kind": "similarity", "a": "holmes", "b": "homes" },
+    { "kind": "similarity", "a": "holmes", "b": "holmes" },
+    { "kind": "similarity", "a": "a", "b": "b" },
+    { "kind": "similarity", "a": "a", "b": "ab" },
+    { "kind": "similarity", "a": "night", "b": "knight" },
+    { "kind": "similarity", "a": "mantelpiece", "b": "mantlepiece" },
+    { "kind": "similarity", "a": "", "b": "x" },
+    { "kind": "findMatch", "doc": "watson", "spoken": "i took my degree of doctor of medicine" },
+    { "kind": "findMatch", "doc": "watson", "spoken": "worn with pane and week from the prolonged" },
+    { "kind": "findMatch", "doc": "watson", "spoken": "completely unrelated grocery shopping" },
+    { "kind": "findMatch", "doc": "watson", "spoken": "kith nor kin in england", "opts": { "lastIndex": 40 } },
+    { "kind": "findMatch", "doc": "repeat", "spoken": "one two three", "opts": { "lastIndex": 0 } },
+    { "kind": "findMatch", "doc": "repeat", "spoken": "one two three", "opts": { "lastIndex": 11 } },
+    { "kind": "findMatch", "doc": "repeat", "spoken": "one two three" },
+    { "kind": "findMatch", "doc": "tiny", "spoken": "x y z" },
+    { "kind": "findMatch", "doc": "tiny", "spoken": "a b c" },
+    { "kind": "findMatch", "doc": "tiny", "spoken": "" },
+    { "kind": "matchTranscript", "doc": "watson", "transcript": "so as i was saying in the year 1878 i took my degree of doctor of medicine" },
+    { "kind": "matchTranscript", "doc": "watson", "transcript": "the campane brought honers and promotion to many" },
+    { "kind": "matchTranscript", "doc": "watson", "transcript": "so alarming did the state of my finances become", "opts": { "lastIndex": 90 } },
+    { "kind": "matchTranscript", "doc": "watson", "transcript": "um" },
+    { "kind": "matchTranscript", "doc": "watson", "transcript": "" },
+    { "kind": "matchTranscript", "doc": "watson", "transcript": "I was removed to the base hospital", "opts": { "windowSize": 4 } },
+    { "kind": "matchTranscript", "doc": "repeat", "transcript": "blah blah blah blah one two three", "opts": { "lastIndex": 12 } }
+  ]
+}
