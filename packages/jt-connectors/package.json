@@ -1,0 +1,30 @@
+{
+  "name": "jt-connectors",
+  "version": "0.1.0",
+  "description": "jt connector library: documents and material enter jt as moments with provenance, never as stripped files.",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "vitest run",
+    "cli": "tsx src/cli.ts",
+    "fixtures": "tsx scripts/make-fixture-pdf.ts && tsx scripts/make-fixture-docx.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "@types/jsdom": "^30.0.0",
+    "@types/node": "^26.2.0",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "jsdom": "^29.1.1",
+    "jszip": "^3.10.1",
+    "mammoth": "^1.12.1",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.2.108",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}

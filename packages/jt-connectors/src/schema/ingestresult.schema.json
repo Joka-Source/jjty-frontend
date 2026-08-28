@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "jt-connectors/ingestresult/v0.1.0",
+  "title": "IngestResult",
+  "description": "The one shape every jt connector returns: the content of ingested material as ordered blocks, plus a non-optional record of exactly where that material came from, and any warnings raised on the way in.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "blocks", "provenance", "warnings"],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Version of this result's schema (semver: major.minor.patch)."
+    },
+    "blocks": {
+      "type": "array",
+      "description": "The content, in reading order. May be empty only when the input had no extractable text, in which case a warning says so.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["text", "index", "kind"],
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The text of this block. Never empty."
+          },
+          "index": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Zero-based position of this block in the ingested material."
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["paragraph", "heading", "list-item", "code", "quote", "page"],
+            "description": "What kind of block this is."
+          },
+          "locator": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Where in the source this block came from, when the source has addressable structure, e.g. 'page:3' for a PDF page or 'h2' for a heading level."
+          }
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceKind", "contentDigest", "byteSize", "capturedAt"],
+      "description": "Where the content came from. Non-optional: nothing enters jt as a stripped file.",
+      "properties": {
+        "sourceKind": {
+          "type": "string",
+          "enum": ["text", "markdown", "pdf", "web-page", "paste", "docx"],
+          "description": "What kind of material this came from."
+        },
+        "uri": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Where the material came from, when it has an address (URL or file path)."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The material's own name (usually a file name), when it has one."
+        },
+        "contentDigest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "description": "Cryptographic digest of the exact input bytes, as 'sha256:<hex>'. Same input, same digest."
+        },
+        "byteSize": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Size of the exact input in bytes."
+        },
+        "capturedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When jt captured this material (ISO 8601)."
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Title of the material, when one could be determined."
+        },
+        "pageCount": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of pages, for paged material such as PDF."
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "description": "Anything that went wrong or was lossy on the way in. Empty when ingestion was clean.",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}
