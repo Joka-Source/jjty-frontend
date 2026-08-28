@@ -1,0 +1,6 @@
+{
+  "schemaVersion": "0.1.0",
+  "id": "act-0001",
+  "operation": "insert-note",
+  "consequenceClass": "reversible"
+}

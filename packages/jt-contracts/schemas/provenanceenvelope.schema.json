@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "jt-contracts/provenanceenvelope/v0.1.0",
+  "title": "ProvenanceEnvelope",
+  "description": "A wrapper carried by any produced or transformed content, saying exactly who or what produced it, from which exact input, by what transformation, with which model if any, how confident the producer was, and what rules govern keeping it and letting it leave the device.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "producer", "sourceDigest", "transformation"],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Version of this record's schema (semver: major.minor.patch)."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable identifier for this envelope."
+    },
+    "producer": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Who or what produced the content: a person, an app component, or a named service."
+    },
+    "sourceDigest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "Digest of the exact input the content was produced from, as 'sha256:<hex>'."
+    },
+    "transformation": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What was done to the input to produce the content, e.g. 'ocr', 'transcription', 'summary', 'crop'."
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The model involved, when a model produced or shaped the content. Absent means no model was used.",
+      "properties": {
+        "name": { "type": "string", "description": "Name of the model." },
+        "provider": { "type": "string", "description": "Who provides the model, e.g. 'on-device' or a named vendor." },
+        "version": { "type": "string", "description": "Exact model version." }
+      }
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "How sure the producer is about the content, from 0 (no confidence) to 1 (certain). Controls behaviour; it is not decoration."
+    },
+    "evidenceRef": {
+      "type": "string",
+      "description": "Reference to the evidence behind the content, so a person can check it."
+    },
+    "signature": {
+      "type": "string",
+      "description": "Cryptographic signature over this envelope, where signing is in use."
+    },
+    "retentionClass": {
+      "type": "string",
+      "description": "How long the content may be kept and under what rule."
+    },
+    "egressClass": {
+      "type": "string",
+      "enum": ["local-only", "egress-approved", "egressed"],
+      "description": "Whether the content may leave, or has left, the person's device: never, approved to leave, or already left."
+    }
+  }
+}

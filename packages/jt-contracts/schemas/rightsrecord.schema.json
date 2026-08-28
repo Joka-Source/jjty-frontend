@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "jt-contracts/rightsrecord/v0.1.0",
+  "title": "RightsRecord",
+  "description": "The exact terms under which one specific item may be used: who made it or speaks for it, where and for how long it may be used, on what devices and offline or not, what may be derived from it, how credit and payment work, whether it is excluded from model training, and how the arrangement ends.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "itemRef", "authority", "modelTrainingExcluded"],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Version of this record's schema (semver: major.minor.patch)."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable identifier for this rights record."
+    },
+    "itemRef": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Id of the exact item these rights cover. One record per item; no blanket grants."
+    },
+    "creator": {
+      "type": "string",
+      "description": "The person or group who made the item."
+    },
+    "authority": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Who has the standing to grant or change these rights."
+    },
+    "territory": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Where the item may be used. Empty or absent means unstated, not unlimited."
+    },
+    "duration": {
+      "type": "string",
+      "description": "How long these rights last, e.g. an end date or 'until-withdrawn'."
+    },
+    "deviceTerms": {
+      "type": "string",
+      "description": "Any limits on which devices the item may be used on."
+    },
+    "offlineAllowed": {
+      "type": "boolean",
+      "description": "Whether the item may be stored and used without a network connection."
+    },
+    "derivativesAllowed": {
+      "type": "boolean",
+      "description": "Whether new works may be made from this item."
+    },
+    "translationAllowed": {
+      "type": "boolean",
+      "description": "Whether the item may be translated into other languages."
+    },
+    "accessibilityVariantsAllowed": {
+      "type": "boolean",
+      "description": "Whether accessible variants (audio, large print, simplified) may be made."
+    },
+    "credit": {
+      "type": "string",
+      "description": "How the creator must be credited when the item is used."
+    },
+    "compensation": {
+      "type": "string",
+      "description": "What the creator is paid or given for use of the item."
+    },
+    "modelTrainingExcluded": {
+      "type": "boolean",
+      "description": "Whether this item is excluded from use as machine-learning training data. Must be stated explicitly."
+    },
+    "exitRoute": {
+      "type": "string",
+      "description": "How the creator or authority can end this arrangement and take the item back."
+    }
+  }
+}

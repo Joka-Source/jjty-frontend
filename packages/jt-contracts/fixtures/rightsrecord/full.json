@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "0.1.0",
+  "id": "rights-0002",
+  "itemRef": "asset-well-survey-audio",
+  "creator": "person-ravi",
+  "authority": "panchayat-water-committee",
+  "territory": ["IN-TN"],
+  "duration": "2028-12-31",
+  "deviceTerms": "personal devices of committee members and registered field workers only",
+  "offlineAllowed": true,
+  "derivativesAllowed": false,
+  "translationAllowed": true,
+  "accessibilityVariantsAllowed": true,
+  "credit": "credit 'Ravi, for the panchayat water committee' wherever the recording is played",
+  "compensation": "no payment; a copy of any published work goes to the committee",
+  "modelTrainingExcluded": true,
+  "exitRoute": "the committee may end this arrangement in writing; copies must be deleted within 30 days"
+}

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "0.1.0",
+  "id": "mem-0002",
+  "personId": "per-0002",
+  "spaceId": "spc-0002",
+  "role": "resident",
+  "institutionalIdentity": {
+    "rollNumber": "21CSE104",
+    "registrationNumber": "NU/2023/48812",
+    "admissionYear": 2023
+  },
+  "joinedAt": "2023-08-01T09:00:00Z",
+  "leftAt": "2026-05-31T17:00:00Z"
+}

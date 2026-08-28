@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "0.1.0",
+  "id": "cap-0002",
+  "device": "realme RMX3853",
+  "os": "Android 14",
+  "appBuild": "jt-android 0.4.1 (1042)",
+  "settings": {
+    "font-scale": "1.3",
+    "data-saver": "on"
+  },
+  "modalities": ["touch", "voice", "camera", "qr", "nfc"],
+  "hosts": ["files-provider", "share-sheet", "jt-web-receive"],
+  "constraints": {
+    "frameRate": 60,
+    "thermal": "nominal",
+    "battery": "low",
+    "network": "cellular-metered"
+  },
+  "accessibilitySettings": ["large-text", "reduced-motion"],
+  "lastVerifiedAt": "2026-08-10T18:00:00Z",
+  "evidenceRef": "evidence://device-checks/cap-0002/2026-08-10"
+}

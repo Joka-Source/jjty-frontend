@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "0.1.0",
+  "id": "prov-bad",
+  "producer": "jt-perception-engine",
+  "sourceDigest": "sha256:9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f9f",
+  "transformation": "ocr",
+  "confidence": 1.5
+}

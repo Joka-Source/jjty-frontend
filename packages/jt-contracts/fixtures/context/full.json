@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "0.1.0",
+  "id": "ctx-0002",
+  "sourceIds": ["src-0001", "src-0002"],
+  "peopleIds": ["person-anita", "person-ravi"],
+  "thingIds": ["thing-rain-gauge"],
+  "placeIds": ["place-village-tank"],
+  "origin": "chosen by the person for the rainfall report",
+  "privacyClass": "shared",
+  "authority": "person-anita",
+  "expiresAt": "2026-09-30T00:00:00Z",
+  "exclusions": ["person-anita's medical records", "unrelated family photos"],
+  "egressState": "local-only"
+}

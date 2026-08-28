@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "jt-contracts/context/v0.1.0",
+  "title": "Context",
+  "description": "A bounded set of sources, people, things, and places that are relevant to a piece of work. States where the set came from, who may see it, when it expires, what is deliberately left out, and whether any of it has left the device.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "privacyClass"],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Version of this record's schema (semver: major.minor.patch)."
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable identifier for this context."
+    },
+    "sourceIds": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Ids of the Sources included in this context."
+    },
+    "peopleIds": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Ids of the people included in this context."
+    },
+    "thingIds": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Ids of the things included in this context."
+    },
+    "placeIds": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Ids of the places included in this context."
+    },
+    "origin": {
+      "type": "string",
+      "description": "How this context came to exist (chosen by the person, derived from a document, shared by someone)."
+    },
+    "privacyClass": {
+      "type": "string",
+      "enum": ["private", "shared", "public"],
+      "description": "How widely this context may be seen: only its owner, chosen people, or anyone."
+    },
+    "authority": {
+      "type": "string",
+      "description": "Who decided this context and who may change it."
+    },
+    "expiresAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When this context stops applying, if it is time-limited (ISO 8601)."
+    },
+    "exclusions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Things deliberately kept out of this context, named explicitly so the boundary is visible."
+    },
+    "egressState": {
+      "type": "string",
+      "enum": ["local-only", "egress-approved", "egressed"],
+      "description": "Whether any of this context has left the person's device: never, approved to leave, or already left."
+    }
+  }
+}

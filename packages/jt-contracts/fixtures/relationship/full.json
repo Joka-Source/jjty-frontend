@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "0.1.0",
+  "id": "rel-0002",
+  "from": { "refType": "event", "refId": "evt-monsoon-2026" },
+  "to": { "refType": "place", "refId": "place-village-tank" },
+  "kind": "happened-at",
+  "provenance": "suggested by the system from the rainfall report, confirmed by the person",
+  "authority": "person-anita"
+}

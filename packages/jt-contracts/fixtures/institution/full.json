@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "0.1.0",
+  "id": "inst-0002",
+  "name": "Government College of Arts and Science, Nagpur",
+  "shortName": "GCAS Nagpur",
+  "kind": "college",
+  "affiliatedTo": "Nagpur University",
+  "location": {
+    "city": "Nagpur",
+    "state": "Maharashtra",
+    "country": "India"
+  },
+  "academicYearStartMonth": 7
+}

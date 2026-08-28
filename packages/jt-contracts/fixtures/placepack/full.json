@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "0.1.0",
+  "id": "pp-0002",
+  "locality": "village near the old tank, Tamil Nadu",
+  "localNames": ["Eri Ooru", "Tank Village"],
+  "languages": ["ta-Taml", "en-Latn"],
+  "hydrology": "one seasonal tank fed by the northeast monsoon; two working wells; tank dry March to September",
+  "ecology": "palmyra and tamarind stands around the tank bund; migratory birds in the wet season",
+  "seasonality": "sowing after the first monsoon fill; festival at first overflow",
+  "assetIds": ["asset-tank-map-2026", "asset-well-survey-audio"],
+  "rightsRefs": ["rights-0002"],
+  "reviewers": ["panchayat-water-committee", "person-ravi"],
+  "sensitivities": ["exact well locations are not shown publicly", "shrine photographs need committee approval"],
+  "capabilityVariants": ["low-bandwidth text-only pack", "no-imagery pack"],
+  "version": "3",
+  "correctionRoute": "corrections go to the panchayat water committee reviewer",
+  "withdrawalRoute": "the committee can withdraw the pack or any asset; distribution stops on the next sync",
+  "withdrawn": false
+}

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "0.1.0",
+  "id": "act-0002",
+  "operation": "redact",
+  "consequenceClass": "destructive",
+  "requiredCapabilities": ["pdf-text-layer-edit", "metadata-strip", "version-purge"],
+  "reversible": false,
+  "confirmationPolicy": "explicit-confirm",
+  "mutationBoundary": "only the selected region, its text layer, metadata and prior versions; nothing outside the selection",
+  "refusalRoute": "leave the document untouched and tell the person which capability was missing",
+  "repairRoute": "restore from the pre-action recovery copy and return to the same position"
+}

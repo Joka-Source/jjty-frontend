@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "0.1.0",
+  "id": "cur-0002",
+  "anchorId": "anc-0002",
+  "sourceId": "src-0002",
+  "originModality": "voice",
+  "originDeviceId": "device-rmx3853",
+  "capturedEvidence": "add a note here saying verified against the gauge log",
+  "alternatives": [
+    "add a note: verified against the gauge log",
+    "add a note: verify against the gauge log"
+  ],
+  "proposedIntention": "insert-note at anchor anc-0002 with text 'verified against the gauge log'",
+  "state": "candidate",
+  "authorityRequired": "person-anita",
+  "destination": "src-0002 at anc-0002",
+  "persistenceState": "not-yet-saved",
+  "receiptState": "not-requested",
+  "history": [
+    { "at": "2026-08-11T09:14:02Z", "event": "voice input captured" },
+    { "at": "2026-08-11T09:14:03Z", "event": "candidate proposed with one alternative" }
+  ],
+  "undoAvailable": true,
+  "repairRoute": "reselect | retype | retry-voice | inspect-source, returning to anc-0002",
+  "returnRoute": "open://src-0002/r7#anc-0002"
+}
