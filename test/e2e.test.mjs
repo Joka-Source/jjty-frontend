@@ -300,7 +300,13 @@ test("sim replay: records created, schema-valid, undo works", { timeout: 120000 
 
   await page.evaluate(() => document.querySelector("#history-list .entry .undo-btn").click());
   await page.waitForFunction(
-    (entryId) => window.__jtApp.entries().find((entry) => entry.id === entryId)?.undone === true,
+    (entryId) => {
+      const entries = window.__jtApp.entries();
+      return (
+        entries.find((entry) => entry.id === entryId)?.undone === true &&
+        entries.at(-1)?.undoes === entryId
+      );
+    },
     { timeout: 5000 },
     keptMath.entry.id
   );
