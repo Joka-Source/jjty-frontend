@@ -28,6 +28,7 @@ import { IntentStream, toCommand, describeCandidate } from "./intents.js";
 import { createMatchEngine, blockForRange } from "./engine.js";
 import { createMarkerDriver, confirmRipple, returnToPlace } from "./motion.js";
 import { ingestText, ingestPaste, ingestPdfBrowser, shortDigest, fmtBytes } from "./ingest.js";
+import { selectPdfEngine } from "./pdf-engine.js";
 import { codeFromSpoken, createSyncSurface, momentFromEntry } from "./sync.js";
 import { createActEngine } from "./acts.js";
 import { domRangeForCharacters, measureTokenRange } from "./highlight.js";
@@ -1435,6 +1436,7 @@ async function addIngested(result, nameHint = "") {
     blocks: result.blocks,
     provenance: result.provenance,
     warnings: result.warnings,
+    ...(result.pdfEngine ? { pdfEngine: result.pdfEngine } : {}),
     ...(result.sourceBytes ? { sourceBytes: result.sourceBytes } : {}),
     ...(result.refusal ? { refusal: result.refusal } : {}),
     createdAt: nowIso(),
@@ -1456,8 +1458,9 @@ async function ingestFile(f) {
   if (/\.pdf$/i.test(f.name) || f.type === "application/pdf") {
     setStatus(true, `reading ${f.name}…`);
     const pdfjs = await loadPdfJs();
+    const pdfEngine = selectPdfEngine({ pdfjs });
     const bytes = new Uint8Array(await f.arrayBuffer());
-    const result = await ingestPdfBrowser(pdfjs, bytes, { name: f.name });
+    const result = await ingestPdfBrowser(pdfEngine, bytes, { name: f.name });
     return addIngested(result, f.name.replace(/\.pdf$/i, ""));
   }
   if (/\.(txt|md)$/i.test(f.name) || /^text\//.test(f.type)) {

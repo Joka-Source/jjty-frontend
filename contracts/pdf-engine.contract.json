@@ -1,0 +1,38 @@
+{
+  "contract_version": 1,
+  "authority": {
+    "repository": "Joka-Source/jjty-human",
+    "commit": "88b6b887b9f689a69827eaf0b9f7096ffaf126e1",
+    "document": "architecture/DECISIONS.md",
+    "decision": "AD-002"
+  },
+  "target_engine": "mupdf",
+  "migration_engine": "pdfjs",
+  "license_gate": {
+    "distribution_state": "blocked_pending_executed_commercial_terms",
+    "proprietary_code_present": false,
+    "required_before_distribution": [
+      "executed_terms",
+      "exact_version",
+      "notices",
+      "sbom",
+      "support_and_exit_record"
+    ]
+  },
+  "workflow_reference": {
+    "project": "BentoPDF",
+    "version": "2.8.8",
+    "imports_code": false
+  },
+  "operations": {
+    "render": "supported_migration",
+    "extract_text": "supported_migration",
+    "search": "supported_migration",
+    "anchor": "supported_migration",
+    "annotate": "deferred",
+    "page_transform": "deferred",
+    "form_fill": "deferred",
+    "signature_preservation": "refused_unproved",
+    "redaction": "refused_unproved"
+  }
+}
