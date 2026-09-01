@@ -4,9 +4,10 @@
 // a stripped file.
 //
 // Text / markdown / paste use the vendored isomorphic connectors verbatim.
-// PDF uses pdfjs-dist in the browser (same block shape as jt-connectors'
-// node PDF connector: one block per page, "page:N" locator), assembled with
-// the vendored makeResult so digests and provenance stay consistent.
+// PDF uses the selected browser engine (MuPDF with an explicit PDF.js fallback)
+// and keeps the same block shape as jt-connectors' node PDF connector: one
+// block per page with a "page:N" locator. The vendored makeResult keeps
+// digests and provenance consistent.
 
 import {
   ingestText,
@@ -16,6 +17,7 @@ import {
   byteSize,
 } from "jt-connectors";
 import { makeResult } from "jt-connectors/src/core/result.ts";
+import { createPdfJsMigrationAdapter } from "./pdf-engine.js";
 
 export { ingestText, ingestPaste, looksLikeMarkdownName, contentDigest, byteSize };
 
@@ -33,6 +35,10 @@ const PDF_REFUSALS = Object.freeze({
     kind: "image-only",
     message:
       "this PDF has no text layer. its pages can still be viewed, but jt cannot anchor acts to the image.",
+  },
+  engineUnavailable: {
+    kind: "engine-unavailable",
+    message: "this PDF needs MuPDF, but MuPDF is not available on this device.",
   },
 });
 
@@ -63,25 +69,52 @@ export function pageTextFromItems(items) {
 }
 
 /**
- * Ingest raw PDF bytes in the browser. `pdfjs` is injected (the app passes
- * the real pdfjs-dist module; tests can pass a stub) so this module stays
- * importable under node.
+ * Ingest raw PDF bytes in the browser. The application passes an engine
+ * adapter. Legacy callers may still pass the PDF.js module during migration;
+ * it is normalized into the explicitly reported PDF.js adapter here.
  */
-export async function ingestPdfBrowser(pdfjs, bytes, { name, capturedAt } = {}) {
+export async function ingestPdfBrowser(
+  pdfEngineOrPdfJs,
+  bytes,
+  { name, capturedAt, requirePrimary = false } = {},
+) {
   const warnings = [];
-  const loadingTask = pdfjs.getDocument({ data: bytes.slice() });
-  let doc;
-  try {
-    doc = await loadingTask.promise;
-  } catch (error) {
-    await loadingTask.destroy?.();
+  const engine = typeof pdfEngineOrPdfJs?.open === "function"
+    ? pdfEngineOrPdfJs
+    : createPdfJsMigrationAdapter(pdfEngineOrPdfJs);
+  if (requirePrimary && engine.report?.activeEngine !== "mupdf") {
     const result = await makeResult(
       bytes,
       [],
       { sourceKind: "pdf", name, capturedAt },
       warnings,
     );
-    return { ...result, sourceBytes: bytes.slice(), refusal: pdfLoadRefusal(error) };
+    return {
+      ...result,
+      sourceBytes: bytes.slice(),
+      pdfEngine: engine.report,
+      refusal: PDF_REFUSALS.engineUnavailable,
+    };
+  }
+  let loadingTask;
+  let doc;
+  try {
+    const opened = await engine.open(bytes.slice());
+    loadingTask = opened.loadingTask;
+    doc = opened.document;
+  } catch (error) {
+    const result = await makeResult(
+      bytes,
+      [],
+      { sourceKind: "pdf", name, capturedAt },
+      warnings,
+    );
+    return {
+      ...result,
+      sourceBytes: bytes.slice(),
+      pdfEngine: engine.report,
+      refusal: pdfLoadRefusal(error),
+    };
   }
 
   let title;
@@ -99,18 +132,24 @@ export async function ingestPdfBrowser(pdfjs, bytes, { name, capturedAt } = {}) 
   for (let pageNum = 1; pageNum <= doc.numPages; pageNum++) {
     try {
       const page = await doc.getPage(pageNum);
-      const content = await page.getTextContent();
-      pagesInspected++;
-      const text = pageTextFromItems(content.items);
-      drafts.push({ text, kind: "page", locator: `page:${pageNum}` });
-      if (!text.trim()) warnings.push(`page ${pageNum} has no extractable text`);
+      try {
+        const content = await page.getTextContent();
+        pagesInspected++;
+        const text = typeof content.nativeText === "string"
+          ? content.nativeText
+          : pageTextFromItems(content.items);
+        drafts.push({ text, kind: "page", locator: `page:${pageNum}` });
+        if (!text.trim()) warnings.push(`page ${pageNum} has no extractable text`);
+      } finally {
+        await page.cleanup?.();
+      }
     } catch (err) {
       pageReadFailures++;
       warnings.push(`page ${pageNum} could not be read: ${err?.message ?? err}`);
     }
   }
   const pageCount = doc.numPages;
-  await loadingTask.destroy();
+  await loadingTask?.destroy?.();
 
   const result = await makeResult(
     bytes,
@@ -118,11 +157,13 @@ export async function ingestPdfBrowser(pdfjs, bytes, { name, capturedAt } = {}) 
     { sourceKind: "pdf", name, title, pageCount, capturedAt },
     warnings
   );
-  if (result.blocks.length) return { ...result, sourceBytes: bytes.slice() };
+  if (result.blocks.length) {
+    return { ...result, sourceBytes: bytes.slice(), pdfEngine: engine.report };
+  }
   const refusal = pagesInspected === 0 && (pageReadFailures > 0 || pageCount === 0)
     ? PDF_REFUSALS.corrupt
     : PDF_REFUSALS.imageOnly;
-  return { ...result, sourceBytes: bytes.slice(), refusal };
+  return { ...result, sourceBytes: bytes.slice(), pdfEngine: engine.report, refusal };
 }
 
 /** Short human form of a digest for the library panel. */

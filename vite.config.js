@@ -19,7 +19,10 @@ async function listFiles(dir, prefix = "") {
 
 function serviceWorkerSource(files) {
   const precache = files
-    .filter((file) => file !== "sw.js")
+    .filter((file) =>
+      file !== "sw.js"
+      && !/^assets\/mupdf(?:-wasm)?-/.test(file),
+    )
     .sort()
     .map((file) => `./${file}`);
 
