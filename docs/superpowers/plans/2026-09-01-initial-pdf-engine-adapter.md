@@ -4,6 +4,12 @@
 
 **Goal:** Consume the backend PDF-engine contract and route browser ingestion through an engine-neutral adapter while preserving the current PDF.js reader until licensed MuPDF.js is available.
 
+**Follow-up state (2026-09-02):** The official `mupdf@1.28.0` package is now
+selected for browser rendering and native text extraction under its declared
+`AGPL-3.0-or-later` license. PDF.js remains the explicit runtime fallback. This
+implementation does not claim that the contract's commercial-distribution gate
+has been cleared.
+
 **Architecture:** `src/pdf-engine.js` owns engine selection and public capability reporting. The current PDF.js module becomes an explicit migration adapter. `ingestPdfBrowser` consumes an adapter rather than assuming a vendor API, but remains backward compatible for existing callers during the slice. Requiring MuPDF without an available injected provider refuses visibly.
 
 **Tech Stack:** JavaScript modules, Vite 8, Node test runner, existing `pdfjs-dist` 6.2.108.

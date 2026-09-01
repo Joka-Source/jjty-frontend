@@ -147,6 +147,31 @@ test("production app registers and activates its service worker", { timeout: 600
   assert.equal(worker.script, `${url}/sw.js`);
 });
 
+test("service worker installation leaves the lazy MuPDF engine out of the shell cache", { timeout: 90000 }, async (t) => {
+  const { page, url } = await bootPwa(t, 4944);
+  await page.goto(`${url}/`, { waitUntil: "load" });
+  await page.waitForFunction(
+    () => navigator.serviceWorker.getRegistration()
+      .then((registration) => registration?.active?.state === "activated"),
+    { timeout: 30000 },
+  );
+
+  const cachedUrls = await page.evaluate(async () => {
+    const urls = [];
+    for (const cacheName of await caches.keys()) {
+      const cache = await caches.open(cacheName);
+      urls.push(...(await cache.keys()).map((request) => request.url));
+    }
+    return urls;
+  });
+
+  assert.equal(
+    cachedUrls.some((url) => /\/assets\/mupdf(?:-wasm)?-/.test(url)),
+    false,
+    "opening the shell must not download and cache the lazy MuPDF engine",
+  );
+});
+
 test("offline navigation serves the shell and reopens an IndexedDB document", { timeout: 90000 }, async (t) => {
   const { page, url } = await bootPwa(t, 4942);
   await page.evaluateOnNewDocument(() => localStorage.setItem("jt.welcomed", "1"));

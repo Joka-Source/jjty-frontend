@@ -114,6 +114,67 @@ test("pdf ingestion preserves the selected engine report and gives the adapter a
   assert.equal(result.sourceBytes[0], originalFirstByte);
 });
 
+test("pdf ingestion uses engine-native page text when the provider supplies it", async () => {
+  const bytes = new TextEncoder().encode("%PDF native extraction");
+  const engine = {
+    report: {
+      contractVersion: 1,
+      targetEngine: "mupdf",
+      activeEngine: "mupdf",
+      activeLineage: "mupdf-test-provider@1",
+      state: "selected",
+    },
+    async open() {
+      return {
+        document: {
+          numPages: 1,
+          getMetadata: async () => ({ info: {} }),
+          getPage: async () => ({
+            getTextContent: async () => ({
+              nativeText: "MuPDF native page text",
+              items: [{ str: "fallback item text", hasEOL: false }],
+            }),
+          }),
+        },
+      };
+    },
+  };
+
+  const result = await ingestPdfBrowser(engine, bytes, { name: "native.pdf" });
+
+  assert.equal(result.blocks[0].text, "MuPDF native page text");
+});
+
+test("pdf ingestion releases a provider page after inspecting it", async () => {
+  const bytes = new TextEncoder().encode("%PDF native page lifecycle");
+  let cleaned = false;
+  const engine = {
+    report: {
+      contractVersion: 1,
+      targetEngine: "mupdf",
+      activeEngine: "mupdf",
+      activeLineage: "mupdf-test-provider@1",
+      state: "selected",
+    },
+    async open() {
+      return {
+        document: {
+          numPages: 1,
+          getMetadata: async () => ({ info: {} }),
+          getPage: async () => ({
+            getTextContent: async () => ({ items: [{ str: "page text", hasEOL: false }] }),
+            cleanup: () => { cleaned = true; },
+          }),
+        },
+      };
+    },
+  };
+
+  await ingestPdfBrowser(engine, bytes, { name: "lifecycle.pdf" });
+
+  assert.equal(cleaned, true);
+});
+
 test("primary-required ingestion preserves source provenance while refusing an unavailable MuPDF engine", async () => {
   const bytes = new TextEncoder().encode("%PDF primary required");
   let parserTouched = false;
@@ -126,7 +187,7 @@ test("primary-required ingestion preserves source provenance while refusing an u
   assert.equal(parserTouched, false);
   assert.deepEqual(result.refusal, {
     kind: "engine-unavailable",
-    message: "this PDF requires MuPDF, but the licensed engine is not available on this device.",
+    message: "this PDF needs MuPDF, but MuPDF is not available on this device.",
   });
   assert.equal(result.provenance.name, "primary.pdf");
   assert.match(result.provenance.contentDigest, /^sha256:[0-9a-f]{64}$/);

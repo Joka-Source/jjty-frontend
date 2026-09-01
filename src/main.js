@@ -28,7 +28,7 @@ import { IntentStream, toCommand, describeCandidate } from "./intents.js";
 import { createMatchEngine, blockForRange } from "./engine.js";
 import { createMarkerDriver, confirmRipple, returnToPlace } from "./motion.js";
 import { ingestText, ingestPaste, ingestPdfBrowser, shortDigest, fmtBytes } from "./ingest.js";
-import { selectPdfEngine } from "./pdf-engine.js";
+import { selectAvailablePdfEngine, selectPdfEngine } from "./pdf-engine.js";
 import { codeFromSpoken, createSyncSurface, momentFromEntry } from "./sync.js";
 import { createActEngine } from "./acts.js";
 import { domRangeForCharacters, measureTokenRange } from "./highlight.js";
@@ -257,8 +257,12 @@ function selectPdfBlock(blockIndex) {
 async function createPdfSurface(doc, pages, container = article, scale = 1) {
   const pdfjs = await loadPdfJs();
   const model = createPdfReadingModel({ pages, zoom: scale });
-  const loadingTask = pdfjs.getDocument({ data: pdfSourceBytes(doc.sourceBytes) });
-  const pdfDocument = await loadingTask.promise;
+  const pdfEngine = doc.pdfEngine?.activeEngine === "mupdf"
+    ? await selectAvailablePdfEngine({ pdfjs })
+    : selectPdfEngine({ pdfjs });
+  const { loadingTask, document: pdfDocument, report } = await pdfEngine.open(
+    pdfSourceBytes(doc.sourceBytes),
+  );
   const blocks = await renderPdfPages({
     pdfjs,
     pdfDocument,
@@ -267,7 +271,7 @@ async function createPdfSurface(doc, pages, container = article, scale = 1) {
     scale: model.zoom,
     onBlockClick: selectPdfBlock,
   });
-  return { pdfjs, model, loadingTask, pdfDocument, blocks };
+  return { pdfjs, model, loadingTask, pdfDocument, blocks, report };
 }
 
 function appendTextBlocks(blockDefs) {
@@ -335,7 +339,10 @@ async function renderDoc(doc) {
       pdfZoomValue.textContent = `${Math.round(state.pdf.model.zoom * 100)}%`;
       pdfZoomOut.disabled = state.pdf.model.zoom <= 0.75;
       pdfZoomIn.disabled = state.pdf.model.zoom >= 2.5;
-      pdfMessage.textContent = doc.refusal?.message ?? "";
+      pdfMessage.textContent = doc.pdfEngine?.activeEngine
+        && state.pdf.report.activeEngine !== doc.pdfEngine.activeEngine
+        ? "MuPDF is unavailable here, so this PDF is being shown with PDF.js."
+        : doc.refusal?.message ?? "";
     } catch (error) {
       appendTextBlocks(blockDefs);
       pdfMessage.textContent = "the PDF pages could not be rendered; the saved text is shown instead.";
@@ -1458,7 +1465,7 @@ async function ingestFile(f) {
   if (/\.pdf$/i.test(f.name) || f.type === "application/pdf") {
     setStatus(true, `reading ${f.name}…`);
     const pdfjs = await loadPdfJs();
-    const pdfEngine = selectPdfEngine({ pdfjs });
+    const pdfEngine = await selectAvailablePdfEngine({ pdfjs });
     const bytes = new Uint8Array(await f.arrayBuffer());
     const result = await ingestPdfBrowser(pdfEngine, bytes, { name: f.name });
     return addIngested(result, f.name.replace(/\.pdf$/i, ""));

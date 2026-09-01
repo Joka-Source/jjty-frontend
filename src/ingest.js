@@ -4,9 +4,10 @@
 // a stripped file.
 //
 // Text / markdown / paste use the vendored isomorphic connectors verbatim.
-// PDF uses pdfjs-dist in the browser (same block shape as jt-connectors'
-// node PDF connector: one block per page, "page:N" locator), assembled with
-// the vendored makeResult so digests and provenance stay consistent.
+// PDF uses the selected browser engine (MuPDF with an explicit PDF.js fallback)
+// and keeps the same block shape as jt-connectors' node PDF connector: one
+// block per page with a "page:N" locator. The vendored makeResult keeps
+// digests and provenance consistent.
 
 import {
   ingestText,
@@ -37,7 +38,7 @@ const PDF_REFUSALS = Object.freeze({
   },
   engineUnavailable: {
     kind: "engine-unavailable",
-    message: "this PDF requires MuPDF, but the licensed engine is not available on this device.",
+    message: "this PDF needs MuPDF, but MuPDF is not available on this device.",
   },
 });
 
@@ -131,11 +132,17 @@ export async function ingestPdfBrowser(
   for (let pageNum = 1; pageNum <= doc.numPages; pageNum++) {
     try {
       const page = await doc.getPage(pageNum);
-      const content = await page.getTextContent();
-      pagesInspected++;
-      const text = pageTextFromItems(content.items);
-      drafts.push({ text, kind: "page", locator: `page:${pageNum}` });
-      if (!text.trim()) warnings.push(`page ${pageNum} has no extractable text`);
+      try {
+        const content = await page.getTextContent();
+        pagesInspected++;
+        const text = typeof content.nativeText === "string"
+          ? content.nativeText
+          : pageTextFromItems(content.items);
+        drafts.push({ text, kind: "page", locator: `page:${pageNum}` });
+        if (!text.trim()) warnings.push(`page ${pageNum} has no extractable text`);
+      } finally {
+        await page.cleanup?.();
+      }
     } catch (err) {
       pageReadFailures++;
       warnings.push(`page ${pageNum} could not be read: ${err?.message ?? err}`);
