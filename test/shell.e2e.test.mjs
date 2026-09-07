@@ -373,3 +373,48 @@ test('Markdown renders structure and downloads the exact original after reload',
   while (!existsSync(downloaded) && Date.now() < deadline) await new Promise(r => setTimeout(r, 100));
   assert.deepEqual(await readFile(downloaded), await readFile(input));
 });
+
+test('failed local save retains the draft and retry creates one document', { timeout: 60000 }, async t => {
+  const page = await bootShell(t, 4939, { width: 1280, height: 900 });
+  await page.click('#welcome-next'); await page.click('#welcome-skip');
+  await page.type('#home-paste-box', 'Keep this thought even when storage fails.');
+  await page.evaluate(() => {
+    window.originalJettPut = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function(...args) {
+      if (this.name === 'docs') throw new DOMException('Synthetic storage failure', 'QuotaExceededError');
+      return window.originalJettPut.apply(this, args);
+    };
+  });
+  await page.click('#home-paste-add');
+  await page.waitForFunction(() => document.getElementById('home-intake-state').textContent.includes('Your text is still here'));
+  assert.equal(await page.$eval('#home-paste-box', el => el.value), 'Keep this thought even when storage fails.');
+  await page.evaluate(() => { IDBObjectStore.prototype.put = window.originalJettPut; });
+  await page.click('#home-paste-add');
+  await page.waitForFunction(() => document.body.dataset.view === 'read');
+  const exported = JSON.parse(await page.evaluate(() => window.__jtApp.exportData()));
+  assert.equal(exported.documents.length, 1);
+});
+
+test('reader failure after persistence reports saved and allows reopening without duplicate import', { timeout: 60000 }, async t => {
+  const page = await bootShell(t, 4944, { width: 1280, height: 900 });
+  await page.click('#welcome-next'); await page.click('#welcome-skip');
+  await page.type('#home-paste-box', 'A saved thought survives a reader error.');
+  await page.evaluate(() => {
+    const original = Node.prototype.appendChild;
+    Node.prototype.appendChild = function(child) {
+      if (this.id === 'doc') {
+        Node.prototype.appendChild = original;
+        throw new Error('Synthetic reader failure');
+      }
+      return original.call(this, child);
+    };
+  });
+  await page.click('#home-paste-add');
+  await page.waitForFunction(() => document.getElementById('status-text').textContent.includes('Saved “'));
+  const exported = JSON.parse(await page.evaluate(() => window.__jtApp.exportData()));
+  assert.equal(exported.documents.length, 1);
+  await page.waitForSelector('.home-doc .doc-btn');
+  await page.click('.home-doc .doc-btn');
+  await page.waitForFunction(() => document.body.dataset.view === 'read');
+  assert.match(await page.$eval('#doc', el => el.textContent), /survives a reader error/);
+});

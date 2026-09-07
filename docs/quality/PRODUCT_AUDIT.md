@@ -47,3 +47,18 @@ image support; full Markdown semantics; voice downstream action audit; original
 source availability for old/pasted documents; shared backend/sync integration.
 Native notch, accounts, signatures, tender workspaces and production deployment
 are not covered by this local checkpoint.
+
+## Intake recovery increment
+
+PASS_LOCAL: home intake disables overlapping submissions, keeps text when an
+IndexedDB write fails, exposes retry guidance, and allows selecting the same
+file again. A synthetic quota failure followed by retry creates one document.
+PASS_LOCAL: if rendering fails after persistence commits, the UI reports saved
+and returns to the library; reopening uses the existing document, without a
+duplicate import. Build and six shell E2E tests pass; log:
+/Users/sunlight/Documents/ChatGPT/JJTY/jett-intake-test.log.
+
+Next: extend this recovery treatment to the reading-panel/drop intake paths;
+images; original-preserving paste; full Markdown semantics; exact voice actions;
+shared backend and sync. The previous full gate remains the earlier 106-test
+checkpoint; this increment has a focused six-journey gate.

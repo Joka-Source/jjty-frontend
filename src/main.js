@@ -1470,7 +1470,15 @@ async function addIngested(result, nameHint = "") {
     revision: 1,
   };
   await putDoc(doc);
-  await openDocument(doc);
+  try {
+    await openDocument(doc);
+  } catch {
+    // Persistence has already committed. Never report a failed save or prompt
+    // a duplicate import just because the reader could not open the result.
+    shell?.show("home");
+    setStatus(false, `Saved “${doc.title}”. The reader couldn’t open it; reopen it from your library.`);
+    return doc;
+  }
   if (result.refusal) setStatus(true, result.refusal.message);
   else if (result.warnings.length) setStatus(true, `opened with notes: ${result.warnings[0]}`);
   return doc;

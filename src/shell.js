@@ -199,20 +199,53 @@ export function initShell(ctx) {
   }
 
   $("home-search").addEventListener("input", () => renderHome());
+  let intakeBusy = false;
+  async function keepFromHome(action, failureCopy) {
+    if (intakeBusy) return null;
+    intakeBusy = true;
+    const message = $("home-intake-state");
+    const controls = [$("home-file-input"), $("home-file-input-2"), $("home-paste-add"), $("home-sample")];
+    controls.forEach(control => { control.disabled = true; });
+    $("home-paste-box").readOnly = true;
+    message.hidden = false;
+    message.textContent = "Keeping this on your device…";
+    try {
+      const result = await action();
+      if (!result) {
+        message.textContent = "This file could not be opened. Try a PDF, Markdown or text file.";
+        return null;
+      }
+      message.hidden = true;
+      return result;
+    } catch {
+      message.textContent = failureCopy;
+      return null;
+    } finally {
+      intakeBusy = false;
+      controls.forEach(control => { control.disabled = false; });
+      $("home-paste-box").readOnly = false;
+    }
+  }
   const homeIngest = async (input) => {
     const f = input.files?.[0];
-    if (f) await ctx.ingestFile(f);
-    input.value = "";
+    if (!f) return;
+    await keepFromHome(() => ctx.ingestFile(f), "Couldn’t save this file. The original is unchanged. Check available storage, then choose it again.");
+    input.value = ""; // choosing the same source again must trigger change
   };
   $("home-file-input").addEventListener("change", (e) => homeIngest(e.target));
   $("home-file-input-2").addEventListener("change", (e) => homeIngest(e.target));
-  $("home-sample").addEventListener("click", () => ctx.addDocument(ctx.starterDoc, "a sample page"));
+  $("home-sample").addEventListener("click", () => keepFromHome(
+    () => ctx.addDocument(ctx.starterDoc, "a sample page"),
+    "Couldn’t keep the sample. Check available storage, then try again."
+  ));
   $("home-paste-add").addEventListener("click", async () => {
     const box = $("home-paste-box");
-    if (box.value.trim()) {
-      await ctx.addIngested(await ctx.ingestPaste({ text: box.value }));
-      box.value = "";
-    }
+    if (!box.value.trim()) { box.focus(); return; }
+    const result = await keepFromHome(
+      async () => ctx.addIngested(await ctx.ingestPaste({ text: box.value })),
+      "Couldn’t save. Your text is still here. Check available storage, then try again."
+    );
+    if (result) box.value = "";
   });
 
   // --- history (the full what-happened surface) ----------------------------
