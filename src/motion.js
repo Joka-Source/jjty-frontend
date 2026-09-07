@@ -118,6 +118,11 @@ export function createMarkerDriver(el, mediumOf = () => MARKER_MEDIUM) {
  * easing; the trajectory is jt-water's closed-form glide.
  */
 export function surfaceArrive(el, m = MARKER_MEDIUM) {
+  if (globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+    el.style.transform = "";
+    el.style.opacity = "";
+    return;
+  }
   const g = glide(1, 0, m);
   const t0 = performance.now();
   function frame(ts) {

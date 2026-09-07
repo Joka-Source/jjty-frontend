@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#4c9be8" />
-    <title>jt</title>
+    <title>JETT</title>
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icons/jt-192.png" />
     <link
@@ -15,7 +15,7 @@
   </head>
   <body data-view="read">
     <header class="bar">
-      <span class="brand">jt</span>
+      <a class="brand" href="#/home" aria-label="JETT home">JETT<span class="jett-stream" aria-hidden="true"></span></a>
       <nav class="topnav" id="topnav" aria-label="jt">
         <a href="#/home" data-view-link="home">home</a>
         <a href="#/read" data-view-link="read">reading</a>
@@ -36,7 +36,7 @@
     <!-- first run: one screen of plain words, then the one mic question -->
     <section class="view view-welcome" id="view-welcome" hidden>
       <div class="welcome-step" id="welcome-step-1">
-        <p class="welcome-brand">jt</p>
+        <p class="welcome-brand">JETT</p>
         <p class="welcome-lede">
           you open a page and read it aloud. the page follows your voice, and
           when you say what you want &mdash; &ldquo;highlight this&rdquo;,
@@ -66,28 +66,32 @@
 
     <!-- home: the library as the front door -->
     <section class="view" id="view-home" hidden>
-      <h1>your documents</h1>
+      <div class="library-heading"><div><p class="eyebrow">Your space</p><h1>Pick up where you left off.</h1><p class="library-intro">A place for what you’re reading, thinking and keeping.</p></div><span class="local-label">Saved on this device</span></div>
+      <div class="library-tools"><label class="library-search"><span>Find in your library</span><input id="home-search" type="search" placeholder="Search documents…" autocomplete="off" /></label><p id="home-result-count" role="status"></p></div>
       <div class="home-empty" id="home-empty" hidden>
-        <p>nothing here yet. a document becomes something you can talk to:</p>
+        <p>Bring something you want to spend time with.</p>
         <div class="home-add">
           <label class="filebtn big-btn">
-            open a .txt, .md or .pdf
+            Open a document
             <input id="home-file-input" type="file" accept=".txt,.md,.pdf,text/plain,text/markdown,application/pdf" hidden />
           </label>
-          <button class="quiet-btn" id="home-sample">or start with a sample page</button>
+          <button class="quiet-btn" id="home-sample">Try a sample page</button>
         </div>
-        <p class="hint">you can also add a file anywhere on this page, or paste text below.</p>
+        <p class="hint">PDF, Markdown and text. Drop a file here or paste your words below.</p>
       </div>
-      <ul id="home-doc-list" class="home-doc-list"></ul>
+      <ul id="home-doc-list" class="home-doc-list" aria-label="Your documents"></ul><p id="home-no-results" hidden>No documents match. Try another name or a word from the text.</p>
       <div class="home-add" id="home-add-more">
         <label class="filebtn">
           open a file
           <input id="home-file-input-2" type="file" accept=".txt,.md,.pdf,text/plain,text/markdown,application/pdf" hidden />
         </label>
-        <textarea id="home-paste-box" rows="3" placeholder="or paste text here&hellip;"></textarea>
-        <button id="home-paste-add">add pasted text</button>
-        <p class="hint">files are read here, on this device &mdash; each document keeps its fingerprint (digest, size) so you always know what you opened.</p>
       </div>
+      <details class="paste-composer" open><summary>Keep a thought or paste some text</summary><div class="home-add">
+        <label class="sr-only" for="home-paste-box">Text to keep in your library</label>
+        <textarea id="home-paste-box" rows="3" placeholder="An idea, a passage, something worth keeping…"></textarea>
+        <button id="home-paste-add">Keep this text</button>
+        <p class="hint">Your original stays intact. No account needed to begin.</p>
+      </div></details>
     </section>
 
     <!-- what happened: the full record surface -->
@@ -278,8 +282,8 @@
             open a file
             <input id="file-input" type="file" accept=".txt,.md,.pdf,text/plain,text/markdown,application/pdf" hidden />
           </label>
-          <textarea id="paste-box" rows="4" placeholder="or paste text here&hellip;"></textarea>
-          <button id="paste-add">add pasted text</button>
+          <textarea id="paste-box" rows="4" placeholder="An idea, a passage, something worth keeping…"></textarea>
+          <button id="paste-add">Keep this text</button>
           <p class="hint">you can also add a .txt, .md or .pdf file anywhere on this page</p>
         </div>
       </aside>
@@ -291,6 +295,7 @@
         <div class="doc-head" id="doc-head" hidden>
           <span id="doc-title" class="doc-title"></span>
           <button id="doc-prov-btn" class="doc-prov-btn" hidden>where this came from</button>
+          <button id="download-original" class="doc-prov-btn" hidden>Download original</button>
           <div id="doc-prov" class="doc-prov" hidden></div>
         </div>
         <section class="math-station" id="math-station" aria-labelledby="math-station-title">

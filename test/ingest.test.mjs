@@ -290,3 +290,13 @@ test("PDF ingestion does not call all-page read failures image-only", async () =
   assert.ok(result.warnings.some((warning) => warning.includes("page 1 could not be read")));
   assert.ok(result.warnings.some((warning) => warning.includes("page 2 could not be read")));
 });
+
+test('Markdown retains exact original bytes separately from structured reading blocks', async () => {
+  const source = '\uFEFF# Field notes\r\n\r\n> Keep the original.\r\n\r\n```js\r\nconst answer = 42;\r\n```\r\n';
+  const bytes = new TextEncoder().encode(source);
+  const result = await ingestText(new TextDecoder().decode(bytes), { name: 'notes.md', rawBytes: bytes });
+  assert.deepEqual(result.sourceBytes, bytes);
+  assert.equal(result.provenance.byteSize, bytes.length);
+  assert.equal(result.provenance.sourceKind, 'markdown');
+  assert.deepEqual(result.blocks.map(b => b.kind), ['heading', 'quote', 'code']);
+});

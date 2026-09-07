@@ -19,6 +19,7 @@
 // window.__jt and serialized into a #jt-report DOM node for headless runs.
 
 import "./style.css";
+import "./jett.css";
 import "../vendor/katex/katex.min.css";
 import "pdfjs-dist/web/pdf_viewer.css";
 import katex from "../vendor/katex/katex.mjs";
@@ -276,7 +277,11 @@ async function createPdfSurface(doc, pages, container = article, scale = 1) {
 
 function appendTextBlocks(blockDefs) {
   for (const [i, def] of blockDefs.entries()) {
-    const p = document.createElement("p");
+    const heading = def.kind === "heading" && /^h[1-6]$/.test(def.locator ?? "") ? def.locator : "h2";
+    const tag = def.kind === "heading" ? heading : def.kind === "code" ? "pre" : def.kind === "quote" ? "blockquote" : "p";
+    const p = document.createElement(tag);
+    p.classList.add("reading-block");
+    p.dataset.kind = def.kind ?? "paragraph";
     p.textContent = def.text;
     p.dataset.block = String(i);
     if (def.locator?.startsWith("page:")) {
@@ -1357,6 +1362,7 @@ function renderDocHead(doc) {
   micHint.hidden = false;
   docHead.hidden = false;
   docTitle.textContent = doc.title;
+  document.getElementById("download-original").hidden = !doc.sourceBytes;
   const p = doc.provenance;
   docProvBtn.hidden = !p;
   docProv.hidden = true;
@@ -1382,6 +1388,20 @@ function renderDocHead(doc) {
     docProv.textContent = bits.filter(Boolean).join(" · ");
   }
 }
+
+document.getElementById("download-original").addEventListener("click", () => {
+  const doc = state.doc;
+  if (!doc?.sourceBytes) return;
+  const kind = doc.provenance?.sourceKind;
+  const ext = kind === "pdf" ? "pdf" : kind === "markdown" ? "md" : "txt";
+  const mime = kind === "pdf" ? "application/pdf" : kind === "markdown" ? "text/markdown" : "text/plain";
+  const url = URL.createObjectURL(new Blob([pdfSourceBytes(doc.sourceBytes)], { type: mime }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = doc.provenance?.name || `${doc.title}.${ext}`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+});
 
 docProvBtn.addEventListener("click", () => {
   docProv.hidden = !docProv.hidden;
@@ -1471,7 +1491,8 @@ async function ingestFile(f) {
     return addIngested(result, f.name.replace(/\.pdf$/i, ""));
   }
   if (/\.(txt|md)$/i.test(f.name) || /^text\//.test(f.type)) {
-    const result = await ingestText(await f.text(), { name: f.name });
+    const rawBytes = new Uint8Array(await f.arrayBuffer());
+    const result = await ingestText(new TextDecoder().decode(rawBytes), { name: f.name, rawBytes });
     return addIngested(result, f.name.replace(/\.(txt|md)$/i, ""));
   }
   setStatus(true, "jt reads .txt, .md and .pdf for now");

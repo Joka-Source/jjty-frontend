@@ -10,7 +10,7 @@
 // digests and provenance consistent.
 
 import {
-  ingestText,
+  ingestText as connectorText,
   ingestPaste,
   looksLikeMarkdownName,
   contentDigest,
@@ -19,7 +19,17 @@ import {
 import { makeResult } from "jt-connectors/src/core/result.ts";
 import { createPdfJsMigrationAdapter } from "./pdf-engine.js";
 
-export { ingestText, ingestPaste, looksLikeMarkdownName, contentDigest, byteSize };
+export { ingestPaste, looksLikeMarkdownName, contentDigest, byteSize };
+
+// The readable blocks are derived. Retain the exact input for export/recovery.
+export async function ingestText(text, options = {}) {
+  const readable = text.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
+  const result = await connectorText(readable, options);
+  const sourceBytes = options.rawBytes?.slice() ?? new TextEncoder().encode(text);
+  return { ...result, sourceBytes, provenance: { ...result.provenance,
+    contentDigest: await contentDigest(sourceBytes), byteSize: sourceBytes.byteLength,
+  } };
+}
 
 const PDF_REFUSALS = Object.freeze({
   encrypted: {

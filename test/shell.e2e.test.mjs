@@ -320,3 +320,56 @@ test("phone shell walk: bottom bar reaches everything, sheets, 44px targets, no 
     timeout: 5000,
   });
 });
+
+test('empty library accepts pasted text; search and saved work survive return', { timeout: 60000 }, async t => {
+  const page = await bootShell(t, 4937, { width: 1440, height: 1000 });
+  await page.click('#welcome-next');
+  await page.click('#welcome-skip');
+  // An available install must not intercept the user's document action.
+  await page.evaluate(() => { document.getElementById('install-hint').hidden = false; });
+  await page.type('#home-paste-box', 'Field notes\n\nThe alumni gathering is on Saturday.');
+  await page.click('#home-paste-add');
+  await page.waitForFunction(() => document.body.dataset.view === 'read');
+  await page.goto(`${page.url().split('#')[0]}#/home`);
+  await page.waitForSelector('.home-doc');
+  await page.type('#home-search', 'alumni');
+  await page.waitForFunction(() => document.getElementById('home-result-count').textContent === '1 document');
+  assert.equal(await page.$$eval('.home-doc', rows => rows.length), 1);
+  await page.click('#home-search', { clickCount: 3 });
+  await page.type('#home-search', 'unfindable-phrase');
+  await page.waitForFunction(() => !document.getElementById('home-no-results').hidden);
+  assert.equal(await page.$$eval('.home-doc', rows => rows.length), 0);
+  await page.reload();
+  await page.waitForSelector('.home-doc');
+  await page.click('.home-doc .doc-btn');
+  await page.waitForFunction(() => document.body.dataset.view === 'read');
+  assert.match(await page.$eval('#doc', el => el.textContent), /alumni gathering/);
+  await assertNoOverflow(page);
+});
+
+test('Markdown renders structure and downloads the exact original after reload', { timeout: 60000 }, async t => {
+  const { mkdtemp, writeFile, readFile, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const dir = await mkdtemp(path.join(tmpdir(), 'jett-markdown-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const input = path.join(dir, 'notes.md');
+  const source = '\uFEFF# Field notes\r\n\r\n> Keep the original.\r\n\r\n```js\r\nconst answer = 42;\r\n```\r\n';
+  await writeFile(input, source);
+  const page = await bootShell(t, 4938, { width: 1280, height: 900 });
+  await page.click('#welcome-next'); await page.click('#welcome-skip');
+  await (await page.$('#home-file-input')).uploadFile(input);
+  await page.waitForSelector('#doc h1[data-block]');
+  assert.equal(await page.$eval('#doc h1', el => el.textContent), 'Field notes');
+  assert.equal(await page.$eval('#doc blockquote', el => el.textContent), 'Keep the original.');
+  assert.match(await page.$eval('#doc pre', el => el.textContent), /const answer = 42/);
+  await page.reload(); await page.waitForSelector('#doc h1[data-block]');
+  const output = path.join(dir, 'download');
+  const { mkdir } = await import('node:fs/promises'); await mkdir(output);
+  const session = await page.createCDPSession();
+  await session.send('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: output });
+  await page.click('#download-original');
+  const downloaded = path.join(output, 'notes.md');
+  const deadline = Date.now() + 5000;
+  while (!existsSync(downloaded) && Date.now() < deadline) await new Promise(r => setTimeout(r, 100));
+  assert.deepEqual(await readFile(downloaded), await readFile(input));
+});

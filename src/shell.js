@@ -147,16 +147,28 @@ export function initShell(ctx) {
 
   // --- home ----------------------------------------------------------------
 
+  let homeRender = 0;
   async function renderHome() {
+    const renderId = ++homeRender;
     const docs = (await ctx.getDocs()).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    if (renderId !== homeRender) return;
+    const query = $("home-search").value.trim().toLocaleLowerCase();
+    const matching = docs.filter(d => !query || [d.title, ...(d.blocks ?? []).map(b => typeof b === "string" ? b : b.text ?? "")].join(" ").toLocaleLowerCase().includes(query));
+    $("home-result-count").textContent = `${matching.length} ${matching.length === 1 ? "document" : "documents"}`;
+    $("home-no-results").hidden = !query || matching.length > 0;
     $("home-empty").hidden = docs.length > 0;
     $("home-add-more").hidden = docs.length === 0;
     const list = $("home-doc-list");
     list.textContent = "";
     const current = ctx.currentDoc();
-    for (const d of docs) {
+    for (const d of matching) {
       const li = document.createElement("li");
       li.className = "home-doc";
+      const kind = document.createElement("span");
+      kind.className = "document-kind";
+      kind.textContent = d.provenance?.sourceKind === "pdf" ? "PDF" : d.provenance?.sourceKind === "markdown" ? "MD" : "TXT";
+      kind.setAttribute("aria-hidden", "true");
+      li.appendChild(kind);
       const btn = document.createElement("button");
       btn.className = `doc-btn${current?.id === d.id ? " open" : ""}`;
       btn.textContent = d.title;
@@ -166,7 +178,7 @@ export function initShell(ctx) {
       prov.className = "prov";
       if (d.provenance) {
         const p = d.provenance;
-        prov.textContent = [p.sourceKind, p.pageCount && `${p.pageCount} pages`, ctx.fmtBytes(p.byteSize), ctx.shortDigest(p.contentDigest)]
+        prov.textContent = [p.sourceKind, p.pageCount && `${p.pageCount} pages`, ctx.fmtBytes(p.byteSize)]
           .filter(Boolean)
           .join(" · ");
         prov.title = `${p.contentDigest}\ncaptured ${p.capturedAt}`;
@@ -175,6 +187,7 @@ export function initShell(ctx) {
       }
       li.appendChild(prov);
       const position = await ctx.positionForDoc(d);
+      if (renderId !== homeRender) return;
       const place = document.createElement("div");
       place.className = "home-position";
       place.textContent = position
@@ -185,6 +198,7 @@ export function initShell(ctx) {
     }
   }
 
+  $("home-search").addEventListener("input", () => renderHome());
   const homeIngest = async (input) => {
     const f = input.files?.[0];
     if (f) await ctx.ingestFile(f);

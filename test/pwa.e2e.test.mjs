@@ -177,6 +177,9 @@ test("offline navigation serves the shell and reopens an IndexedDB document", { 
   await page.evaluateOnNewDocument(() => localStorage.setItem("jt.welcomed", "1"));
   await page.goto(`${url}/#/home`, { waitUntil: "load" });
   await page.waitForFunction(() => window.__jtApp?.booted === true);
+  // On a short viewport the sample sits below the fixed mobile navigation.
+  // Scroll the intended action into the work area, as a person must do.
+  await page.$eval("#home-sample", el => el.scrollIntoView({ block: "center" }));
   await page.click("#home-sample");
   await page.waitForFunction(
     () => window.__jtApp?.view() === "read" && document.querySelectorAll("#doc p[data-block]").length > 0
