@@ -50,3 +50,40 @@ JETT ignores its stale result and does not start a microphone.
 Private Chrome152 capability probing reported en-US/en-IN as downloadable. This
 establishes API availability, not installed assets or successful local audio.
 The raw probe is in the parent `jett-local-speech-capability.json` artifact.
+
+## Real engine proof with generated audio
+
+On this Mac, with the development app at localhost5174:
+
+```sh
+node scripts/generate-speech-fixture.mjs
+node scripts/verify-local-speech.mjs --direct-track
+```
+
+The generator uses installed macOS Samantha speech and ffmpeg, producing a known
+16kHz mono PCM WAV. The verifier uses a dedicated Chrome profile under the parent
+runtime/local-speech-proof directory, requests language installation through the
+explicit app control if needed, and substitutes only a generated Web Audio track
+at the real recognizer's input. It never supplies a transcript or calls JETT's
+text-injection helpers. Real local recognition drives the actual matcher, command
+parser and IndexedDB action path. Page networking uses CDP offline emulation during recognition; this is not
+OS-wide isolation of every Chrome service. The observed recognizer explicitly
+reports processLocally=true, and the proof requires a real final command event.
+The proof checks exactly one voice highlight of the expected quote, its receipt,
+visible cursor, recovery after reload and UI undo. Profile and downloaded speech
+assets are retained for repeatability; they are separate from the user's browser.
+
+PASS_LOCAL_SYNTHETIC observed on Chrome152.0.7977.82: full orchard passage
+recognized, exactly one intended voice highlight saved, recovered and undone.
+Evidence is parent jett-local-speech-verified.log, runtime/local-speech-proof/
+app-track-result.json and recognized-highlight.png. This proves real local-configured ASR
+and downstream behavior for one generated English utterance. It does not prove
+physical microphone continuity, accent/noise performance or all language support.
+
+The default verifier route also exercises native recognition.start() with fake
+input flags, including --disable-audio-input. That route reported no-speech in
+this environment and remains unverified. The earlier fake-media-device-only
+attempt did not establish its intended native input routing and is excluded from
+acceptance evidence. The isolated direct-track diagnostic is available through
+scripts/diagnose-local-speech-track.mjs. Do not remove this distinction to claim
+native device acceptance from a passing generated-track result.

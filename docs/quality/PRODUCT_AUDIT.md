@@ -297,3 +297,28 @@ Full local gate:132 tests pass in jett-local-voice-full-test.log. Independent
 settings review and stale-query browser coverage completed. This is capability
 and policy proof; actual model installation and synthetic-audio recognition are
 next, followed by physical device acceptance when explicitly exercised.
+
+## Real generated-audio speech proof
+
+Chrome152 installed its local speech assets through the application's explicit
+control. A generated Samantha voice passage fed directly as a Web Audio track
+into the real recognizer produced the exact orchard passage and “highlight this”.
+The recognizer reported processLocally=true. JETT's normal matcher, intent parser,
+voice action and IndexedDB paths produced one highlight and receipt; reload
+recovered it and history UI undo reversed it. Original bytes/digest and receipt
+identity are checked by the repeatable verifier. No transcript helper is used.
+
+This is PASS_LOCAL_SYNTHETIC for one generated English utterance, not physical
+mic acceptance. CDP page networking was set offline during recognition; that is
+not proof of OS-wide egress isolation. Native recognition.start() with fake WAV
+input remained no-speech, whereas explicit generated-track input succeeded.
+The earlier fake-media-device-only attempt did not establish its native source
+routing and is excluded from acceptance. No claim of general accent/noise quality,
+all-language support or Wispr-equivalent capture follows from this result.
+
+Evidence: parent jett-local-speech-verified.log and runtime/local-speech-proof/
+app-track-result.json, recognized-highlight.png. Scripts and exact limits are in
+docs/architecture/VOICE_CAPTURE.md. Independent review tightened observed local
+mode, real final results, pre-capture empty work, exact receipt and original-byte
+assertions. Application code is unchanged from76d7548 (132-test gate); this
+checkpoint adds real-engine verification and documents the remaining device seam.
