@@ -16,7 +16,7 @@
 | First-run text intake | PASS_LOCAL | Independent paste composer; real click with installation hint present, save and reopen. test/shell.e2e.test.mjs. |
 | Find saved work | PASS_LOCAL | Title/content search, empty result, reload and open; synthetic persisted content inspected. |
 | Desktop and phone shell | PASS_LOCAL | Desktop/mobile shell gate, 390px rendered phone with no horizontal overflow; current JETT style. |
-| Voice cursor and downstream actions | UNTESTED | Recover original prototype and compare matching, exact target, operation and undo. |
+| Voice cursor and downstream actions | PASS_LOCAL | Controlled transcript journey covers in-paragraph movement, exact highlight/restart/undo and pointer precedence. Physical microphone and remote application remain unverified. |
 | PDF import and output parity | UNTESTED | Existing MuPDF adapter; capability matrix and real files required. |
 | Markdown structure/source | PASS_LOCAL | Heading, quote and fenced code render; CRLF/BOM reading normalization; downloaded source bytes exactly match after reload. |
 | Images | UNTESTED | Image intake/storage and source-preserving rendering remain to implement. |
@@ -106,3 +106,34 @@ jett-image-phone.png, under the parent JJTY workspace.
 This establishes local image custody, not OCR, annotations, production sync or
 remote contract compatibility. Those remain pending, alongside voice downstream
 actions and full Markdown semantics.
+
+## Voice cursor and exact action recovery
+
+Browser reproduction exposed a frozen cursor: the matcher updated its token
+span within a paragraph but marker movement was conditional on changing the
+paragraph. Movement now follows each matched span while scrolling remains
+conditional on changing paragraphs.
+
+A deliberate paragraph click now clears cached spoken targets and matcher
+position. Recognized fresh commands are excluded from cursor matching so the
+recognizer's cumulative earlier reading cannot steal that selection. Both the
+live recognition callback and scripted replay provide the latest segment for
+this distinction; interim preview creates no durable actions.
+
+The browser regression follows two spans in one paragraph, highlights the exact
+second phrase, reloads, undoes, reloads again, then selects a different paragraph
+and issues a command with cumulative recognition history. The two pre-fix logs
+record the frozen cursor and wrong-paragraph action. This exercises real DOM,
+matcher, intent parser, action engine and IndexedDB with synthetic transcripts;
+it is not physical microphone or remote-target proof.
+
+Evidence under the JJTY workspace: jett-voice-cursor-before.log,
+jett-voice-selection-before.log, jett-voice-cursor-test.log and
+jett-voice-full-test.log.
+
+Next trust-sensitive finding: the act engine paints before its IndexedDB write
+completes, and undo mutates before persistence. Reproduce failed action writes
+and ensure the displayed result remains consistent with durable history.
+
+Final gate for this increment: build and all 113 tests passed in
+jett-voice-full-test.log.

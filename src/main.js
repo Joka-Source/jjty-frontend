@@ -251,6 +251,10 @@ function pdfSourceBytes(sourceBytes) {
 }
 
 function selectPdfBlock(blockIndex) {
+  // A deliberate selection supersedes the previous spoken location.
+  state.lastMatch = null;
+  state.lastReadingMatch = null;
+  state.matcher?.reset();
   state.currentBlock = blockIndex;
   moveMarker(blockIndex);
   rememberPosition(blockIndex);
@@ -1225,8 +1229,12 @@ mathSpoken.addEventListener("input", () => {
 // ---------------------------------------------------------------------------
 // Transcript pipeline (shared by mic and sim)
 
-function onInterim(fullText) {
+function onInterim(fullText, latestSegment = fullText) {
   if (mathState.active) return;
+  // Recognition results include earlier finalized reading. A fresh command
+  // must not replay that old text into the cursor after a pointer selection.
+  const preview = new IntentStream().push({ text: latestSegment, final: true });
+  if (preview.length && preview.every(event => toCommand(event).type !== "reading")) return;
   if (!state.matcher) return;
   emitGlass({ kind: "transcriptEvent", text: fullText, final: false, source: SIM ? "sim" : "speech" });
   const matchStarted = performance.now();
@@ -1284,9 +1292,10 @@ function onInterim(fullText) {
   if (b !== state.currentBlock) {
     state.currentBlock = b;
     if (window.__jt) window.__jt.current = b;
-    moveMarker(b, target);
     state.blocks[b].scrollIntoView({ behavior: "smooth", block: "center" });
   }
+  // The target span advances even while reading the same paragraph.
+  moveMarker(b, target);
   rememberPosition(b);
 }
 
@@ -1774,7 +1783,7 @@ function startMic() {
       rec.onresult = (e) => {
         let full = "";
         for (const res of e.results) full += `${res[0].transcript} `;
-        onInterim(full);
+        onInterim(full, e.results[e.results.length - 1]?.[0]?.transcript ?? "");
         for (let i = finalized; i < e.results.length; i++) {
           if (e.results[i].isFinal) {
             finalized = i + 1;
@@ -1920,7 +1929,7 @@ async function startSim() {
       let segment = "";
       for (const word of words) {
         segment += `${word} `;
-        onInterim(transcript + segment);
+        onInterim(transcript + segment, segment);
         await sleep(tick);
       }
       transcript += segment;
@@ -1962,7 +1971,7 @@ window.__jtApp = {
   micState: () => mic.state,
   exportData: () => shell?.exportData(),
   voiceSegment: (text) => onFinalSegment(text),
-  follow: (text) => onInterim(text),
+  follow: (text, latestSegment) => onInterim(text, latestSegment),
   perform: (act, blockIndex, opts) => {
     const verb = verbRegistry.resolve(act);
     return executeVerb(verb?.id ?? act, {

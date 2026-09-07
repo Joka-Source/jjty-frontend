@@ -512,3 +512,49 @@ test('images retain original bytes, render after restart and release their view 
   const after = JSON.parse(await page.evaluate(()=>window.__jtApp.exportData()));
   assert.equal(after.documents.length,2, 'a corrupt image must not become a saved document');
 });
+
+test('voice cursor follows within a paragraph and exact highlights survive restart and undo', {timeout:60000}, async t => {
+  const page = await bootShell(t, 4948, {width:1280,height:900});
+  await page.locator('#welcome-next').click();
+  await page.locator('#welcome-skip').click();
+  await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'reduce'}]);
+  await page.evaluate(async () => {
+    await window.__jtApp.addDocument('The northern orchard produces crisp apples every autumn. Beyond the old stone bridge the southern meadow shelters nesting birds through winter.\n\nThe eastern greenhouse protects young seedlings during cold spring nights.', 'Orchard field notes');
+    window.__jtApp.showView('read');
+  });
+  await page.waitForSelector('#doc [data-block]', {visible:true});
+  await page.evaluate(()=>window.__jtApp.follow('northern orchard produces crisp apples'));
+  const first = await page.$eval('#marker', n => ({top:n.style.top,left:n.style.left,width:n.style.width,height:n.style.height}));
+  await page.evaluate(()=>window.__jtApp.follow('southern meadow shelters nesting birds through winter'));
+  await page.waitForFunction(previous => {
+    const n=document.getElementById('marker');
+    return n.style.top!==previous.top || n.style.left!==previous.left || n.style.width!==previous.width || n.style.height!==previous.height;
+  }, {timeout:2000}, first);
+  await page.evaluate(async()=>{
+    await window.__jtApp.segment('southern meadow shelters nesting birds through winter');
+    await window.__jtApp.segment('highlight this');
+  });
+  await page.waitForSelector('mark.jt-highlight');
+  const marked=await page.$eval('mark.jt-highlight',n=>n.textContent);
+  assert.equal(marked,'southern meadow shelters nesting birds through winter');
+  const id=await page.evaluate(()=>window.__jtApp.entries().findLast(e=>e.act==='highlight').id);
+  await page.reload({waitUntil:'load'});
+  await page.waitForSelector('mark.jt-highlight',{visible:true});
+  assert.equal(await page.$eval('mark.jt-highlight',n=>n.textContent),marked);
+  await page.evaluate(()=>window.__jtApp.segment('undo'));
+  await page.waitForFunction(()=>!document.querySelector('mark.jt-highlight'));
+  assert.equal(await page.evaluate(id=>window.__jtApp.entries().find(e=>e.id===id).undone,id),true);
+  await page.reload({waitUntil:'load'});
+  await page.waitForSelector('#doc [data-block]',{visible:true});
+  assert.equal(await page.$('mark.jt-highlight'),null);
+  await page.evaluate(async()=>{
+    window.__jtApp.follow('northern orchard produces crisp apples');
+    await window.__jtApp.segment('northern orchard produces crisp apples');
+  });
+  await page.locator('#doc [data-block="1"]').click();
+  await page.evaluate(()=>window.__jtApp.follow('northern orchard produces crisp apples highlight this', 'highlight this'));
+  assert.equal(await page.evaluate(()=>window.__jtApp.currentBlock()),1,'cumulative recognition history must not move the selection while issuing a command');
+  await page.evaluate(()=>window.__jtApp.segment('highlight this'));
+  const selected=await page.evaluate(()=>window.__jtApp.entries().findLast(e=>e.act==='highlight'));
+  assert.equal(selected.blockIndex,1,'a deliberate passage selection replaces the earlier voice target');
+});
