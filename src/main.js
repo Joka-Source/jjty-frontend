@@ -1816,6 +1816,7 @@ const capture = createVoiceCapture({
   Recognition: window.SpeechRecognition || window.webkitSpeechRecognition,
   lang: () => settings.lang,
   processingMode: () => settings.voiceProcessing,
+  acquireAudio: () => navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true},video:false}),
   onInterim,
   onFinal: onFinalSegment,
   onState: (state, reason) => {

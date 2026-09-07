@@ -322,3 +322,30 @@ docs/architecture/VOICE_CAPTURE.md. Independent review tightened observed local
 mode, real final results, pre-capture empty work, exact receipt and original-byte
 assertions. Application code is unchanged from76d7548 (132-test gate); this
 checkpoint adds real-engine verification and documents the remaining device seam.
+
+## Capture owns one local audio stream
+
+Local speech now verifies installed language and processLocally support before
+requesting audio. It acquires one stream, passes its track to recognition, and
+reuses it across bounded recognizer restarts. Pause, terminal errors, device-ended
+and page exit release tracks; cancelled pending permission requests cannot revive
+a session and late streams are stopped. Browser-service mode creates no extra
+stream. Unsupported local track input does not fall back to native capture.
+
+Nineteen capture tests pass. Independent real-controls browser coverage verifies
+one acquisition, same-track recovery, pause/mode-change release and no acquisition
+before availability. Real local ASR with a supplied generated stream passes the
+exact highlight, receipt, source-byte custody, reload and undo journey; it also
+checks one acquisition and ended track on pause. This extends the prior synthetic
+proof through production start(track), with only acquireAudio supplied by the test.
+Physical devices and OS-wide network isolation remain unverified.
+
+The additional file-backed synthetic-device route started local recognition but
+produced no transcript before its45-second observation timeout. It is not a
+passing device test; the generated-stream proof remains the accepted evidence.
+Logs: jett-owned-voice-real.log, jett-owned-voice-unit.log and
+jett-owned-voice-device.log in the parent workspace.
+
+Fresh full gate passes138 tests in jett-owned-voice-full-test.log. Independent
+capture lifecycle review and browser verification completed; no production
+release or physical-device acceptance is claimed.

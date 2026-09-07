@@ -1,21 +1,32 @@
 // Own one browser recognizer. Browser mode may use a remote service. Explicit
 // local mode requires an installed language and processLocally support, with no
 // remote fallback. Neither mode guarantees uninterrupted browser audio capture.
-export function createVoiceCapture({ Recognition, lang, processingMode = 'browser', onState, onInterim, onFinal,
+export function createVoiceCapture({ Recognition, lang, processingMode = 'browser', acquireAudio, onState, onInterim, onFinal,
   schedule = setTimeout, cancel = clearTimeout, retryLimit = 3 }) {
   let wanted = false, owner = null, generation = 0, timer = null, failures = 0;
+  let inputStream = null, acquisition = null, removeEnded = null;
+  const stoppedTracks = new WeakSet();
+  function stopStream(stream) {
+    for (const track of stream?.getTracks?.() ?? []) {
+      if (stoppedTracks.has(track)) continue;
+      stoppedTracks.add(track);
+      try { track.stop(); } catch { /* Continue releasing remaining tracks. */ }
+    }
+  }
   const emit = (state, reason) => onState(state, reason);
   function release() {
     if (timer !== null) cancel(timer);
     timer = null;
     const old = owner; owner = null;
     try { old?.abort(); } catch { /* Already closed. */ }
+    acquisition?.abort(); acquisition = null;
+    removeEnded?.(); removeEnded = null;
+    const stream = inputStream; inputStream = null; stopStream(stream);
   }
   function terminal(state, reason) {
     wanted = false; generation++; release(); emit(state, reason);
   }
-  function launch(version, session) {
-    if (!wanted || version !== generation) return;
+  function prepare(session) {
     let rec;
     try {
       rec = new Recognition(); owner = rec;
@@ -27,6 +38,12 @@ export function createVoiceCapture({ Recognition, lang, processingMode = 'browse
         if (rec.processLocally !== true) { terminal('error', 'local-unsupported'); return; }
       }
     } catch { terminal('error', 'setup-failed'); return; }
+    return rec;
+  }
+  function launch(version, session, prepared) {
+    if (!wanted || version !== generation) return;
+    const rec = prepared ?? prepare(session);
+    if (!rec) return;
     let finalized = 0, error = null;
     const current = () => wanted && version === generation && owner === rec;
     rec.onstart = () => { if (current()) emit('listening'); };
@@ -56,7 +73,14 @@ export function createVoiceCapture({ Recognition, lang, processingMode = 'browse
       emit('reconnecting', error);
       timer = schedule(() => { timer = null; launch(version, session); }, Math.min(500 * 2 ** (failures - 1), 4000));
     };
-    try { rec.start(); } catch { terminal('error', 'start-failed'); }
+    try {
+      if (session.mode === 'local') {
+        if (session.track?.kind !== 'audio' || session.track.readyState !== 'live') {
+          terminal('error', 'audio-capture'); return;
+        }
+        rec.start(session.track);
+      } else rec.start();
+    } catch { terminal('error', session.mode === 'local' ? 'local-track-start-failed' : 'start-failed'); }
   }
   return {
     start() {
@@ -83,7 +107,28 @@ export function createVoiceCapture({ Recognition, lang, processingMode = 'browse
             ? 'local-download-required' : 'local-unavailable');
           return;
         }
-        launch(version, session);
+        if (typeof acquireAudio !== 'function') { terminal('error', 'local-audio-unsupported'); return; }
+        const prepared = prepare(session);
+        if (!prepared) return;
+        const controller = new AbortController(); acquisition = controller;
+        let stream;
+        try { stream = await acquireAudio({ signal: controller.signal }); }
+        catch (error) {
+          if (wanted && version === generation) terminal(error?.name === 'NotAllowedError' ? 'denied' : 'error', 'audio-capture');
+          return;
+        }
+        if (!wanted || version !== generation) { stopStream(stream); return; }
+        acquisition = null; inputStream = stream;
+        try {
+          session.track = stream?.getAudioTracks?.().find(track => track.kind === 'audio' && track.readyState === 'live');
+          if (!session.track || typeof session.track.addEventListener !== 'function') {
+            terminal('error', 'audio-capture'); return;
+          }
+          const ended = () => { if (wanted && version === generation) terminal('error', 'audio-capture'); };
+          session.track.addEventListener('ended', ended);
+          removeEnded = () => session.track.removeEventListener('ended', ended);
+        } catch { terminal('error', 'audio-capture'); return; }
+        launch(version, session, prepared);
       })();
     },
     pause() { terminal('paused'); },

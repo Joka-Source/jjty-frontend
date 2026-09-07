@@ -63,8 +63,8 @@ node scripts/verify-local-speech.mjs --direct-track
 The generator uses installed macOS Samantha speech and ffmpeg, producing a known
 16kHz mono PCM WAV. The verifier uses a dedicated Chrome profile under the parent
 runtime/local-speech-proof directory, requests language installation through the
-explicit app control if needed, and substitutes only a generated Web Audio track
-at the real recognizer's input. It never supplies a transcript or calls JETT's
+explicit app control if needed, and supplies only a generated Web Audio stream
+at the application's acquireAudio boundary. It never supplies a transcript or calls JETT's
 text-injection helpers. Real local recognition drives the actual matcher, command
 parser and IndexedDB action path. Page networking uses CDP offline emulation during recognition; this is not
 OS-wide isolation of every Chrome service. The observed recognizer explicitly
@@ -80,10 +80,33 @@ app-track-result.json and recognized-highlight.png. This proves real local-confi
 and downstream behavior for one generated English utterance. It does not prove
 physical microphone continuity, accent/noise performance or all language support.
 
-The default verifier route also exercises native recognition.start() with fake
-input flags, including --disable-audio-input. That route reported no-speech in
-this environment and remains unverified. The earlier fake-media-device-only
+Before owned-stream capture, the default verifier exercised native
+recognition.start() with fake input flags, including --disable-audio-input. That
+route reported no-speech and did not establish device acceptance. The verifier
+now exercises acquireAudio and production start(track) in both input modes. The earlier fake-media-device-only
 attempt did not establish its intended native input routing and is excluded from
 acceptance evidence. The isolated direct-track diagnostic is available through
 scripts/diagnose-local-speech-track.mjs. Do not remove this distinction to claim
 native device acceptance from a passing generated-track result.
+
+## Owned on-device capture stream
+
+On-device mode now requests one audio-only MediaStream after its language and
+local-recognition capability checks pass. The recognizer consumes that track
+through start(track). A recognition restart keeps the existing track, rather
+than reopening the microphone. Device-ended events stop the session. Pause,
+terminal errors and page exit abort the recognizer, cancel recovery, detach the
+ended listener and stop all owned tracks. Browser-service mode retains its
+browser-managed capture and does not create a second microphone stream.
+
+A pending native getUserMedia permission request cannot necessarily be cancelled
+by an AbortSignal. Session generations therefore reject a late resolution and
+immediately stop its tracks; it cannot revive the cancelled recognizer or affect
+a newer session. No fallback to native start() occurs if the local track is
+invalid or start(track) fails.
+
+The generated-audio verifier now supplies the fixture at acquireAudio's stream
+boundary and leaves recognition.start(track) entirely in production code. It
+checks one acquisition and an ended track after pause in addition to recognition,
+receipt, original custody and undo. This strengthens capture ownership evidence
+while retaining the physical-device and machine-wide network-isolation limits.

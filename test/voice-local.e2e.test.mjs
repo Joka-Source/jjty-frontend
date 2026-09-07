@@ -19,16 +19,27 @@ test('local voice requires an explicit language download and never falls back to
   t.after(()=>browser.close());
   const page=await browser.newPage();await page.setViewport({width:1280,height:900});
   await page.evaluateOnNewDocument(()=>{
-    window.localVoiceProbe={starts:[],aborts:0,checks:[],installs:[],preflights:0};
-    navigator.mediaDevices.getUserMedia=()=>{window.localVoiceProbe.preflights++;throw new Error('Unexpected audio preflight');};
+    window.localVoiceProbe={starts:[],aborts:0,checks:[],installs:[],acquisitions:0,stops:0,tracks:[],contexts:[],instances:[]};
+    navigator.mediaDevices.getUserMedia=async()=>{
+      const probe=window.localVoiceProbe;probe.acquisitions++;
+      // A generated silent track, never a physical microphone.
+      const context=new AudioContext(),stream=context.createMediaStreamDestination().stream;
+      probe.contexts.push(context);
+      for(const track of stream.getTracks()){
+        probe.tracks.push(track);const stop=track.stop.bind(track);
+        track.stop=()=>{probe.stops++;stop();void context.close();};
+      }
+      return stream;
+    };
     class Recognition {
+      constructor(){window.localVoiceProbe.instances.push(this);}
       static async available(options){
         window.localVoiceProbe.checks.push(options);
         if(window.localVoiceProbe.deferCheck){window.localVoiceProbe.deferCheck=false;await new Promise(resolve=>window.localVoiceProbe.releaseCheck=resolve);}
         return sessionStorage.getItem('test-language-installed')?'available':'downloadable';
       }
       static async install(options){window.localVoiceProbe.installs.push(options);sessionStorage.setItem('test-language-installed','yes');return true;}
-      start(){window.localVoiceProbe.starts.push({local:this.processLocally,lang:this.lang});this.onstart?.();}
+      start(track){window.localVoiceProbe.starts.push({local:this.processLocally,lang:this.lang,track});this.onstart?.();}
       abort(){window.localVoiceProbe.aborts++;this.onend?.();}
     }
     Recognition.prototype.processLocally=false;
@@ -56,6 +67,7 @@ test('local voice requires an explicit language download and never falls back to
   await page.locator('#voice-toggle').click();
   await page.waitForFunction(()=>window.__jtApp.micState()==='local-unavailable');
   assert.equal(await page.evaluate(()=>window.localVoiceProbe.starts.length),1,'missing local pack must not start a recognizer');
+  assert.equal(await page.evaluate(()=>window.localVoiceProbe.acquisitions),0,'browser mode, checks and missing language packs must not acquire a local stream');
   await page.locator('#set-local-voice-install').click();
   await page.waitForFunction(()=>window.localVoiceProbe.installs.length===1);
   await page.waitForFunction(()=>!document.getElementById('set-local-voice-check').disabled);
@@ -63,12 +75,22 @@ test('local voice requires an explicit language download and never falls back to
   await page.waitForFunction(()=>window.__jtApp.micState()==='listening');
   assert.deepEqual(await page.evaluate(()=>window.localVoiceProbe.starts.map(s=>s.local)),[false,true]);
   assert.ok(await page.evaluate(()=>window.localVoiceProbe.checks.every(check=>check.processLocally===true)));
-  assert.equal(await page.evaluate(()=>window.localVoiceProbe.preflights),0);
+  assert.equal(await page.evaluate(()=>window.localVoiceProbe.acquisitions),1);
+  assert.equal(await page.evaluate(()=>window.localVoiceProbe.starts[1].track===window.localVoiceProbe.tracks[0]),true,'local recognition must receive the owned track');
+  await page.evaluate(()=>window.localVoiceProbe.instances.at(-1).onend());
+  await page.waitForFunction(()=>window.localVoiceProbe.starts.length===3);
+  assert.equal(await page.evaluate(()=>window.localVoiceProbe.acquisitions),1,'recognizer restart must retain the microphone stream');
+  assert.equal(await page.evaluate(()=>window.localVoiceProbe.starts[2].track===window.localVoiceProbe.starts[1].track),true);
   await page.locator('#voice-toggle').click();
+  assert.equal(await page.evaluate(()=>window.localVoiceProbe.stops),1,'pause must release the microphone');
+  assert.equal(await page.evaluate(()=>window.localVoiceProbe.tracks[0].readyState),'ended');
   await page.reload();await page.waitForFunction(()=>window.__jtApp?.booted);
   await page.evaluate(()=>window.__jtApp.showView('settings'));
   assert.equal(await page.$eval('#set-voice-processing',n=>n.value),'local','processing preference must survive reload');
   assert.equal(await page.evaluate(()=>window.localVoiceProbe.installs.length),0,'reload must not install again');
   await page.locator('#voice-toggle').click();await page.waitForFunction(()=>window.__jtApp.micState()==='listening');
   assert.deepEqual(await page.evaluate(()=>window.localVoiceProbe.starts.map(s=>s.local)),[true]);
+  await page.select('#set-voice-processing','browser');
+  assert.equal(await page.evaluate(()=>window.__jtApp.micState()),'paused');
+  assert.equal(await page.evaluate(()=>window.localVoiceProbe.stops),1,'changing processing mode must release the owned microphone');
 });
