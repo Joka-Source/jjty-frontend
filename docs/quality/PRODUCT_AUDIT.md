@@ -193,3 +193,29 @@ backend clients remain outside this local recognition queue's guarantees.
 
 Full gate: 116 tests pass. After the final undo document-identity guard, the
 build and four affected browser journeys pass in jett-concurrency-final-test.log.
+
+## Shared server transport baseline
+
+Implemented the existing HTTP upload/attach/context/interaction/projection/undo
+contract in src/server.js. Retains exact retry envelopes; changed-request ID
+reuse is rejected locally. HTTPS remote origins and explicit caller credentials
+are required; redirects are rejected. No UI or automatic upload is enabled.
+
+PASS_LOCAL: scripts/verify-server.mjs against isolated loopback backend storage
+checks acknowledged digest, downloaded server-original bytes, one applied mark,
+geometry readback, rejection of changed-context ID reuse, unchanged retry,
+reattach, undo and unchanged local source. jett-server-client-proof.log records
+the result; build passes. This proof script refuses non-loopback endpoints.
+
+Backend gates observed separately: six application tests and two PN-1 HTTP
+tests pass; PN-1/PN-3 HTTP subset passed three tests; eight work/restart tests
+pass, including actual domain-process restart. Typecheck passes. An independent
+contract audit identified a stale Flow B clarification expectation: approved
+PN-2/PN-4 behavior is unresolved/TARGET_NOT_FOUND without safe evidence. The test
+was corrected, preserving the independent ambiguity test.
+
+Independent review found and prompted fixes for complete retry-envelope
+snapshots and proof-script origin enforcement. The first live process exit
+remains unexplained; later repeated client journeys passed. No production,
+account, browser rendering or cross-device claim follows from these results.
+Next connect the explicit server/document UI and render authoritative work.
