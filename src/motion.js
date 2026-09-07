@@ -99,9 +99,12 @@ export function createMarkerDriver(el, mediumOf = () => MARKER_MEDIUM) {
         width.to(next.width);
         height.to(next.height);
       }
-      // A throttled first animation frame must never leave the guide at zero.
+      // Retarget the one loop instead of leaving an older scheduled frame
+      // alive. Immediate sampling also keeps initial placement visible when
+      // the browser throttles animation frames.
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
       frame();
-      if (!raf) raf = requestAnimationFrame(frame);
     },
     stop() {
       if (raf) cancelAnimationFrame(raf);

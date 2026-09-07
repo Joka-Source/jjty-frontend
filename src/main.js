@@ -1,3 +1,4 @@
+import { createVoiceCapture } from './voice-capture.js';
 // jt — you open your document, you speak, and the thing you meant happens,
 // with a record you can inspect and undo. One mic permission; after that,
 // speaking is the interface.
@@ -1789,7 +1790,7 @@ async function sendSpoken(cmd) {
 // Live mic — one permission ask, then a small state machine the header
 // reflects honestly: listening / paused / voice off / blocked / unavailable.
 
-const mic = { state: "off", stop: null };
+const mic = { state: "off" };
 
 function setMicState(state, statusMsg, on = state === "listening") {
   mic.state = state;
@@ -1799,79 +1800,45 @@ function setMicState(state, statusMsg, on = state === "listening") {
     off: "turn on voice",
     listening: "pause listening",
     paused: "resume listening",
+    starting: "cancel voice",
+    reconnecting: "pause listening",
+    error: "retry voice",
+    denied: "retry voice",
   }[state];
   voiceToggle.hidden = !label;
   if (label) voiceToggle.textContent = label;
   shell?.micChanged(state);
 }
 
-function startMic() {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) {
-    setMicState("unavailable", "this browser cannot listen yet — jt still reads; try Chrome for voice", false);
-    return;
-  }
-  const denied = () =>
-    setMicState("denied", "the microphone is blocked — allow it in the browser's site settings, then reload", false);
-  navigator.mediaDevices
-    .getUserMedia({ audio: true })
-    .then((stream) => {
-      stream.getTracks().forEach((t) => t.stop());
-      const rec = new SR();
-      rec.continuous = true;
-      rec.interimResults = true;
-      rec.lang = settings.lang;
-      let alive = true;
-      let finalized = 0; // how many final results we've already handled
-      rec.onresult = (e) => {
-        let full = "";
-        for (const res of e.results) full += `${res[0].transcript} `;
-        onInterim(full, e.results[e.results.length - 1]?.[0]?.transcript ?? "");
-        for (let i = finalized; i < e.results.length; i++) {
-          if (e.results[i].isFinal) {
-            finalized = i + 1;
-            onFinalSegment(e.results[i][0].transcript);
-          }
-        }
-      };
-      rec.onend = () => {
-        if (!alive) return;
-        finalized = 0;
-        try {
-          rec.start();
-        } catch {
-          /* already started */
-        }
-      };
-      rec.onerror = (e) => {
-        if (e.error === "not-allowed" || e.error === "service-not-allowed") {
-          alive = false;
-          denied();
-        }
-      };
-      mic.stop = () => {
-        alive = false;
-        try {
-          rec.stop();
-        } catch {
-          /* already stopped */
-        }
-      };
-      rec.start();
-      settings.set("mic", "on");
-      setMicState("listening", "listening — read a line, then speak an act");
-    })
-    .catch(denied);
-}
-
-function pauseMic() {
-  mic.stop?.();
-  setMicState("paused", "paused — jt is not listening until you resume", false);
-}
-
+const capture = createVoiceCapture({
+  Recognition: window.SpeechRecognition || window.webkitSpeechRecognition,
+  lang: () => settings.lang,
+  onInterim,
+  onFinal: onFinalSegment,
+  onState: (state) => {
+    const messages = {
+      starting: "starting voice — waiting for the browser microphone",
+      listening: "listening — read a line, then speak an act",
+      reconnecting: "voice interrupted — reconnecting",
+      paused: "paused — jt is not listening until you resume",
+      denied: "microphone access is blocked — check this site's microphone permission, then retry",
+      unavailable: "this browser cannot listen yet — reading still works",
+      error: "voice stopped — check your microphone and connection, then retry",
+    };
+    if (state === "listening") settings.set("mic", "on");
+    if (["paused", "denied", "error"].includes(state)) settings.set("mic", "off");
+    setMicState(state, messages[state], state === "listening");
+  },
+});
+function startMic() { capture.start(); }
+function pauseMic() { capture.pause(); }
+window.addEventListener("pagehide", () => {
+  if (["starting", "listening", "reconnecting"].includes(mic.state)) pauseMic();
+  else capture.dispose();
+});
 voiceToggle.addEventListener("click", () => {
-  if (mic.state === "listening") pauseMic();
-  else startMic(); // off or paused: (re)start — permission is already remembered
+  if (["starting", "listening", "reconnecting"].includes(mic.state)) pauseMic();
+  else startMic();
 });
 
 // ---------------------------------------------------------------------------
@@ -2126,6 +2093,7 @@ async function boot() {
   }
 
   if (!settings.welcomed) {
+    setMicState("off", null, false);
     shell.show("welcome", { silent: true });
     setStatus(false, "welcome");
   } else {

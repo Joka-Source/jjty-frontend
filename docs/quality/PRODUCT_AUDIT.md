@@ -240,3 +240,37 @@ Founder correction: immediately prioritize fluctuating voice cursor and cycling
 microphone. Three delegated workstreams cover capture lifecycle reproduction,
 cursor animation reproduction, and public Wispr/local-engine architecture
 research while the coordinator verifies this server checkpoint.
+
+## Voice lifecycle and cursor investigation
+
+Reproduced from the original mic section: two concurrent starts created two
+recognizers; ten network-error/end events caused eleven immediate starts;
+pause stopped only the newest recognizer and the earlier one could still emit
+a command. The permission preflight also opened and immediately stopped an
+unused stream. Separately, three cursor retargets left three animation callbacks,
+and stop left two behind. Previous browser tests used injected text/reduced motion
+and did not cover these lifecycles.
+
+The capture adapter now owns one recognizer with generation-fenced callbacks,
+waits for its start event before reporting listening, aborts on pause, and uses
+bounded delayed reconnects. Device/permission failures stop with retry guidance.
+Page exit cancels capture and leaves a truthful paused state on cached return.
+The marker owns one animation callback across retargets and cancels it on stop.
+Settings now represent starting, reconnecting and error states explicitly.
+
+Thirteen focused capture/motion tests pass, including the cursor regression that
+failed before the fix. These prove application lifecycle behavior, not physical
+microphone continuity or local transcription. Browser recognition can still use
+a remote service. Public-source and recovered prototype research is recorded in
+../VOICE_CAPTURE_RESEARCH.md in the parent workspace; no private Wispr or Astra
+production code access is claimed.
+
+The real-toggle browser regression exposed a separate fresh-onboarding failure:
+skipping mic permission left the header toggle hidden. Boot now initializes the
+off-state controls before welcome. The regression passes against the updated
+build and verifies startup cancellation, no late act, resume/listen/pause and
+page lifecycle cancellation. Its recognizer is deliberately controlled; it does
+not record the user's microphone. The first full run caught this failure
+(124/125); the corrected build passes all 125 tests in jett-voice-final-full-test.log.
+Independent capture/motion review and browser regression are complete. Physical
+audio remains unverified; this checkpoint repairs reproduced application bugs.

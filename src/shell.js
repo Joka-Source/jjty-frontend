@@ -771,11 +771,14 @@ export function initShell(ctx) {
     $("set-voice-state").textContent = {
       off: "voice is off. jt reads fine without it; speaking is the fast way.",
       listening: "listening now.",
+      starting: "waiting for the browser microphone. cancel from the top bar.",
+      reconnecting: "voice interrupted. reconnecting; pause from the top bar.",
+      error: "voice stopped. check your microphone and connection, then retry.",
       paused: "paused — resume from the top bar.",
       denied: "the browser is blocking the microphone. allow it in site settings, then reload.",
       unavailable: "this browser cannot listen. reading and every record still work.",
     }[s] ?? "";
-    $("set-voice-on").hidden = !(s === "off" || s === "paused");
+    $("set-voice-on").hidden = !["off", "paused", "error", "denied"].includes(s);
   }
 
   $("set-voice-on").addEventListener("click", () => {
