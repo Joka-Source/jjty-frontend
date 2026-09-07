@@ -609,3 +609,76 @@ test('failed actions and interrupted undo retain the last durable document state
   assert.equal(await page.$('mark.jt-highlight'),null);
   assert.equal(await page.evaluate(()=>window.__jtApp.entries().filter(e=>e.kind==='undo').length),1);
 });
+
+test('rapid voice highlight and undo stay ordered; overlapping document opens stay isolated', {timeout:60000}, async t=>{
+  const page=await bootShell(t,4950,{width:1280,height:900});
+  await page.locator('#welcome-next').click(); await page.locator('#welcome-skip').click();
+  await page.evaluate(()=>window.__jtApp.addDocument('Northern forest shelters young deer during the winter.', 'Forest survey'));
+  await page.waitForSelector('#doc [data-block]',{visible:true});
+  await page.evaluate(async()=>{
+    window.__jtApp.follow('forest shelters young deer');
+    await window.__jtApp.segment('forest shelters young deer');
+    await Promise.all([window.__jtApp.segment('highlight this'),window.__jtApp.segment('undo')]);
+  });
+  const actions=await page.evaluate(()=>window.__jtApp.entries().filter(e=>e.kind==='act'||e.kind==='undo'));
+  assert.deepEqual(actions.map(e=>e.act),['highlight','undo']);
+  assert.equal(actions[0].undone,true);
+  assert.equal(await page.$('mark.jt-highlight'),null);
+  await page.evaluate(async()=>{
+    await window.__jtApp.addDocument('The northern orchard produces crisp apples every autumn.\n\nThe southern meadow shelters nesting birds through winter.', 'Fast reading');
+    window.__jtApp.follow('northern orchard produces crisp apples');
+    await window.__jtApp.segment('northern orchard produces crisp apples');
+    const first=window.__jtApp.segment('highlight this');
+    window.__jtApp.follow('southern meadow shelters nesting birds');
+    const reading=window.__jtApp.segment('southern meadow shelters nesting birds');
+    const second=window.__jtApp.segment('highlight this');
+    await Promise.all([first,reading,second]);
+  });
+  assert.deepEqual(await page.evaluate(()=>window.__jtApp.entries().filter(e=>e.act==='highlight').map(e=>e.blockIndex)),[0,1],'queued commands keep the passage at recognition time');
+  await page.evaluate(async()=>{
+    const [a,b]=await Promise.all([
+      window.__jtApp.addDocument('Alpha document contains orchard observations.', 'Alpha survey'),
+      window.__jtApp.addDocument('Beta document contains shoreline observations.', 'Beta survey')
+    ]);
+    await Promise.all([window.__jtApp.openDocument(a),window.__jtApp.openDocument(b)]);
+  });
+  assert.equal(await page.$eval('#doc-title',n=>n.textContent),'Beta survey');
+  assert.equal(await page.evaluate(()=>window.__jtApp.currentDoc().title),'Beta survey');
+  assert.equal(await page.$$eval('#doc [data-block]',nodes=>nodes.map(n=>n.textContent).join('\n')),'Beta document contains shoreline observations.');
+});
+
+test('a delayed action completion cannot paint into the next document', {timeout:60000}, async t=>{
+  const page=await bootShell(t,4951,{width:1280,height:900});
+  await page.locator('#welcome-next').click(); await page.locator('#welcome-skip').click();
+  await page.evaluate(async()=>{
+    window.firstDoc=await window.__jtApp.addDocument('Original orchard trees shelter the nesting birds.', 'Orchard');
+    window.nextDoc=await window.__jtApp.addDocument('Different shoreline survey remains untouched.', 'Shoreline');
+    await window.__jtApp.openDocument(window.firstDoc);
+    window.__jtApp.follow('Original orchard trees shelter');
+    await window.__jtApp.segment('Original orchard trees shelter');
+    const transaction=IDBDatabase.prototype.transaction;
+    IDBDatabase.prototype.transaction=function(...args){
+      const tx=transaction.apply(this,args);
+      if(args[0]==='records' && args[1]==='readwrite') {
+        IDBDatabase.prototype.transaction=transaction;
+        Object.defineProperty(tx,'oncomplete',{set(callback){
+          tx.addEventListener('complete',event=>{
+            window.releaseAction=()=>callback.call(tx,event);
+          });
+        }});
+      }
+      return tx;
+    };
+    window.pendingAction=window.__jtApp.segment('highlight this');
+    window.queuedUndo=window.__jtApp.segment('undo');
+  });
+  await page.waitForFunction(()=>typeof window.releaseAction==='function');
+  await page.evaluate(()=>window.__jtApp.openDocument(window.nextDoc));
+  await page.evaluate(async()=>{window.releaseAction(); await Promise.all([window.pendingAction,window.queuedUndo]);});
+  assert.equal(await page.$('mark.jt-highlight'),null,'late action must not mark the different document');
+  assert.match(await page.$eval('#status-text',n=>n.textContent),/document changed/);
+  assert.equal(await page.evaluate(()=>window.__jtApp.entries().filter(e=>e.kind==='act').length),0);
+  await page.evaluate(()=>window.__jtApp.openDocument(window.firstDoc));
+  await page.waitForSelector('mark.jt-highlight',{visible:true});
+  assert.equal(await page.$eval('mark.jt-highlight',n=>n.textContent),'Original orchard trees shelter');
+});

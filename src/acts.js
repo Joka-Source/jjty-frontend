@@ -151,7 +151,8 @@ export function createActEngine({
       targetChoice,
     });
     await putRecord(entry);
-    applyEffect(entry, { confirm: true });
+    const stillOpen = getDoc()?.id === doc.id;
+    if (stillOpen) applyEffect(entry, { confirm: true });
     emitGlass({
       kind: "actCommitted",
       act: verb.id,
@@ -164,8 +165,10 @@ export function createActEngine({
         ...(anchor?.quotedText ? { text: anchor.quotedText } : {}),
       },
     });
-    entries.push(entry);
-    onChange?.(entries);
+    if (stillOpen) {
+      entries.push(entry);
+      onChange?.(entries);
+    }
     return entry;
   }
 
@@ -179,7 +182,7 @@ export function createActEngine({
     } else {
       target = [...entries].reverse().find((e) => e.kind === "act" && !e.undone);
     }
-    if (!target) return null;
+    if (!target || target.docId !== doc.id) return null;
     const updated = { ...target, undone: true,
       cursor: { ...target.cursor, undoAvailable: false } };
     const undoEntry = makeActEntry({
@@ -195,15 +198,18 @@ export function createActEngine({
     });
     await putRecords([updated, undoEntry]);
     Object.assign(target, updated);
-    reverseEffect(target);
+    const stillOpen = getDoc()?.id === doc.id;
+    if (stillOpen) reverseEffect(target);
     emitGlass({
       kind: "actCommitted",
       act: "undo",
       input: evidence,
       target: { blockId: `${doc.id}-block-${target.blockIndex}`, blockIndex: target.blockIndex },
     });
-    entries.push(undoEntry);
-    onChange?.(entries);
+    if (stillOpen) {
+      entries.push(undoEntry);
+      onChange?.(entries);
+    }
     return undoEntry;
   }
 

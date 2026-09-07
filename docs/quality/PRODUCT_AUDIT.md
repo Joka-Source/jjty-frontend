@@ -162,3 +162,34 @@ shared backend or cross-device transaction behavior.
 
 PASS_LOCAL: full build and 114 tests pass. The final focused failure/abort
 journey also passes independently against the same build.
+
+## Recognition order and document isolation
+
+A browser reproduction lost a rapid undo because it ran before the preceding
+highlight finished persisting. Final recognition segments now execute in order.
+Target evidence is captured on recognition arrival, so later reading does not
+redirect a queued highlight. An instruction tied to a document is stopped with
+retry guidance if the document changes before execution. The queue survives a
+failed command.
+
+Document opens serialize their complete render/history/position lifecycle.
+A late act or undo completion checks the currently open document before applying
+visual effects or adding to its in-memory history. Persisted source-document
+work remains recoverable when that document is reopened.
+
+PASS_LOCAL browser journeys: rapid highlight/undo; two rapidly spoken highlights
+with different targets; concurrent document imports/opens; a deliberately held
+record completion followed by switching documents; refusal of the queued old
+document undo; reopening the source with its exact highlight. These use the
+real matcher, intent pipeline, DOM and IndexedDB, with controlled transcript
+and transaction-completion timing. Physical audio and remote execution remain
+unverified. Evidence: jett-concurrency-before.log, jett-concurrency-test.log,
+and jett-concurrency-full-test.log in the parent JJTY workspace.
+
+Next: reproduce the shared backend baseline and connect local document actions
+to its authoritative interaction contract; keep local save, delivery and remote
+application evidence separate. Concurrent edits from separate browser tabs and
+backend clients remain outside this local recognition queue's guarantees.
+
+Full gate: 116 tests pass. After the final undo document-identity guard, the
+build and four affected browser journeys pass in jett-concurrency-final-test.log.

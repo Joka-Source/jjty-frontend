@@ -897,8 +897,8 @@ async function performTargeted(verbId, args) {
   if (args.target || Number.isInteger(args.blockIndex)) {
     return performActAtTarget(verbId, args, args.target ?? null, args.targetChoice ?? null);
   }
-  const targetMatch = state.lastReadingMatch ?? state.lastMatch;
-  const targetBlock = targetMatch?.blockIndex ?? state.currentBlock;
+  const targetMatch = args.voiceTarget ? args.voiceTarget.match : state.lastReadingMatch ?? state.lastMatch;
+  const targetBlock = targetMatch?.blockIndex ?? args.voiceTarget?.blockIndex ?? state.currentBlock;
   if (targetBlock < 0) {
     emitCommandResult(verbId, "none", "No passage was available for this instruction.");
     setStatus(true, "read a line first so jt knows where you are");
@@ -1082,14 +1082,14 @@ async function executeVerb(id, args = {}) {
   }
 }
 
-async function runCommand(cmd, modality = "voice") {
+async function runCommand(cmd, modality = "voice", voiceTarget = undefined) {
   if (cmd.type === "reading") return null;
   if (cmd.type === "ask") {
     showAsk(cmd);
     return null;
   }
   if (!cmd.verbId) return null;
-  return executeVerb(cmd.verbId, { ...cmd, modality });
+  return executeVerb(cmd.verbId, { ...cmd, modality, voiceTarget });
 }
 
 // ---------------------------------------------------------------------------
@@ -1305,13 +1305,39 @@ function onInterim(fullText, latestSegment = fullText) {
   rememberPosition(b);
 }
 
-async function onFinalSegment(segment) {
+let speechQueue = Promise.resolve();
+function onFinalSegment(segment) {
+  const intentStarted = performance.now();
+  const events = intentStream.push({ text: segment, final: true });
+  // Freeze reading evidence at recognition arrival, before a later interim
+  // transcript can move the cursor while an earlier action is being saved.
+  if (!mathState.active && events.some(event => toCommand(event).type === "reading") && state.lastMatch) {
+    state.lastReadingMatch = state.lastMatch;
+  }
+  const snapshot = {
+    intentDuration: performance.now() - intentStarted,
+    docId: state.doc?.id,
+    match: state.lastReadingMatch ?? state.lastMatch,
+    blockIndex: state.currentBlock,
+  };
+  const run = speechQueue.then(() => {
+    const documentAction = mathState.active || events.some(event => ["act", "range", "undo"].includes(toCommand(event).type));
+    if (documentAction && snapshot.docId !== state.doc?.id) {
+      setStatus(false, "The document changed before that instruction ran. Read the passage and try again.");
+      return null;
+    }
+    return processFinalSegment(segment, events, snapshot);
+  });
+  // One failed command must not poison the following commands.
+  speechQueue = run.catch(() => {});
+  return run;
+}
+
+async function processFinalSegment(segment, events, snapshot) {
   emitGlass({ kind: "transcriptEvent", text: segment, final: true, source: SIM ? "sim" : "speech" });
   const mathResult = await onMathFinalSegment(segment);
   if (mathResult) return;
-  const intentStarted = performance.now();
-  const events = intentStream.push({ text: segment, final: true });
-  emitGlass({ kind: "latencyMark", stage: "intent", durationMs: performance.now() - intentStarted, budgetMs: 5 });
+  emitGlass({ kind: "latencyMark", stage: "intent", durationMs: snapshot.intentDuration, budgetMs: 5 });
   for (const ev of events) {
     const cmd = toCommand(ev);
     const classification = cmd.type === "reading" ? "reading" : cmd.type === "ask" ? "unresolved" : "command";
@@ -1324,7 +1350,6 @@ async function onFinalSegment(segment) {
     });
     if (cmd.type === "reading") {
       emitCommandResult(null, "reading", "No instruction was found.", { confidence: ev.confidence });
-      if (state.lastMatch) state.lastReadingMatch = state.lastMatch;
       continue;
     }
     if (cmd.type === "ask") {
@@ -1337,7 +1362,7 @@ async function onFinalSegment(segment) {
       });
     }
     if (cmd.type !== "reading" && window.__jt) window.__jt.commands.push(cmd.type === "act" ? cmd.act : cmd.type);
-    await runCommand(cmd, "voice");
+    await runCommand(cmd, "voice", snapshot);
   }
 }
 
@@ -1429,7 +1454,14 @@ docProvBtn.addEventListener("click", () => {
   docProvBtn.setAttribute("aria-expanded", String(!docProv.hidden));
 });
 
-async function openDocument(
+let documentQueue = Promise.resolve();
+function openDocument(doc, options = {}) {
+  const run = documentQueue.then(() => openDocumentNow(doc, options));
+  documentQueue = run.catch(() => {});
+  return run;
+}
+
+async function openDocumentNow(
   doc,
   {
     navigate = true,
