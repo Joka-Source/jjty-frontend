@@ -20,6 +20,7 @@
 
 import "./style.css";
 import "./jett.css";
+import { ingestImage, mountImage } from "./images.js";
 import "../vendor/katex/katex.min.css";
 import "pdfjs-dist/web/pdf_viewer.css";
 import katex from "../vendor/katex/katex.mjs";
@@ -308,11 +309,14 @@ function resetPdfTools() {
   globalThis.CSS?.highlights?.delete("jt-pdf-search");
 }
 
+let unmountImage = null;
 async function renderDoc(doc) {
+  unmountImage?.(); unmountImage = null;
   await state.pdf?.loadingTask?.destroy?.();
   for (const p of state.blocks) p.remove();
   for (const page of article.querySelectorAll(":scope > .pdf-page")) page.remove();
   resetPdfTools();
+  article.classList.toggle("image-source", doc.provenance?.sourceKind === "image");
   Object.assign(state, {
     doc,
     blocks: [],
@@ -334,7 +338,9 @@ async function renderDoc(doc) {
     : splitParagraphs(doc.text).map((text) => ({ text, kind: "paragraph" }));
 
   const hasPdfSource = doc.provenance?.sourceKind === "pdf" && doc.sourceBytes;
-  if (hasPdfSource) {
+  if (doc.provenance?.sourceKind === "image" && doc.sourceBytes) {
+    unmountImage = await mountImage(article, doc);
+  } else if (hasPdfSource) {
     try {
       state.pdf = await createPdfSurface(doc, blockDefs);
       state.blocks = state.pdf.blocks;
@@ -1359,7 +1365,7 @@ function renderDocHead(doc) {
     return;
   }
   readEmpty.hidden = true;
-  micHint.hidden = false;
+  micHint.hidden = doc.provenance?.sourceKind === "image";
   docHead.hidden = false;
   docTitle.textContent = doc.title;
   document.getElementById("download-original").hidden = !doc.sourceBytes;
@@ -1447,7 +1453,8 @@ async function openDocument(
 /** Store an IngestResult (jt-connectors shape) as a jt document. */
 async function addIngested(result, nameHint = "") {
   const viewableImagePdf = result.refusal?.kind === "image-only" && result.sourceBytes;
-  if (!result.blocks.length && !viewableImagePdf) {
+  const viewableImage = result.provenance.sourceKind === "image" && result.sourceBytes && result.imageSource;
+  if (!result.blocks.length && !viewableImagePdf && !viewableImage) {
     setStatus(true, result.refusal?.message ?? "nothing readable in that — try another file");
     return null;
   }
@@ -1466,6 +1473,7 @@ async function addIngested(result, nameHint = "") {
     ...(result.pdfEngine ? { pdfEngine: result.pdfEngine } : {}),
     ...(result.sourceBytes ? { sourceBytes: result.sourceBytes } : {}),
     ...(result.sourceMime ? { sourceMime: result.sourceMime } : {}),
+    ...(result.imageSource ? { imageSource: result.imageSource } : {}),
     ...(result.refusal ? { refusal: result.refusal } : {}),
     createdAt: nowIso(),
     revision: 1,
@@ -1491,6 +1499,10 @@ async function addDocument(text, nameHint = "") {
 }
 
 async function ingestFile(f) {
+  if (/\.(png|jpe?g|webp|gif)$/i.test(f.name) || /^image\//.test(f.type)) {
+    try { return await addIngested(await ingestImage(f), f.name); }
+    catch (error) { setStatus(false, error.message); return null; }
+  }
   if (/\.pdf$/i.test(f.name) || f.type === "application/pdf") {
     setStatus(true, `reading ${f.name}…`);
     const pdfjs = await loadPdfJs();
@@ -1504,7 +1516,7 @@ async function ingestFile(f) {
     const result = await ingestText(new TextDecoder().decode(rawBytes), { name: f.name, rawBytes });
     return addIngested(result, f.name.replace(/\.(txt|md)$/i, ""));
   }
-  setStatus(true, "jt reads .txt, .md and .pdf for now");
+  setStatus(true, "JETT opens PDF, Markdown, text, PNG, JPEG, WebP and GIF.");
   return null;
 }
 

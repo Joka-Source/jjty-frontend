@@ -84,3 +84,25 @@ its hidden DOM is still being prepared.
 Evidence: /Users/sunlight/Documents/ChatGPT/JJTY/jett-source-custody-test.log.
 Image storage, full Markdown semantics and cross-device source custody remain
 unimplemented/unverified; these fixes do not establish remote sync.
+
+## Image custody and responsive reading
+
+PASS_LOCAL: PNG/JPEG/WebP/GIF ingestion detects signatures and requires browser
+decoding before saving. Images use a documented local source extension with
+empty text blocks. Fit and actual-size views use the original; switching
+documents releases the image view. The original survives restart and downloads
+byte-for-byte. Corrupt image intake creates no library entry.
+
+Desktop (1280×900) and phone (390×844) screenshots were visually inspected.
+The install hint follows the work surface. Reading headings clear the fixed
+header, with an explicit browser geometry assertion; image content fits phone
+width. The file-intake hint now includes supported images.
+
+Evidence: jett-image-full-test.log has 112 passing tests. After the final header
+spacing and hint correction, jett-image-final-test.log has a successful build
+and all nine shell journeys passing. Screenshots: jett-image-desktop.png and
+jett-image-phone.png, under the parent JJTY workspace.
+
+This establishes local image custody, not OCR, annotations, production sync or
+remote contract compatibility. Those remain pending, alongside voice downstream
+actions and full Markdown semantics.

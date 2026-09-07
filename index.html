@@ -74,17 +74,17 @@
         <div class="home-add">
           <label class="filebtn big-btn">
             Open a document
-            <input id="home-file-input" type="file" accept=".txt,.md,.pdf,text/plain,text/markdown,application/pdf" hidden />
+            <input id="home-file-input" type="file" accept=".txt,.md,.pdf,.png,.jpg,.jpeg,.webp,.gif,text/plain,text/markdown,application/pdf,image/png,image/jpeg,image/webp,image/gif" hidden />
           </label>
           <button class="quiet-btn" id="home-sample">Try a sample page</button>
         </div>
-        <p class="hint">PDF, Markdown and text. Drop a file here or paste your words below.</p>
+        <p class="hint">PDF, Markdown, text and images. Drop a file here or paste your words below.</p>
       </div>
       <ul id="home-doc-list" class="home-doc-list" aria-label="Your documents"></ul><p id="home-no-results" hidden>No documents match. Try another name or a word from the text.</p>
       <div class="home-add" id="home-add-more">
         <label class="filebtn">
           open a file
-          <input id="home-file-input-2" type="file" accept=".txt,.md,.pdf,text/plain,text/markdown,application/pdf" hidden />
+          <input id="home-file-input-2" type="file" accept=".txt,.md,.pdf,.png,.jpg,.jpeg,.webp,.gif,text/plain,text/markdown,application/pdf,image/png,image/jpeg,image/webp,image/gif" hidden />
         </label>
       </div>
       <details class="paste-composer" open><summary>Keep a thought or paste some text</summary><div class="home-add">
@@ -237,11 +237,7 @@
       </div>
     </section>
 
-    <aside class="install-hint" id="install-hint" hidden aria-live="polite">
-      <span>install jt for offline reading.</span>
-      <a id="install-hint-link" href="#/settings">open settings</a>
-      <button id="install-hint-dismiss" type="button">not now</button>
-    </aside>
+
 
     <section class="view" id="view-capabilities" hidden>
       <h1>capabilities</h1>
@@ -281,11 +277,11 @@
         <div class="add">
           <label class="filebtn">
             open a file
-            <input id="file-input" type="file" accept=".txt,.md,.pdf,text/plain,text/markdown,application/pdf" hidden />
+            <input id="file-input" type="file" accept=".txt,.md,.pdf,.png,.jpg,.jpeg,.webp,.gif,text/plain,text/markdown,application/pdf,image/png,image/jpeg,image/webp,image/gif" hidden />
           </label>
           <textarea id="paste-box" rows="4" placeholder="An idea, a passage, something worth keeping…"></textarea>
           <button id="paste-add">Keep this text</button>
-          <p class="hint">you can also add a .txt, .md or .pdf file anywhere on this page</p>
+          <p class="hint">Drop a PDF, Markdown, text or image file anywhere on this page</p>
         </div>
       </aside>
       <main>
@@ -381,6 +377,11 @@
       <button id="tab-history" aria-expanded="false" aria-controls="history-panel">what happened</button>
       <button id="tab-more" aria-expanded="false" aria-controls="more-panel">more</button>
     </nav>
+    <aside class="install-hint" id="install-hint" hidden aria-live="polite">
+      <span>install jt for offline reading.</span>
+      <a id="install-hint-link" href="#/settings">open settings</a>
+      <button id="install-hint-dismiss" type="button">not now</button>
+    </aside>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

@@ -166,7 +166,7 @@ export function initShell(ctx) {
       li.className = "home-doc";
       const kind = document.createElement("span");
       kind.className = "document-kind";
-      kind.textContent = d.provenance?.sourceKind === "pdf" ? "PDF" : d.provenance?.sourceKind === "markdown" ? "MD" : "TXT";
+      kind.textContent = d.provenance?.sourceKind === "image" ? "IMG" : d.provenance?.sourceKind === "pdf" ? "PDF" : d.provenance?.sourceKind === "markdown" ? "MD" : "TXT";
       kind.setAttribute("aria-hidden", "true");
       li.appendChild(kind);
       const btn = document.createElement("button");
@@ -190,7 +190,7 @@ export function initShell(ctx) {
       if (renderId !== homeRender) return;
       const place = document.createElement("div");
       place.className = "home-position";
-      place.textContent = position
+      place.textContent = d.imageSource ? `${d.imageSource.width} × ${d.imageSource.height}` : position
         ? `block ${position.blockIndex + 1} of ${position.blockCount} · ${ctx.relativeReadTime(position.updatedAt)}`
         : "not started";
       li.appendChild(place);
@@ -212,7 +212,7 @@ export function initShell(ctx) {
     try {
       const result = await action();
       if (!result) {
-        message.textContent = "This file could not be opened. Try a PDF, Markdown or text file.";
+        message.textContent = "This file could not be opened. Try a readable PDF, Markdown, text, PNG, JPEG, WebP or GIF file.";
         return null;
       }
       message.hidden = true;
