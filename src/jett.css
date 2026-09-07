@@ -79,3 +79,16 @@ article.image-source { padding-bottom: 24px; }
 
 /* Keep document headings below the fixed 68px application bar. */
 .layout { padding-top: 84px; }
+
+.server-panel { margin: 16px 18px; padding: 16px; border: 1px solid var(--line); border-radius: 10px; font: 13px/1.5 system-ui,sans-serif; }
+.server-panel summary { cursor: pointer; }
+.server-panel label { display: grid; gap: 6px; margin-block: 12px; }
+.server-panel input, .server-panel textarea { min-width: 0; width: 100%; padding: 10px; background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; }
+.server-panel button { min-height: 44px; padding: 8px 12px; margin: 4px; max-width: 100%; overflow-wrap: anywhere; }
+.server-panel p, .server-panel li { overflow-wrap: anywhere; }
+.server-work-layer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; }
+.server-work-layer polygon { fill: #efca4d; fill-opacity: .35; }
+.server-work-layer polygon[data-annotation="underline"], .server-work-layer polygon[data-annotation="strike"] { fill: none; stroke: #b55b27; stroke-width: 1; }
+.server-work-layer polygon[data-annotation="note"] { fill: #60a5fa; fill-opacity: .25; }
+
+.server-work-layer line { stroke: #b55b27; stroke-width: 1.5; }

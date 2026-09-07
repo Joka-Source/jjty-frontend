@@ -219,3 +219,24 @@ snapshots and proof-script origin enforcement. The first live process exit
 remains unexplained; later repeated client journeys passed. No production,
 account, browser rendering or cross-device claim follows from these results.
 Next connect the explicit server/document UI and render authoritative work.
+
+## Explicit server reader checkpoint
+
+The PDF reader now connects to a named server with session-only credentials,
+explicit upload, digest-checked saved-copy reconnect, page-scoped commands,
+quoted proposal review/apply/cancel, authoritative SVG work and server undo.
+A complete pending request is persisted before transport. Lost responses remain
+recoverable after browser reload; readback reattaches to obtain fresh context.
+
+PASS_LOCAL: real HTTP/browser proof passes upload consent, geometry, reconnect,
+undo, no persisted token, and lost-response/reload retry without duplicate work.
+A separate generated fixture passes proposal preview, explicit Apply, Undo and
+Cancel without an effect. Transport proof also passes after preserving the async
+rejection contract for changed request-ID reuse. Evidence: parent workspace
+jett-server-ui-proof.log, jett-server-proposal-proof.log and
+jett-server-client-proof.log. No production or physical audio claim.
+
+Founder correction: immediately prioritize fluctuating voice cursor and cycling
+microphone. Three delegated workstreams cover capture lifecycle reproduction,
+cursor animation reproduction, and public Wispr/local-engine architecture
+research while the coordinator verifies this server checkpoint.

@@ -21,6 +21,7 @@ export function createServerClient({ baseUrl, token, authority, fetchImpl = glob
     let result;
     try { result = await response.json(); }
     catch { throw new Error(`The server returned an unreadable response (${response.status}).`); }
+    if (!response.ok && path==='/api/v1/interactions' && ['clarification_required','unresolved','refused','action_failed_safe'].includes(result.outcome)) return result;
     if (!response.ok) {
       const error = new Error(result.error?.message || result.safe_message || `Server request failed (${response.status}).`);
       error.status = response.status; error.code = result.error?.code || result.code;
@@ -31,7 +32,7 @@ export function createServerClient({ baseUrl, token, authority, fetchImpl = glob
   const attachmentPath = id => `/api/v1/reader/documents/${encodeURIComponent(id)}/attach`;
   const pendingRequests = new Map();
   const send = body => request('/api/v1/interactions', {method:'POST',body});
-  async function interaction(context, operation, payload, requestId = crypto.randomUUID()) {
+  function prepareRequest(context, operation, payload, requestId = crypto.randomUUID()) {
     const intent = JSON.stringify({operation,authority:access,context,...payload});
     const cached = pendingRequests.get(requestId);
     if (cached && cached.intent !== intent) throw new Error('Use a new request ID for a changed instruction, or retry the original request.');
@@ -40,9 +41,20 @@ export function createServerClient({ baseUrl, token, authority, fetchImpl = glob
       body.control = {request_id:requestId,idempotency_key:requestId,deadline_at:new Date(Date.now()+120000).toISOString()};
       pendingRequests.set(requestId,{intent,body});
     }
-    return send(pendingRequests.get(requestId).body);
+    return requestId;
   }
+  const interaction = async (context,operation,payload,requestId) => send(pendingRequests.get(prepareRequest(context,operation,payload,requestId)).body);
   return {
+    prepareRequest,
+    requestSnapshot(requestId) { return structuredClone(pendingRequests.get(requestId)?.body); },
+    restoreRequest(body) {
+      if (!body?.control?.request_id || body.control.request_id!==body.control.idempotency_key ||
+          !['submit','apply','cancel','undo'].includes(body.operation) ||
+          ['actor_id','tenant_scope','project_id'].some(key=>body.authority?.[key]!==access[key])) throw new Error('This pending request belongs to different connection details.');
+      const copy=structuredClone(body), {control,...intent}=copy;
+      pendingRequests.set(control.request_id,{body:copy,intent:JSON.stringify(intent)});
+      return control.request_id;
+    },
     retry(requestId) {
       const saved = pendingRequests.get(requestId);
       if (!saved) throw new Error('The original request is not available in this session.');

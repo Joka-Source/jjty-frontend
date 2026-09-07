@@ -20,6 +20,7 @@
 
 import "./style.css";
 import "./jett.css";
+import { initServerPanel } from "./server-panel.js";
 import { ingestImage, mountImage } from "./images.js";
 import "../vendor/katex/katex.min.css";
 import "pdfjs-dist/web/pdf_viewer.css";
@@ -314,8 +315,10 @@ function resetPdfTools() {
   globalThis.CSS?.highlights?.delete("jt-pdf-search");
 }
 
+const serverPanel = initServerPanel({ saveDocument: putDoc });
 let unmountImage = null;
 async function renderDoc(doc) {
+  serverPanel.setDocument(null);
   unmountImage?.(); unmountImage = null;
   await state.pdf?.loadingTask?.destroy?.();
   for (const p of state.blocks) p.remove();
@@ -505,6 +508,7 @@ async function setPdfZoom(nextZoom) {
     if (Number.isInteger(heldIndex) && heldIndex >= 0) moveMarker(heldIndex);
     showPdfSearchState(state.pdf.model.searchState(), { scroll: false });
     pdfZoomValue.textContent = `${Math.round(zoom * 100)}%`;
+    serverPanel.setDocument(state.doc, state.pdf);
   } catch (error) {
     state.pdf.model.setZoom(previousZoom);
     setStatus(true, `PDF zoom failed: ${error?.message ?? error}`);
@@ -1473,6 +1477,7 @@ async function openDocumentNow(
   await renderDoc(doc);
   await engine.load(doc.id);
   renderDocHead(doc);
+  serverPanel.setDocument(doc, state.pdf);
   await refreshLibrary();
   if (narrowScreen.matches) setSheet(null); // picking a document closes the sheet
   if (navigate) shell?.show("read");

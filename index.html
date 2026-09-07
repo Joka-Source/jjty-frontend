@@ -342,6 +342,34 @@
           <output id="pdf-search-count" aria-live="polite"></output>
           <p id="pdf-message" class="pdf-message" aria-live="polite"></p>
         </section>
+        <details id="server-panel" class="server-panel" hidden>
+          <summary>Work with your server</summary>
+          <form id="server-connect" class="server-connect">
+            <label>Server address<input id="server-origin" type="url" required placeholder="https://your-server.example" /></label>
+            <label>Access token<input id="server-token" type="password" required autocomplete="off" /></label>
+            <label>Actor ID<input id="server-actor" required /></label>
+            <label>Tenant ID<input id="server-tenant" required /></label>
+            <label>Project ID<input id="server-project" required /></label>
+            <p>Use the connection details supplied by your server. The token stays in this session.</p>
+            <button type="submit">Set destination</button>
+          </form>
+          <p id="server-status" role="status">Choose a server only if you want to send this PDF there.</p>
+          <button id="server-upload" type="button" hidden>Send this PDF</button>
+          <div id="server-actions" hidden>
+            <form id="server-command-form">
+              <label>Target page<input id="server-page" type="number" value="1" min="1" required /></label>
+              <p>Instructions use this whole page. Local text selections are not sent.</p>
+              <label>Instruction for the server<textarea id="server-command" required rows="2" placeholder="Highlight the first paragraph."></textarea></label>
+              <button type="submit">Run on server</button>
+            </form>
+            <button id="server-retry" type="button" hidden>Retry pending request</button>
+            <div id="server-proposal" hidden><p id="server-proposal-text"></p><button id="server-apply" type="button">Apply proposed change</button><button id="server-cancel" type="button">Cancel proposal</button></div>
+            <button id="server-refresh" type="button">Refresh saved work</button>
+            <button id="server-undo" type="button" disabled>Undo last server action</button>
+            <p id="server-work-count"></p><ul id="server-work-list"></ul>
+          </div>
+          <button id="server-disconnect" type="button">Disconnect</button>
+        </details>
         <article id="doc">
           <div id="marker" aria-hidden="true"></div>
           <div class="read-empty" id="read-empty" hidden>

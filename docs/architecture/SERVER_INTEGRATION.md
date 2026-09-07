@@ -1,8 +1,9 @@
 # Shared server integration
 
 `src/server.js` speaks the existing backend application contract, version 1.3.
-It is a transport client, not an alternative action engine. The reader UI is
-not connected to it yet. Local IndexedDB receipts do not establish server work.
+It is a transport client, not an alternative action engine. The PDF reader now
+has an explicit server connection panel. Local IndexedDB receipts do not
+establish server work.
 
 A PDF goes through authenticated upload and attach. Upload and attachment
 hashes must match the input SHA-256. The returned context is used unchanged.
@@ -15,14 +16,20 @@ Undo uses the projection's operation and work version, then reads it again.
 The client retains the complete request envelope in memory. `retry(requestId)`
 replays that exact snapshot, including the deadline and scene. Reusing the ID
 with a changed instruction/context fails locally. `forgetRequest` releases a
-settled request. This is not a durable outbox: browser restart requires a future
-persisted request journal and explicit handling of expired deadlines.
+settled request. The UI saves the complete pending envelope with the local
+document before sending. Reconnecting after reload offers an explicit retry of
+that envelope. Expired deadlines retain their original value and return the
+server result; retries never silently create a new instruction.
 
 Credentials are caller-supplied, kept in the client closure, and sent only to
 the configured origin. Redirects are rejected. Remote origins require HTTPS;
 HTTP is allowed only on loopback. Nothing is uploaded automatically by importing
-the module. A product connection UI must show the chosen server and what document
-will leave before upload. Do not silently upload existing library content.
+the module. The connection UI names the server and document before an explicit
+upload click. It stores the remote object identity, never the token. Reopening
+that copy verifies its source digest. Commands explicitly select a whole PDF
+page; local text selections and local notes are not sent. Proposals show the
+quoted target and require Apply or Cancel. Server marks render from authoritative
+revision-qualified geometry; undo reads the resulting projection again.
 
 ## Local verification
 
@@ -45,13 +52,26 @@ specific operation before rerunning. Never clear unrelated work to pass a test.
 
 The backend production composition refuses to start without admitted production
 adapters. Its deterministic development credentials are not account support.
-Only PDF attach is supported. Markdown/image sync, accounts, remote rendering,
-and self-hosted production setup remain outstanding. The web connection needs
-explicit upload consent, persisted remote identity, version-qualified geometry,
-offline recovery, proposal presentation and honest server-result status.
+Only PDF attach is supported. Markdown/image sync, accounts, cross-device
+synchronization and self-hosted production setup remain outstanding. This is an
+advanced connection panel, not account onboarding or a background sync service.
+A recovered proposal without its full target evidence can only be cancelled.
+The pending journal currently retains one request per document/server link.
 
 The transport proof covers same-process reattach. Separate backend tests exercise
 actual domain-process restart and recovery, but no browser-restart-to-server
-journey has yet been implemented. An initial live runtime exit was observed once;
+journey was covered by the browser proof below. This does not establish recovery
+of every operation across a simultaneous browser and backend process restart. An initial live runtime exit was observed once;
 subsequent direct and HTTP runs passed. Its root cause remains unproven, and
 normal structured logs currently omit the child runtime's diagnostic detail.
+
+## Browser evidence
+
+`node scripts/verify-server-ui.mjs` uses a private browser and synthetic PDF.
+It verifies no automatic upload, explicit upload, original hash validation,
+visible server geometry, a lost response followed by reload and exact retry
+without duplication, reconnect readback, undo, no persisted token, and a narrow
+mobile viewport. `node scripts/verify-server-proposal.mjs` generates a unique
+synthetic PDF and verifies quoted proposal review, no premature mark, Apply,
+Undo and Cancel without an effect. Both passed against the isolated local API.
+These are local HTTP/browser proofs, not physical microphone or production proof.
