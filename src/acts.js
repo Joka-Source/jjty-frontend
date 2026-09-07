@@ -3,7 +3,7 @@
 // (undo itself is an act with its own records — the trail never thins).
 
 import { makeActEntry, makeReturnEntry } from "./records.js";
-import { putRecord, getRecords } from "./db.js";
+import { putRecord, putRecords, getRecords } from "./db.js";
 import { contentDigest } from "./ingest.js";
 import { createAnchor, migrateLegacyEntry, resolveAnchor } from "./anchors.js";
 import { verbRegistry } from "./registry/index.js";
@@ -150,8 +150,8 @@ export function createActEngine({
       arrival,
       targetChoice,
     });
-    applyEffect(entry, { confirm: true });
     await putRecord(entry);
+    applyEffect(entry, { confirm: true });
     emitGlass({
       kind: "actCommitted",
       act: verb.id,
@@ -180,10 +180,8 @@ export function createActEngine({
       target = [...entries].reverse().find((e) => e.kind === "act" && !e.undone);
     }
     if (!target) return null;
-    reverseEffect(target);
-    target.undone = true;
-    target.cursor = { ...target.cursor, undoAvailable: false };
-    await putRecord(target);
+    const updated = { ...target, undone: true,
+      cursor: { ...target.cursor, undoAvailable: false } };
     const undoEntry = makeActEntry({
       docId: doc.id,
       revision: doc.revision,
@@ -195,7 +193,9 @@ export function createActEngine({
       evidence,
       undoes: target.id,
     });
-    await putRecord(undoEntry);
+    await putRecords([updated, undoEntry]);
+    Object.assign(target, updated);
+    reverseEffect(target);
     emitGlass({
       kind: "actCommitted",
       act: "undo",

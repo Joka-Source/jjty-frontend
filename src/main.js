@@ -46,6 +46,7 @@ import {
   getDocs,
   getRecords,
   putRecord,
+  putRecords,
   putInbox,
   getInbox,
   putSpaceFeed,
@@ -960,9 +961,8 @@ async function performRange(verbId, args) {
 async function undoVerb(args) {
   if (args.entry) {
     const entry = args.entry;
-    entry.undone = true;
-    entry.cursor = { ...entry.cursor, undoAvailable: false };
-    await putRecord(entry);
+    const updated = { ...entry, undone: true,
+      cursor: { ...entry.cursor, undoAvailable: false } };
     const undoEntry = makeActEntry({
       docId: entry.docId,
       revision: args.document?.revision ?? 1,
@@ -973,7 +973,8 @@ async function undoVerb(args) {
       evidence: args.evidence ?? "undo button clicked",
       undoes: entry.id,
     });
-    await putRecord(undoEntry);
+    await putRecords([updated, undoEntry]);
+    Object.assign(entry, updated);
     emitGlass({
       kind: "actCommitted",
       act: "undo",
@@ -1072,8 +1073,13 @@ const verbExecutionContext = {
   openRoom: (room) => shell?.openRoom(room),
 };
 
-function executeVerb(id, args = {}) {
-  return executeRegisteredVerb(id, verbExecutionContext, args);
+async function executeVerb(id, args = {}) {
+  try { return await executeRegisteredVerb(id, verbExecutionContext, args); }
+  catch (error) {
+    if (error?.name !== "RecordSaveError") throw error;
+    setStatus(false, "Could not save that change. Your saved work is unchanged. Try again.");
+    return null;
+  }
 }
 
 async function runCommand(cmd, modality = "voice") {

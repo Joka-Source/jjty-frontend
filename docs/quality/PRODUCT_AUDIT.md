@@ -137,3 +137,28 @@ and ensure the displayed result remains consistent with durable history.
 
 Final gate for this increment: build and all 113 tests passed in
 jett-voice-full-test.log.
+
+## Action-write failure and atomic undo
+
+A browser fault injection reproduced a visible highlight after its record write
+failed. Acts now paint only after the history transaction commits. Failed saves
+show retry guidance while keeping the previously saved document state.
+
+Undo now persists its target update and new undo record in one IndexedDB
+transaction, both for the open reader and the all-document history path.
+In-memory target mutation and visual reversal happen after commit. The database
+helper aborts queued writes on synchronous exceptions as well as propagating
+asynchronous transaction errors. Record-written telemetry fires after commit.
+
+The real-browser journey covers a failed highlight, successful retry, failure
+on undo's second write, reopening with the original highlight intact, explicit
+transaction abort, another reopening, then successful undo and durable removal.
+Evidence: jett-action-durability-before.log and jett-action-durability-test.log
+in the parent JJTY workspace; broader gate: jett-action-durability-full-test.log.
+
+Remaining: serialize rapid recognition commands and investigate document-switch
+races during pending writes/rendering. These local changes do not establish
+shared backend or cross-device transaction behavior.
+
+PASS_LOCAL: full build and 114 tests pass. The final focused failure/abort
+journey also passes independently against the same build.

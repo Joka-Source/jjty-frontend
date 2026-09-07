@@ -48,10 +48,16 @@ function tx(db, store, mode, fn) {
   return new Promise((resolve, reject) => {
     const t = db.transaction(store, mode);
     const s = t.objectStore(store);
-    const out = fn(s);
+    let out;
     t.oncomplete = () => resolve(out?.result ?? out);
     t.onerror = () => reject(t.error);
     t.onabort = () => reject(t.error);
+    try { out = fn(s); }
+    catch (error) {
+      // Synchronous failures must also roll back earlier queued writes.
+      t.abort();
+      reject(error);
+    }
   });
 }
 
@@ -101,15 +107,27 @@ export async function getPositions() {
   });
 }
 
-export async function putRecord(entry) {
-  const db = await openDb();
-  const written = await tx(db, "records", "readwrite", (s) => s.put(entry));
-  emitGlass({
+export async function putRecords(entries) {
+  try {
+    const db = await openDb();
+    await tx(db, "records", "readwrite", s => {
+      for (const entry of entries) s.put(entry);
+    });
+  } catch (cause) {
+    const error = new Error("The change could not be saved", { cause });
+    error.name = "RecordSaveError";
+    throw error;
+  }
+  for (const entry of entries) emitGlass({
     kind: "recordWritten",
     record: entry,
     schema: { name: "jt act", valid: null, errors: [] },
   });
-  return written;
+}
+
+export async function putRecord(entry) {
+  await putRecords([entry]);
+  return entry.id;
 }
 
 export async function putInbox(item) {

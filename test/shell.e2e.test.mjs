@@ -558,3 +558,54 @@ test('voice cursor follows within a paragraph and exact highlights survive resta
   const selected=await page.evaluate(()=>window.__jtApp.entries().findLast(e=>e.act==='highlight'));
   assert.equal(selected.blockIndex,1,'a deliberate passage selection replaces the earlier voice target');
 });
+
+test('failed actions and interrupted undo retain the last durable document state', {timeout:60000}, async t => {
+  const page=await bootShell(t,4949,{width:1280,height:900});
+  await page.locator('#welcome-next').click(); await page.locator('#welcome-skip').click();
+  await page.evaluate(()=>window.__jtApp.addDocument('The river bridge will reopen after the winter inspection.', 'Bridge inspection'));
+  await page.waitForSelector('#doc [data-block]',{visible:true});
+  const failWrites=async (nth, abort=false)=>page.evaluate(({nth,abort})=>{
+    window.savedActionPut=IDBObjectStore.prototype.put;
+    let count=0;
+    IDBObjectStore.prototype.put=function(...args){
+      if(this.name==='records' && ++count===nth) {
+        if(abort) { const request=window.savedActionPut.apply(this,args); this.transaction.abort(); return request; }
+        throw new DOMException('Synthetic record failure','QuotaExceededError');
+      }
+      return window.savedActionPut.apply(this,args);
+    };
+  },{nth,abort});
+  const restore=()=>page.evaluate(()=>{IDBObjectStore.prototype.put=window.savedActionPut;});
+  await page.evaluate(async()=>{window.__jtApp.follow('river bridge will reopen'); await window.__jtApp.segment('river bridge will reopen');});
+  await failWrites(1);
+  await page.evaluate(()=>window.__jtApp.segment('highlight this').catch(()=>null));
+  await restore();
+  assert.equal(await page.$('mark.jt-highlight'),null,'failed highlight must not appear saved');
+  assert.match(await page.$eval('#status-text',n=>n.textContent),/Could not save that change/);
+  assert.equal(await page.evaluate(()=>window.__jtApp.entries().filter(e=>e.kind==='act').length),0);
+  await page.evaluate(()=>window.__jtApp.segment('highlight this'));
+  await page.waitForSelector('mark.jt-highlight');
+  const id=await page.evaluate(()=>window.__jtApp.entries().findLast(e=>e.act==='highlight').id);
+  // Fail the second write: neither the target update nor the undo record may commit.
+  await failWrites(2);
+  await page.evaluate(()=>window.__jtApp.segment('undo').catch(()=>null));
+  await restore();
+  assert.ok(await page.$('mark.jt-highlight'),'interrupted undo must leave the saved mark visible');
+  assert.equal(await page.evaluate(id=>!!window.__jtApp.entries().find(e=>e.id===id).undone,id),false);
+  await page.reload({waitUntil:'load'});
+  await page.waitForSelector('mark.jt-highlight',{visible:true});
+  assert.equal(await page.evaluate(()=>window.__jtApp.entries().filter(e=>e.kind==='undo').length),0);
+  await failWrites(2,true);
+  await page.evaluate(()=>window.__jtApp.segment('undo'));
+  await restore();
+  assert.ok(await page.$('mark.jt-highlight'),'transaction abort must preserve the visible mark');
+  await page.reload({waitUntil:'load'});
+  await page.waitForSelector('mark.jt-highlight',{visible:true});
+  assert.equal(await page.evaluate(()=>window.__jtApp.entries().filter(e=>e.kind==='undo').length),0);
+  await page.evaluate(()=>window.__jtApp.segment('undo'));
+  await page.waitForFunction(()=>!document.querySelector('mark.jt-highlight'));
+  await page.reload({waitUntil:'load'});
+  await page.waitForSelector('#doc [data-block]',{visible:true});
+  assert.equal(await page.$('mark.jt-highlight'),null);
+  assert.equal(await page.evaluate(()=>window.__jtApp.entries().filter(e=>e.kind==='undo').length),1);
+});
