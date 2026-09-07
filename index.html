@@ -60,7 +60,7 @@
         </p>
         <button class="big-btn" id="welcome-mic">turn on the microphone</button>
         <button class="quiet-btn" id="welcome-skip">not now &mdash; I&rsquo;ll read without voice</button>
-        <p class="hint">you can turn voice on any time from settings.</p>
+        <p class="hint">Browser voice may send audio to its speech service. Choose on-device voice in settings to require local processing. You can turn voice on there any time.</p>
       </div>
     </section>
 
@@ -201,6 +201,13 @@
         <label class="field"><span>language</span>
           <select id="set-lang"></select>
         </label>
+        <label class="field"><span>speech processing</span>
+          <select id="set-voice-processing"><option value="browser">Browser speech service</option><option value="local">On-device only</option></select>
+        </label>
+        <p class="hint" id="set-voice-processing-detail"></p>
+        <button id="set-local-voice-check" hidden>Check on-device language</button>
+        <button id="set-local-voice-install" hidden>Download on-device language</button>
+        <p class="hint" id="set-local-voice-status" role="status"></p>
         <p class="hint" id="set-voice-state"></p>
         <button id="set-voice-on" hidden>turn on the microphone</button>
       </div>

@@ -18,13 +18,35 @@ ownership and require an explicit retry. No second permission-check audio stream
 is opened. Page exit pauses active capture, including the state retained for a
 cached page return.
 
-The current adapter is browser-managed speech. It does not promise on-device
-transcription or uninterrupted recording: a browser can use a network speech
-service and end recognition independently. A future local adapter must declare
-its processing location and availability; it must not silently switch to remote
-processing. Public-source and recovered prototype research is in the parent
+The current adapter uses the browser speech API. Its default browser mode
+can use a network speech service. Explicit local mode, described below, requires
+on-device processing. Either mode can end recognition independently, so neither
+guarantees uninterrupted recording. Future native/WASM adapters must also declare
+processing location and availability, without silently switching remotely. Public-source and recovered prototype research is in the parent
 workspace's VOICE_CAPTURE_RESEARCH.md.
 
 The tests inject recognizer events to verify races, retries, stale transcripts,
 actual application controls and lifecycle cancellation. They do not establish
 physical audio continuity, recognition accuracy or OS microphone indicator timing.
+
+## On-device option
+
+Settings now persists `voiceProcessing` as `browser` or `local`. Existing users
+retain browser mode, with explicit disclosure that the browser may use a remote
+speech service. The on-device option requires `SpeechRecognition.available`
+for the selected locale to return `available`, and a recognizer that accepts
+`processLocally = true`. A missing capability, missing pack, rejected query or
+unsupported language leaves capture off. No automatic fallback or installation
+occurs. Mode and language are captured once for the session and retained through
+restarts; changing either in settings pauses the previous session.
+
+The language check and download are explicit controls. Installation begins
+inside its button's click activation, before any awaited work. Async check and
+install results are fenced from later settings changes. Download completion is
+followed by a fresh availability check, not treated as proof of audio recognition.
+A browser may continue an already requested asset download after a mode change;
+JETT ignores its stale result and does not start a microphone.
+
+Private Chrome152 capability probing reported en-US/en-IN as downloadable. This
+establishes API availability, not installed assets or successful local audio.
+The raw probe is in the parent `jett-local-speech-capability.json` artifact.

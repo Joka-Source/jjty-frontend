@@ -8,6 +8,7 @@ const KEYS = {
   mic: "jt.mic", // "on" | "off" (off = read-only until invited)
   engine: "jt.engine", // "wasm" | "js" (URL ?engine= overrides)
   lang: "jt.lang", // BCP-47 tag for speech recognition
+  voiceProcessing: "jt.voiceProcessing", // "browser" | "local"
   motion: "jt.motion", // "calm" | "usual" | "lively"
   person: "jt.person", // JSON { id, name } — who "you" are in spaces
   installHintSeen: "jt.installHintSeen", // "1" after the installable hint appears
@@ -39,6 +40,7 @@ export function loadSettings(storage = localStorage) {
     mic: get("mic", ""),
     engine: get("engine", "wasm") === "js" ? "js" : "wasm",
     lang: get("lang", "en-US"),
+    voiceProcessing: get("voiceProcessing", "browser") === "local" ? "local" : "browser",
     motion: MOTION_LEVELS.includes(get("motion", "usual")) ? get("motion", "usual") : "usual",
     set(key, value) {
       s[key] = value;

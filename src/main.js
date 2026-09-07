@@ -1,4 +1,5 @@
 import { createVoiceCapture } from './voice-capture.js';
+import { initVoiceSettings } from './voice-settings.js';
 // jt — you open your document, you speak, and the thing you meant happens,
 // with a record you can inspect and undo. One mic permission; after that,
 // speaking is the interface.
@@ -1804,6 +1805,7 @@ function setMicState(state, statusMsg, on = state === "listening") {
     reconnecting: "pause listening",
     error: "retry voice",
     denied: "retry voice",
+    'local-unavailable': "retry voice",
   }[state];
   voiceToggle.hidden = !label;
   if (label) voiceToggle.textContent = label;
@@ -1813,9 +1815,11 @@ function setMicState(state, statusMsg, on = state === "listening") {
 const capture = createVoiceCapture({
   Recognition: window.SpeechRecognition || window.webkitSpeechRecognition,
   lang: () => settings.lang,
+  processingMode: () => settings.voiceProcessing,
   onInterim,
   onFinal: onFinalSegment,
-  onState: (state) => {
+  onState: (state, reason) => {
+    if (state === 'error' && reason?.startsWith('local-')) state = 'local-unavailable';
     const messages = {
       starting: "starting voice — waiting for the browser microphone",
       listening: "listening — read a line, then speak an act",
@@ -1824,14 +1828,16 @@ const capture = createVoiceCapture({
       denied: "microphone access is blocked — check this site's microphone permission, then retry",
       unavailable: "this browser cannot listen yet — reading still works",
       error: "voice stopped — check your microphone and connection, then retry",
+      'local-unavailable': "on-device voice is unavailable for this language — check or download it in settings; no remote fallback",
     };
     if (state === "listening") settings.set("mic", "on");
-    if (["paused", "denied", "error"].includes(state)) settings.set("mic", "off");
+    if (["paused", "denied", "error", "local-unavailable"].includes(state)) settings.set("mic", "off");
     setMicState(state, messages[state], state === "listening");
   },
 });
 function startMic() { capture.start(); }
 function pauseMic() { capture.pause(); }
+const voiceSettings = initVoiceSettings({settings, pause:pauseMic, Recognition:window.SpeechRecognition || window.webkitSpeechRecognition});
 window.addEventListener("pagehide", () => {
   if (["starting", "listening", "reconnecting"].includes(mic.state)) pauseMic();
   else capture.dispose();
@@ -2045,6 +2051,7 @@ async function boot() {
     ingestPaste,
     starterDoc: STARTER_DOC,
     startMic,
+    voiceSettings,
     micState: () => mic.state,
     setStatus,
     shortDigest,

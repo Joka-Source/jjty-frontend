@@ -733,9 +733,10 @@ export function initShell(ctx) {
     const langSel = $("set-lang");
     if (!langSel.options.length) {
       fillSelect(langSel, LANGS, { value: (l) => l[0], label: (l) => l[1] });
-      langSel.addEventListener("change", () => settings.set("lang", langSel.value));
+      langSel.addEventListener("change", () => { settings.set("lang", langSel.value); ctx.voiceSettings.languageChanged(); });
     }
     langSel.value = settings.lang;
+    ctx.voiceSettings.render();
 
     choiceGroup($("set-motion"), MOTION_LEVELS, settings.motion, (v) => settings.set("motion", v));
 
@@ -774,11 +775,12 @@ export function initShell(ctx) {
       starting: "waiting for the browser microphone. cancel from the top bar.",
       reconnecting: "voice interrupted. reconnecting; pause from the top bar.",
       error: "voice stopped. check your microphone and connection, then retry.",
+      'local-unavailable': "on-device voice needs a supported, installed language. Check it below; no remote fallback.",
       paused: "paused — resume from the top bar.",
       denied: "the browser is blocking the microphone. allow it in site settings, then reload.",
       unavailable: "this browser cannot listen. reading and every record still work.",
     }[s] ?? "";
-    $("set-voice-on").hidden = !["off", "paused", "error", "denied"].includes(s);
+    $("set-voice-on").hidden = !["off", "paused", "error", "denied", "local-unavailable"].includes(s);
   }
 
   $("set-voice-on").addEventListener("click", () => {

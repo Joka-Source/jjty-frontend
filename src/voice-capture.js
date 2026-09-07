@@ -1,6 +1,7 @@
-// Own one browser recognizer. Browser speech may use a remote service; this
-// adapter does not claim local transcription or an uninterrupted audio stream.
-export function createVoiceCapture({ Recognition, lang, onState, onInterim, onFinal,
+// Own one browser recognizer. Browser mode may use a remote service. Explicit
+// local mode requires an installed language and processLocally support, with no
+// remote fallback. Neither mode guarantees uninterrupted browser audio capture.
+export function createVoiceCapture({ Recognition, lang, processingMode = 'browser', onState, onInterim, onFinal,
   schedule = setTimeout, cancel = clearTimeout, retryLimit = 3 }) {
   let wanted = false, owner = null, generation = 0, timer = null, failures = 0;
   const emit = (state, reason) => onState(state, reason);
@@ -13,13 +14,18 @@ export function createVoiceCapture({ Recognition, lang, onState, onInterim, onFi
   function terminal(state, reason) {
     wanted = false; generation++; release(); emit(state, reason);
   }
-  function launch(version) {
+  function launch(version, session) {
     if (!wanted || version !== generation) return;
     let rec;
     try {
       rec = new Recognition(); owner = rec;
       rec.continuous = true; rec.interimResults = true;
-      rec.lang = typeof lang === 'function' ? lang() : lang;
+      rec.lang = session.lang;
+      if (session.mode === 'local') {
+        if (!('processLocally' in rec)) { terminal('error', 'local-unsupported'); return; }
+        rec.processLocally = true;
+        if (rec.processLocally !== true) { terminal('error', 'local-unsupported'); return; }
+      }
     } catch { terminal('error', 'setup-failed'); return; }
     let finalized = 0, error = null;
     const current = () => wanted && version === generation && owner === rec;
@@ -48,7 +54,7 @@ export function createVoiceCapture({ Recognition, lang, onState, onInterim, onFi
       owner = null;
       if (++failures > retryLimit) { terminal('error', error ?? 'repeated-end'); return; }
       emit('reconnecting', error);
-      timer = schedule(() => { timer = null; launch(version); }, Math.min(500 * 2 ** (failures - 1), 4000));
+      timer = schedule(() => { timer = null; launch(version, session); }, Math.min(500 * 2 ** (failures - 1), 4000));
     };
     try { rec.start(); } catch { terminal('error', 'start-failed'); }
   }
@@ -57,7 +63,28 @@ export function createVoiceCapture({ Recognition, lang, onState, onInterim, onFi
       if (wanted) return;
       if (!Recognition) { emit('unavailable'); return; }
       wanted = true; failures = 0; const version = ++generation;
-      emit('starting'); launch(version);
+      emit('starting');
+      let session;
+      try {
+        session = { lang: typeof lang === 'function' ? lang() : lang,
+          mode: typeof processingMode === 'function' ? processingMode() : processingMode };
+      } catch { terminal('error', 'setup-failed'); return; }
+      if (session.mode === 'browser') { launch(version, session); return; }
+      if (session.mode !== 'local') { terminal('error', 'invalid-processing-mode'); return; }
+      if (typeof Recognition.available !== 'function') { terminal('error', 'local-unsupported'); return; }
+      // Availability checks never install a language pack or permit fallback.
+      return (async () => {
+        let availability;
+        try { availability = await Recognition.available({ langs: [session.lang], processLocally: true }); }
+        catch { if (wanted && version === generation) terminal('error', 'local-probe-failed'); return; }
+        if (!wanted || version !== generation) return;
+        if (availability !== 'available') {
+          terminal('error', availability === 'downloadable' || availability === 'downloading'
+            ? 'local-download-required' : 'local-unavailable');
+          return;
+        }
+        launch(version, session);
+      })();
     },
     pause() { terminal('paused'); },
     dispose() { wanted = false; generation++; release(); },

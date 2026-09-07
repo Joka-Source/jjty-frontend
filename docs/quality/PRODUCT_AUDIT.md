@@ -274,3 +274,26 @@ not record the user's microphone. The first full run caught this failure
 (124/125); the corrected build passes all 125 tests in jett-voice-final-full-test.log.
 Independent capture/motion review and browser regression are complete. Physical
 audio remains unverified; this checkpoint repairs reproduced application bugs.
+
+## Local speech capability and explicit processing choice
+
+Added a persisted on-device-only speech setting, explicit language availability
+check and user-activated pack download. The existing browser service mode now
+discloses possible remote audio processing in onboarding and settings. Switching
+mode or language pauses capture. Local start requires an installed supported
+locale plus processLocally support, and refuses to start instead of falling back.
+Pending availability results cannot revive a paused session, and reconnects keep
+the original session's language/processing policy.
+
+Real private Chrome152 probing found available/install/processLocally APIs and
+en-US/en-IN downloadable packs. No pack download or audio capture was performed.
+The controlled browser journey covers absent pack refusal, explicit installation,
+local start configuration and preference persistence. Thirteen capture unit
+checks independently pass, including asynchronous cancellation and policy snapshots.
+Evidence: parent jett-local-speech-capability.json and VOICE_CAPTURE_RESEARCH.md.
+Live audio accuracy and continuity remain unverified.
+
+Full local gate:132 tests pass in jett-local-voice-full-test.log. Independent
+settings review and stale-query browser coverage completed. This is capability
+and policy proof; actual model installation and synthetic-audio recognition are
+next, followed by physical device acceptance when explicitly exercised.
