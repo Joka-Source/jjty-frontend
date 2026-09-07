@@ -92,10 +92,10 @@ test("desktop shell walk: first-run once, every surface, settings persist, expor
   assert.equal(await page.evaluate(() => window.__jtApp.view()), "welcome");
   assert.equal(await surfaceVisible(page, "welcome"), true, "welcome surface not visible on first run");
   await assertNoOverflow(page);
-  await page.click("#welcome-next");
+  await page.locator("#welcome-next").click();
   await page.waitForFunction(() => !document.getElementById("welcome-step-2").hidden);
   // the mic question is the one gate; skipping is allowed and remembered
-  await page.click("#welcome-skip");
+  await page.locator("#welcome-skip").click();
   await page.waitForFunction(() => window.__jtApp.view() === "home", { timeout: 5000 });
 
   // 2. Reload: first-run appears exactly once — straight to home now.
@@ -109,7 +109,7 @@ test("desktop shell walk: first-run once, every surface, settings persist, expor
     true,
     "empty home should explain what to do first"
   );
-  await page.click("#home-sample");
+  await page.locator("#home-sample").click();
   await page.waitForFunction(() => window.__jtApp.view() === "read", { timeout: 10000 });
   await page.waitForFunction(() => document.querySelectorAll("#doc p[data-block]").length > 0, { timeout: 10000 });
   const head = await page.evaluate(() => ({
@@ -132,7 +132,7 @@ test("desktop shell walk: first-run once, every surface, settings persist, expor
   await page.click('.topnav a[data-view-link="history"]');
   await page.waitForFunction(() => document.querySelectorAll("#history-all .entry").length >= 1, { timeout: 5000 });
   const before = await page.evaluate(() => window.__jtApp.entries().length);
-  await page.click("#history-all .undo-btn");
+  await page.locator("#history-all .undo-btn").click();
   await page.waitForFunction(
     (n) => window.__jtApp.entries().length > n,
     { timeout: 5000 },
@@ -152,15 +152,15 @@ test("desktop shell walk: first-run once, every surface, settings persist, expor
     "spaces must start honestly empty — no fake seeded people"
   );
   await page.type("#inst-name", "A Small College");
-  await page.click("#form-institution button[type=submit]");
+  await page.locator("#form-institution button[type=submit]").click();
   await page.waitForFunction(() => document.querySelectorAll("#org-tree .org-inst").length === 1);
   await page.select("#space-kind", "class");
   await page.type("#space-name", "CSE-A");
-  await page.click("#form-space button[type=submit]");
+  await page.locator("#form-space button[type=submit]").click();
   await page.waitForFunction(() => document.querySelectorAll("#org-tree .org-space").length === 1);
   await page.type("#member-name", "asha");
   await page.type("#member-roll", "22CSE014");
-  await page.click("#form-member button[type=submit]");
+  await page.locator("#form-member button[type=submit]").click();
   await page.waitForFunction(() =>
     [...document.querySelectorAll("#org-tree .org-members li")].some((li) =>
       li.textContent.includes("asha") && li.textContent.includes("22CSE014")
@@ -211,7 +211,7 @@ test("desktop shell walk: first-run once, every surface, settings persist, expor
   await page.click('.topnav a[data-view-link="rooms"]');
   await page.waitForFunction(() => window.__jtApp.view() === "rooms");
   await page.type("#math-input", "one half plus x squared");
-  await page.click("#math-try");
+  await page.locator("#math-try").click();
   await page.waitForFunction(() => !document.getElementById("math-out").hidden);
   const latex = await page.evaluate(() => document.getElementById("math-out").textContent);
   assert.ok(latex.includes("\\frac{1}{2}"), `expected a real fraction, got: ${latex}`);
@@ -220,8 +220,8 @@ test("desktop shell walk: first-run once, every surface, settings persist, expor
   // 11. Delete-all is real: two presses, then a truly fresh start.
   await page.click('.topnav a[data-view-link="settings"]');
   await page.waitForFunction(() => window.__jtApp.view() === "settings");
-  await page.click("#delete-btn"); // arm
-  await page.click("#delete-btn"); // confirm
+  await page.locator("#delete-btn").click(); // arm
+  await page.locator("#delete-btn").click(); // confirm
   await page.waitForFunction(() => window.__jtApp?.booted && window.__jtApp.view() === "welcome", { timeout: 30000 });
   assert.equal(
     await page.evaluate(() => localStorage.getItem("jt.org")),
@@ -323,12 +323,12 @@ test("phone shell walk: bottom bar reaches everything, sheets, 44px targets, no 
 
 test('empty library accepts pasted text; search and saved work survive return', { timeout: 60000 }, async t => {
   const page = await bootShell(t, 4937, { width: 1440, height: 1000 });
-  await page.click('#welcome-next');
-  await page.click('#welcome-skip');
+  await page.locator('#welcome-next').click();
+  await page.locator('#welcome-skip').click();
   // An available install must not intercept the user's document action.
   await page.evaluate(() => { document.getElementById('install-hint').hidden = false; });
   await page.type('#home-paste-box', 'Field notes\n\nThe alumni gathering is on Saturday.');
-  await page.click('#home-paste-add');
+  await page.locator('#home-paste-add').click();
   await page.waitForFunction(() => document.body.dataset.view === 'read');
   await page.goto(`${page.url().split('#')[0]}#/home`);
   await page.waitForSelector('.home-doc');
@@ -341,7 +341,7 @@ test('empty library accepts pasted text; search and saved work survive return', 
   assert.equal(await page.$$eval('.home-doc', rows => rows.length), 0);
   await page.reload();
   await page.waitForSelector('.home-doc');
-  await page.click('.home-doc .doc-btn');
+  await page.locator('.home-doc .doc-btn').click();
   await page.waitForFunction(() => document.body.dataset.view === 'read');
   assert.match(await page.$eval('#doc', el => el.textContent), /alumni gathering/);
   await assertNoOverflow(page);
@@ -356,18 +356,18 @@ test('Markdown renders structure and downloads the exact original after reload',
   const source = '\uFEFF# Field notes\r\n\r\n> Keep the original.\r\n\r\n```js\r\nconst answer = 42;\r\n```\r\n';
   await writeFile(input, source);
   const page = await bootShell(t, 4938, { width: 1280, height: 900 });
-  await page.click('#welcome-next'); await page.click('#welcome-skip');
+  await page.locator('#welcome-next').click(); await page.locator('#welcome-skip').click();
   await (await page.$('#home-file-input')).uploadFile(input);
-  await page.waitForSelector('#doc h1[data-block]');
+  await page.waitForSelector('#doc h1[data-block]', { visible: true });
   assert.equal(await page.$eval('#doc h1', el => el.textContent), 'Field notes');
   assert.equal(await page.$eval('#doc blockquote', el => el.textContent), 'Keep the original.');
   assert.match(await page.$eval('#doc pre', el => el.textContent), /const answer = 42/);
-  await page.reload(); await page.waitForSelector('#doc h1[data-block]');
+  await page.reload(); await page.waitForSelector('#doc h1[data-block]', { visible: true });
   const output = path.join(dir, 'download');
   const { mkdir } = await import('node:fs/promises'); await mkdir(output);
   const session = await page.createCDPSession();
   await session.send('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: output });
-  await page.click('#download-original');
+  await page.locator('#download-original').click();
   const downloaded = path.join(output, 'notes.md');
   const deadline = Date.now() + 5000;
   while (!existsSync(downloaded) && Date.now() < deadline) await new Promise(r => setTimeout(r, 100));
@@ -376,7 +376,7 @@ test('Markdown renders structure and downloads the exact original after reload',
 
 test('failed local save retains the draft and retry creates one document', { timeout: 60000 }, async t => {
   const page = await bootShell(t, 4939, { width: 1280, height: 900 });
-  await page.click('#welcome-next'); await page.click('#welcome-skip');
+  await page.locator('#welcome-next').click(); await page.locator('#welcome-skip').click();
   await page.type('#home-paste-box', 'Keep this thought even when storage fails.');
   await page.evaluate(() => {
     window.originalJettPut = IDBObjectStore.prototype.put;
@@ -385,11 +385,11 @@ test('failed local save retains the draft and retry creates one document', { tim
       return window.originalJettPut.apply(this, args);
     };
   });
-  await page.click('#home-paste-add');
+  await page.locator('#home-paste-add').click();
   await page.waitForFunction(() => document.getElementById('home-intake-state').textContent.includes('Your text is still here'));
   assert.equal(await page.$eval('#home-paste-box', el => el.value), 'Keep this thought even when storage fails.');
   await page.evaluate(() => { IDBObjectStore.prototype.put = window.originalJettPut; });
-  await page.click('#home-paste-add');
+  await page.locator('#home-paste-add').click();
   await page.waitForFunction(() => document.body.dataset.view === 'read');
   const exported = JSON.parse(await page.evaluate(() => window.__jtApp.exportData()));
   assert.equal(exported.documents.length, 1);
@@ -397,7 +397,7 @@ test('failed local save retains the draft and retry creates one document', { tim
 
 test('reader failure after persistence reports saved and allows reopening without duplicate import', { timeout: 60000 }, async t => {
   const page = await bootShell(t, 4944, { width: 1280, height: 900 });
-  await page.click('#welcome-next'); await page.click('#welcome-skip');
+  await page.locator('#welcome-next').click(); await page.locator('#welcome-skip').click();
   await page.type('#home-paste-box', 'A saved thought survives a reader error.');
   await page.evaluate(() => {
     const original = Node.prototype.appendChild;
@@ -409,12 +409,59 @@ test('reader failure after persistence reports saved and allows reopening withou
       return original.call(this, child);
     };
   });
-  await page.click('#home-paste-add');
+  await page.locator('#home-paste-add').click();
   await page.waitForFunction(() => document.getElementById('status-text').textContent.includes('Saved “'));
   const exported = JSON.parse(await page.evaluate(() => window.__jtApp.exportData()));
   assert.equal(exported.documents.length, 1);
   await page.waitForSelector('.home-doc .doc-btn');
-  await page.click('.home-doc .doc-btn');
+  await page.locator('.home-doc .doc-btn').click();
   await page.waitForFunction(() => document.body.dataset.view === 'read');
   assert.match(await page.$eval('#doc', el => el.textContent), /survives a reader error/);
+});
+
+test('reading-panel paste survives storage failure and preserves original text on retry', { timeout: 60000 }, async t => {
+  const page = await bootShell(t, 4945, { width: 1440, height: 1000 });
+  await page.locator('#welcome-next').click(); await page.locator('#welcome-skip').click();
+  await page.waitForSelector('#home-sample', { visible: true });
+  await page.locator('#home-sample').click();
+  await page.waitForFunction(() => document.body.dataset.view === 'read');
+  const text = 'An unlost reading-side note.\n\nKeep its blank line.';
+  await page.type('#paste-box', text);
+  await page.evaluate(() => {
+    window.savedPut = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function(...args) {
+      if (this.name === 'docs') throw new DOMException('Synthetic quota', 'QuotaExceededError');
+      return window.savedPut.apply(this, args);
+    };
+  });
+  await page.locator('#paste-add').click();
+  await page.waitForFunction(() => document.getElementById('status-text').textContent.includes('Couldn’t save'));
+  assert.equal(await page.$eval('#paste-box', e => e.value), text);
+  await page.evaluate(() => { IDBObjectStore.prototype.put = window.savedPut; });
+  await page.locator('#paste-add').click();
+  await page.waitForFunction(() => document.getElementById('paste-box').value === '');
+  const data = JSON.parse(await page.evaluate(() => window.__jtApp.exportData()));
+  const pasted = data.documents.find(d => d.provenance.sourceKind === 'paste');
+  assert.ok(pasted);
+  assert.deepEqual(Object.values(pasted.sourceBytes), [...new TextEncoder().encode(text)]);
+});
+
+test('file drop keeps every file and leaves ordinary text drags alone', { timeout: 60000 }, async t => {
+  const page = await bootShell(t, 4946, { width: 1440, height: 1000 });
+  await page.locator('#welcome-next').click(); await page.locator('#welcome-skip').click();
+  const textPrevented = await page.evaluate(() => {
+    const transfer = new DataTransfer(); transfer.setData('text/plain', 'move these words');
+    const event = new DragEvent('drop', { dataTransfer: transfer, bubbles: true, cancelable: true });
+    document.body.dispatchEvent(event); return event.defaultPrevented;
+  });
+  assert.equal(textPrevented, false);
+  await page.evaluate(() => {
+    const transfer = new DataTransfer();
+    transfer.items.add(new File(['First file.'], 'first.txt', { type: 'text/plain' }));
+    transfer.items.add(new File(['# Second file\n\nKeep both.'], 'second.md', { type: 'text/markdown' }));
+    document.body.dispatchEvent(new DragEvent('drop', { dataTransfer: transfer, bubbles: true, cancelable: true }));
+  });
+  await page.waitForFunction(async () => JSON.parse(await window.__jtApp.exportData()).documents.length === 2);
+  const data = JSON.parse(await page.evaluate(() => window.__jtApp.exportData()));
+  assert.deepEqual(data.documents.map(d => d.provenance.name).sort(), ['first.txt', 'second.md']);
 });

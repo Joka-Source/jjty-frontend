@@ -11,7 +11,7 @@
 
 import {
   ingestText as connectorText,
-  ingestPaste,
+  ingestPaste as connectorPaste,
   looksLikeMarkdownName,
   contentDigest,
   byteSize,
@@ -19,7 +19,7 @@ import {
 import { makeResult } from "jt-connectors/src/core/result.ts";
 import { createPdfJsMigrationAdapter } from "./pdf-engine.js";
 
-export { ingestPaste, looksLikeMarkdownName, contentDigest, byteSize };
+export { looksLikeMarkdownName, contentDigest, byteSize };
 
 // The readable blocks are derived. Retain the exact input for export/recovery.
 export async function ingestText(text, options = {}) {
@@ -29,6 +29,20 @@ export async function ingestText(text, options = {}) {
   return { ...result, sourceBytes, provenance: { ...result.provenance,
     contentDigest: await contentDigest(sourceBytes), byteSize: sourceBytes.byteLength,
   } };
+}
+
+// Keep exactly the flavor the connector used, including markup when present.
+// Parsed blocks are the safe reading view; the original is never injected as HTML.
+export async function ingestPaste(payload, options = {}) {
+  const result = await connectorPaste(payload, options);
+  for (const [value, sourceMime] of [[payload.html, "text/html"], [payload.text, "text/plain"]]) {
+    if (typeof value !== "string") continue;
+    const sourceBytes = new TextEncoder().encode(value);
+    if (await contentDigest(sourceBytes) === result.provenance.contentDigest) {
+      return { ...result, sourceBytes, sourceMime };
+    }
+  }
+  throw new Error("The pasted source could not be preserved. Your clipboard is unchanged.");
 }
 
 const PDF_REFUSALS = Object.freeze({

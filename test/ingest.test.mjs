@@ -300,3 +300,14 @@ test('Markdown retains exact original bytes separately from structured reading b
   assert.equal(result.provenance.sourceKind, 'markdown');
   assert.deepEqual(result.blocks.map(b => b.kind), ['heading', 'quote', 'code']);
 });
+
+test('paste retains the exact selected source flavor without rendering original markup', async () => {
+  const html = '<h1>Notes</h1><p>A useful thought.</p>';
+  const rich = await ingestPaste({ html, text: 'Notes\nA useful thought.' });
+  assert.equal(new TextDecoder().decode(rich.sourceBytes), html);
+  assert.equal(rich.sourceMime, 'text/html');
+  assert.equal(rich.blocks[0].text, 'Notes');
+  const fallback = await ingestPaste({ html: '   ', text: '\uFEFFKeep this\r\nexactly.' });
+  assert.equal(new TextDecoder('utf-8', { ignoreBOM: true }).decode(fallback.sourceBytes), '\uFEFFKeep this\r\nexactly.');
+  assert.equal(fallback.sourceMime, 'text/plain');
+});

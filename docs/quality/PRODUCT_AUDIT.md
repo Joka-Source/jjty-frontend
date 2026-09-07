@@ -62,3 +62,25 @@ Next: extend this recovery treatment to the reading-panel/drop intake paths;
 images; original-preserving paste; full Markdown semantics; exact voice actions;
 shared backend and sync. The previous full gate remains the earlier 106-test
 checkpoint; this increment has a focused six-journey gate.
+
+## Paste custody and reading intake
+
+Implemented exact source-byte preservation for plain and rich paste. The
+connector's content digest selects the actual retained clipboard flavor, including
+fallback from empty HTML. Original HTML is downloadable but is never inserted
+as executable markup in the reading view.
+
+Reading-panel file and paste intake now catches failed writes, retains drafts,
+restores enabled controls and permits retries. File drops process every supplied
+file in order, stop on the first failure, and do not intercept ordinary text
+dragging. Source MIME is stored with the original for accurate download.
+
+Regression checks cover synthetic quota failure/retry with byte comparison,
+multiple dropped files, normal text drag behavior, and visible-reader restart
+before original download. Test clicks wait for stable controls; the Markdown
+restart test now waits for the reader to be visible, rather than reloading while
+its hidden DOM is still being prepared.
+
+Evidence: /Users/sunlight/Documents/ChatGPT/JJTY/jett-source-custody-test.log.
+Image storage, full Markdown semantics and cross-device source custody remain
+unimplemented/unverified; these fixes do not establish remote sync.

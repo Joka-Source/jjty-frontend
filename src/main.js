@@ -1393,8 +1393,8 @@ document.getElementById("download-original").addEventListener("click", () => {
   const doc = state.doc;
   if (!doc?.sourceBytes) return;
   const kind = doc.provenance?.sourceKind;
-  const ext = kind === "pdf" ? "pdf" : kind === "markdown" ? "md" : "txt";
-  const mime = kind === "pdf" ? "application/pdf" : kind === "markdown" ? "text/markdown" : "text/plain";
+  const ext = kind === "pdf" ? "pdf" : kind === "markdown" ? "md" : doc.sourceMime === "text/html" ? "html" : "txt";
+  const mime = doc.sourceMime || (kind === "pdf" ? "application/pdf" : kind === "markdown" ? "text/markdown" : "text/plain");
   const url = URL.createObjectURL(new Blob([pdfSourceBytes(doc.sourceBytes)], { type: mime }));
   const a = document.createElement("a");
   a.href = url;
@@ -1465,6 +1465,7 @@ async function addIngested(result, nameHint = "") {
     warnings: result.warnings,
     ...(result.pdfEngine ? { pdfEngine: result.pdfEngine } : {}),
     ...(result.sourceBytes ? { sourceBytes: result.sourceBytes } : {}),
+    ...(result.sourceMime ? { sourceMime: result.sourceMime } : {}),
     ...(result.refusal ? { refusal: result.refusal } : {}),
     createdAt: nowIso(),
     revision: 1,
@@ -1507,25 +1508,50 @@ async function ingestFile(f) {
   return null;
 }
 
+let readerIntakeBusy = false;
+async function keepFromReader(action) {
+  if (readerIntakeBusy) {
+    setStatus(false, "A file is still being saved. Try again when it finishes.");
+    return null;
+  }
+  readerIntakeBusy = true;
+  fileInput.disabled = true;
+  pasteAdd.disabled = true;
+  pasteBox.readOnly = true;
+  try {
+    return await action();
+  } catch {
+    setStatus(false, "Couldn’t save. Your original and pasted text are unchanged. Check storage, then try again.");
+    return null;
+  } finally {
+    readerIntakeBusy = false;
+    fileInput.disabled = false;
+    pasteAdd.disabled = false;
+    pasteBox.readOnly = false;
+  }
+}
 fileInput.addEventListener("change", async () => {
   const f = fileInput.files?.[0];
-  if (f) await ingestFile(f);
+  if (f) await keepFromReader(() => ingestFile(f));
   fileInput.value = "";
 });
 
 pasteAdd.addEventListener("click", async () => {
-  if (pasteBox.value.trim()) {
-    const result = await ingestPaste({ text: pasteBox.value });
-    await addIngested(result);
-    pasteBox.value = "";
-  }
+  if (!pasteBox.value.trim()) { pasteBox.focus(); return; }
+  const result = await keepFromReader(async () => addIngested(await ingestPaste({ text: pasteBox.value })));
+  if (result) pasteBox.value = "";
 });
 
-addEventListener("dragover", (e) => e.preventDefault());
+addEventListener("dragover", (e) => {
+  if (e.dataTransfer?.types.includes("Files")) e.preventDefault();
+});
 addEventListener("drop", async (e) => {
+  if (!e.dataTransfer?.files?.length) return; // preserve normal text dragging
   e.preventDefault();
-  const f = e.dataTransfer?.files?.[0];
-  if (f) await ingestFile(f);
+  for (const file of e.dataTransfer.files) {
+    const saved = await keepFromReader(() => ingestFile(file));
+    if (!saved) break; // keep the error visible; do not hide a failure with later success
+  }
 });
 
 addEventListener("resize", () => {
