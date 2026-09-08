@@ -8,7 +8,7 @@ const url='http://127.0.0.1:4983';
 const html=`<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/src/style.css"><link rel="stylesheet" href="/src/jett.css"><details id="pdf-contents" class="server-panel"><summary>Contents</summary><p id="pdf-contents-status" role="status"></p><button id="pdf-contents-back">Back to reading place</button><nav aria-label="PDF contents"><ol id="pdf-contents-list"></ol></nav></details><script type="module">
 import {initPdfContents} from '/src/pdf-contents.js';
 window.moves=[];window.returns=[];window.placeReads=[];window.allowNavigate=true;window.allowReturn=true;
-window.controller=initPdfContents({onNavigate(page,owner){moves.push({page,id:owner.id});return allowNavigate;},getPlace(owner){placeReads.push(owner.id);return {pageNumber:7,offset:0.25};},onReturn(place,owner){returns.push({place,id:owner.id});return allowReturn;}});
+window.controller=initPdfContents({onNavigate(page,owner){moves.push({page,id:owner.id});return window.navigatePromise??allowNavigate;},getPlace(owner){placeReads.push(owner.id);return {pageNumber:7,offset:0.25};},onReturn(place,owner){returns.push({place,id:owner.id});return allowReturn;}});
 window.ready=true;</script>`;
 test('PDF contents controller preserves document ownership and explicit return place',{timeout:60000},async t=>{
  const server=spawn(process.execPath,[path.join(root,'node_modules/vite/bin/vite.js'),'--host','127.0.0.1','--port','4983','--strictPort'],{cwd:root,stdio:'ignore'});t.after(()=>server.kill('SIGTERM'));
@@ -65,6 +65,23 @@ test('PDF contents controller preserves document ownership and explicit return p
   });
   assert.deepEqual(await page.evaluate(()=>moves),[]);assert.equal(await page.$eval('#pdf-contents',n=>n.hidden),true);
   assert.equal(await page.$$eval('.pdf-contents-target',n=>n.length),0);
+  assert.equal(await page.$eval('#pdf-contents-back',n=>n.disabled),true);
+ });
+ await t.test('async navigation waits, reports rejection and ignores stale completion',async t=>{
+  const page=await pageFor(t);await page.evaluate(async()=>{
+   await controller.setSource({id:'old',readContents:async()=>[{title:'Old',pageNumber:2,children:[]}]});
+   window.navigatePromise=new Promise((resolve,reject)=>{window.resolveMove=resolve;window.rejectMove=reject;});
+   document.querySelector('.pdf-contents-target').click();
+  });
+  assert.match(await page.$eval('#pdf-contents-status',n=>n.textContent),/Choose a bookmark/);
+  await page.evaluate(()=>rejectMove(Error('Save your note first.')));
+  await page.waitForFunction(()=>document.getElementById('pdf-contents-status').textContent==='Save your note first.');
+  assert.equal(await page.$eval('#pdf-contents-back',n=>n.disabled),true);
+  await page.evaluate(async()=>{
+   window.navigatePromise=new Promise(resolve=>window.resolveMove=resolve);document.querySelector('.pdf-contents-target').click();
+   await controller.setSource({id:'new',readContents:async()=>[]});resolveMove(true);
+  });
+  assert.match(await page.$eval('#pdf-contents-status',n=>n.textContent),/no readable bookmarks/);
   assert.equal(await page.$eval('#pdf-contents-back',n=>n.disabled),true);
  });
  await t.test('32-level contents stay readable and touchable at 375px',async t=>{

@@ -1,8 +1,8 @@
 // A document-owned contents surface. Destinations are local pages supplied by
 // the engine adapter; titles are always rendered as text, never HTML or URLs.
-export function initPdfContents({onNavigate,getPlace,onReturn}) {
+export function initPdfContents({onNavigate,getPlace,onReturn,sharedReturn=false}) {
   const panel=document.getElementById('pdf-contents'),list=document.getElementById('pdf-contents-list'),status=document.getElementById('pdf-contents-status'),back=document.getElementById('pdf-contents-back');
-  let generation=0,source=null,previous=null;
+  let generation=0,source=null,previous=null;back.hidden=sharedReturn;
   back.addEventListener('click',()=>{
     if(!source || !previous)return;
     if(onReturn(previous,source)!==false){previous=null;back.disabled=true;status.textContent='Returned to your reading place.';}
@@ -21,10 +21,10 @@ export function initPdfContents({onNavigate,getPlace,onReturn}) {
       const button=document.createElement('button');button.type='button';button.className='pdf-contents-target';button.textContent=label;button.disabled=item.pageNumber===null;
       if(item.pageNumber!==null){
         const page=document.createElement('span');page.className='pdf-contents-page';page.textContent=`Page ${item.pageNumber}`;button.append(page);
-        button.addEventListener('click',()=>{
+        button.addEventListener('click',async()=>{
           if(version!==generation || source!==owner)return;
-          const place=previous ?? getPlace(owner);
-          if(onNavigate(item.pageNumber,owner)!==false){previous=place;back.disabled=!previous;status.textContent=`Opened page ${item.pageNumber}.`;}
+          const place=sharedReturn?null:previous ?? getPlace(owner);
+          try{let result=onNavigate(item.pageNumber,owner);if(result?.then)result=await result;if(version!==generation||source!==owner)return;if(result!==false){previous=previous??place;back.disabled=!previous;status.textContent=`Opened page ${item.pageNumber}.`;}}catch(error){if(version===generation&&source===owner)status.textContent=error.message||'This page could not be opened.';}
         });
       }else button.title='This bookmark has no supported local page destination.';
       row.append(button);parent.append(li);

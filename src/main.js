@@ -256,27 +256,30 @@ function navigationState(){
   const current=pages.find(page=>page.getBoundingClientRect().bottom>top)||pages.at(-1);
   return {owner:`${state.doc.id}:${state.doc.provenance?.contentDigest}`,page:Number(current.dataset.page),total:pages.length,returnPage:state.readerView?.returnPlace?.pageNumber};
 }
-function navigateReaderPage(target,owner){return queueReader(async()=>{
+function navigateReaderPage(target,owner){return queueReader(()=>navigateReaderPageNow(target,owner));}
+async function navigateReaderPageNow(target,owner,options={}){
   if(navigationState()?.owner!==owner)throw new Error('The document changed. Choose a page in the current document.');
   annotationTools?.beforeLeave();captureReaderView();const departure={...state.readerView};
   const place=target==='return'?departure.returnPlace:null;
   const pageNumber=place?.pageNumber??target;
   const pages=[...article.querySelectorAll(':scope > .pdf-page')];
   if(!Number.isInteger(pageNumber)||pageNumber<1||pageNumber>pages.length)throw new Error('That page is unavailable.');
-  if(target!=='return'&&pageNumber===navigationState().page)return;
+  if(target!=='return'&&!options.hit&&pageNumber===navigationState().page)return;
   if(place){await setPdfZoomNow(place.zoom,place.zoomMode,false,true);}
   if(navigationState()?.owner!==owner)throw new Error('Return to the Reader to continue this page jump.');
   cancelStagedRange();
   annotationTools?.clearSelection();getSelection()?.removeAllRanges();
   positionSelectionVersions.set(state.doc.id,(positionSelectionVersions.get(state.doc.id)??0)+1);
   const page=article.querySelector(`.pdf-page[data-page="${pageNumber}"]`);
-  const blockIndex=place&&state.blocks[place.blockIndex]?.closest('.pdf-page')===page?place.blockIndex:state.blocks.findIndex(block=>block?.closest('.pdf-page')===page);
+  const blockIndex=options.hit?.blockIndex??(place&&state.blocks[place.blockIndex]?.closest('.pdf-page')===page?place.blockIndex:state.blocks.findIndex(block=>block?.closest('.pdf-page')===page));
   selectPdfBlock(blockIndex);if(blockIndex<0){marker.classList.remove('on');state.rejectedReading=true;}
-  state.readerView={...state.readerView,pageNumber,pageOffset:place?.pageOffset??0,blockIndex,returnPlace:place?null:departure.returnPlace??{pageNumber:departure.pageNumber,pageOffset:departure.pageOffset,blockIndex:departure.blockIndex,zoom:departure.zoom,zoomMode:departure.zoomMode}};
+  const hitRect=options.hit?domRangeForCharacters(state.blocks[blockIndex],options.hit.charStart,options.hit.charEnd)?.getBoundingClientRect():null;
+  const offset=place?.pageOffset??(hitRect?(hitRect.top-page.getBoundingClientRect().top)/page.getBoundingClientRect().height:0);
+  state.readerView={...state.readerView,pageNumber,pageOffset:offset,blockIndex,returnPlace:place?null:departure.returnPlace??{pageNumber:departure.pageNumber,pageOffset:departure.pageOffset,blockIndex:departure.blockIndex,zoom:departure.zoom,zoomMode:departure.zoomMode}};
   pageNavigation?.refresh();
-  const rect=page.getBoundingClientRect();scrollBy({top:rect.top+(place?.pageOffset??0)*rect.height-readerTop(),behavior:'instant'});
-  readerSession.update(state.doc,state.readerView);setStatus(true,`${place?'Returned to':'Opened'} page ${pageNumber}.`);page.tabIndex=-1;page.focus({preventScroll:true});pageNavigation?.refresh();
-});}
+  const rect=page.getBoundingClientRect();scrollBy({top:rect.top+offset*rect.height-readerTop(),behavior:'instant'});
+  readerSession.update(state.doc,state.readerView);if(options.focus!==false){setStatus(true,`${place?'Returned to':'Opened'} page ${pageNumber}.`);page.tabIndex=-1;page.focus({preventScroll:true});}pageNavigation?.refresh();
+}
 
 function readerTop(){
   const bottom=document.getElementById('reader-chrome')?.getBoundingClientRect().bottom;
@@ -552,35 +555,8 @@ const bentoPanel = initBentoPanel({
   importDocument: importReviewedPdf,
 });
 const serverPanel = initServerPanel({ saveDocument: putDoc });
-const pdfContents=initPdfContents({
-  getPlace(source){
-    if(source!==state.pdf)return null;
-    const visible=state.blocks.findIndex(block=>block && block.getBoundingClientRect().bottom>120);
-    const blockIndex=state.currentBlock>=0?state.currentBlock:visible;
-    const measured=state.blocks[blockIndex]?.getBoundingClientRect().top;
-    const top=Number.isFinite(measured)&&measured>=110&&measured<innerHeight-44?measured:110;
-    return {blockIndex,top,scrollY:window.scrollY};
-  },
-  onNavigate(pageNumber,source){
-    if(source!==state.pdf)return false;
-    const page=article.querySelector(`.pdf-page[data-page="${pageNumber}"]`);
-    if(!page)return false;
-    cancelStagedRange();
-    const blockIndex=state.blocks.findIndex(block=>block?.closest('.pdf-page')===page);
-    selectPdfBlock(blockIndex);
-    if(blockIndex<0){marker.classList.remove('on');state.rejectedReading=true;}
-    page.tabIndex=-1;page.focus({preventScroll:true});page.scrollIntoView({behavior:'auto',block:'start'});
-    return true;
-  },
-  onReturn(place,source){
-    if(source!==state.pdf)return false;
-    cancelStagedRange();selectPdfBlock(place.blockIndex);
-    const block=state.blocks[place.blockIndex];
-    if(block && Number.isFinite(place.top))window.scrollBy({top:block.getBoundingClientRect().top-place.top,behavior:'auto'});
-    else{marker.classList.remove('on');state.rejectedReading=true;window.scrollTo({top:place.scrollY,behavior:'auto'});}
-    if(block){block.tabIndex=-1;block.focus({preventScroll:true});}
-    return true;
-  },
+const pdfContents=initPdfContents({sharedReturn:true,
+  onNavigate(pageNumber,source){if(source!==state.pdf)return false;return navigateReaderPage(pageNumber,navigationState()?.owner);}
 });
 const pdfReview = initPdfReview({async saveCopy(bytes,name,origin,kind,{isCurrent}){
   const metadata=await reviewedCopyMetadata(bytes,origin,kind);
@@ -824,15 +800,25 @@ async function setPdfZoomNow(nextZoom,mode='custom',preserveView=false,throwOnFa
 
 pdfZoomOut.addEventListener("click", () => void reportReaderFailure(setPdfZoom(state.pdf?.model.zoom - 0.25)));
 pdfZoomIn.addEventListener("click", () => void reportReaderFailure(setPdfZoom(state.pdf?.model.zoom + 0.25)));
-pdfSearchInput.addEventListener("input", () => {
-  if (state.pdf) showPdfSearchState(state.pdf.model.setSearchQuery(pdfSearchInput.value));
-});
-pdfSearchPrevious.addEventListener("click", () => {
-  if (state.pdf) showPdfSearchState(state.pdf.model.previousSearchHit());
-});
-pdfSearchNext.addEventListener("click", () => {
-  if (state.pdf) showPdfSearchState(state.pdf.model.nextSearchHit());
-});
+let searchRequest=0;
+function searchReader(kind){
+  const source=state.pdf,owner=navigationState()?.owner,query=pdfSearchInput.value,version=kind==='query'?++searchRequest:searchRequest;
+  return queueReader(async()=>{
+    if(source!==state.pdf||!owner||owner!==navigationState()?.owner||version!==searchRequest)return;
+    annotationTools?.beforeLeave();
+    const result=kind==='query'?source.model.setSearchQuery(query):kind==='next'?source.model.nextSearchHit():source.model.previousSearchHit();
+    if(result.hit){
+      const page=state.blocks[result.hit.blockIndex]?.closest('.pdf-page');
+      if(page)await navigateReaderPageNow(Number(page.dataset.page),owner,{hit:result.hit,focus:false});
+    }
+    if(source!==state.pdf||owner!==navigationState()?.owner||version!==searchRequest)return;
+    showPdfSearchState(result,{scroll:false});captureReaderView();
+  }).catch(error=>{if(source===state.pdf&&version===searchRequest){pdfSearchInput.value=source.model.searchState().query;setStatus(true,error.message||'Search could not move to this result.');}});
+}
+pdfSearchInput.addEventListener('input',()=>void searchReader('query'));
+pdfSearchPrevious.addEventListener('click',()=>void searchReader('previous'));
+pdfSearchNext.addEventListener('click',()=>void searchReader('next'));
+
 
 // ---------------------------------------------------------------------------
 // History panel

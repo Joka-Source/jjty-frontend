@@ -85,8 +85,9 @@ test('a bookmark selected while saved reading position returns keeps the newer p
   assert.equal(await page.evaluate(()=>window.__heldPosition.blockIndex),0,'held result really is the old saved place');
   await page.$eval('#pdf-contents',node=>{node.open=true;});
   await step('choose chapter bookmark',()=>page.click('#pdf-contents-list .pdf-contents-target'));
-  assert.equal(await page.evaluate(()=>window.__jtApp.currentBlock()),chapterBlock,'bookmark selects the new place before release');
+  assert.doesNotMatch(await page.$eval('#pdf-contents-status',n=>n.textContent),/Opened page/,'queued bookmark does not report success before restore releases');
   await step('release saved restore',()=>page.evaluate(async()=>{window.__releasePositionRestore();await window.__reopening;}));
+  await page.waitForFunction(()=>document.getElementById('pdf-contents-status').textContent==='Opened page 3.');
   assert.equal(await page.evaluate(()=>window.__jtApp.currentBlock()),chapterBlock,'late saved position must not overwrite a newer bookmark selection');
   await page.evaluate(()=>window.__jtApp.position.flush());
   assert.equal((await page.evaluate(()=>window.__jtApp.position.read())).blockIndex,chapterBlock);
@@ -106,8 +107,9 @@ test('a bookmark selected while saved reading position returns keeps the newer p
   assert.equal(await page.evaluate(()=>window.__heldPosition.blockIndex),chapterBlock,'blank-page trial holds the previous real text position');
   await page.$eval('#pdf-contents',node=>{node.open=true;});
   await step('choose blank-page bookmark',()=>page.click('#pdf-contents-list > li:last-child .pdf-contents-target'));
-  assert.equal(await page.evaluate(()=>window.__jtApp.currentBlock()),-1,'blank bookmark clears text-block authority before release');
+  assert.doesNotMatch(await page.$eval('#pdf-contents-status',n=>n.textContent),/Opened page/,'blank-page jump waits for the owned restore');
   await step('release saved restore',()=>page.evaluate(async()=>{window.__releasePositionRestore();await window.__reopening;}));
+  await page.waitForFunction(()=>document.getElementById('pdf-contents-status').textContent==='Opened page 1.');
   assert.equal(await page.evaluate(()=>window.__jtApp.currentBlock()),-1,'late text position cannot override a newer blank-page selection');
   await page.evaluate(()=>window.__jtApp.position.flush());
   assert.equal((await page.evaluate(()=>window.__jtApp.position.read())).blockIndex,chapterBlock,'blank page does not fabricate a persisted text anchor');

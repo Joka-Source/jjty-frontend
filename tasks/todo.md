@@ -157,3 +157,15 @@ Plan: [reader-navigation-plan.md](reader-navigation-plan.md).
 - [x] Build and all 407 tests pass; final navigation/render check and build also pass after control styling/state cleanup. Local evidence checkpointed.
 
 Next: unify numbered-page, contents and search return state, then add collapsible thumbnails. The 200-page fixture uses 200×240pt pages with no text layer; it is navigation evidence, not a large-file performance benchmark or native-device parity proof.
+
+## Shared Reader Return — 9 September
+
+Plan: [shared-navigation-plan.md](shared-navigation-plan.md).
+
+- [x] Contents, deliberate search and numbered jumps share a document-owned first departure point.
+- [x] Search preserves focus and targets the exact match; rapid Next clicks are serialized.
+- [x] Contents awaits completion, reports failure and ignores stale source completion.
+- [x] Mixed navigation, no-hit search and async Contents recovery pass focused browser checks; independent code review clean.
+- [x] Build and all 408 tests pass; desktop search/Return render inspected. Independent review confirms held-restore test preserves persistence and blank-page safety.
+
+Next: execute [reader-page-browser-plan.md](reader-page-browser-plan.md): collapsible Reader thumbnails and Contents outside sticky chrome, using the same navigation path and preserving page ownership, saved work and view position. Apple Books remains the EPUB baseline; full PDF Expert parity and native/voice/sync/release gates remain open.
