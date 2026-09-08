@@ -95,3 +95,15 @@ Plan: [reader-plan.md](reader-plan.md). Keep one renderer and durable per-docume
 - [x] Desktop/tablet/phone rendered evidence and scoped local implementation commit; canonical SSOT update accompanies the evidence commit.
 
 Review: one active renderer, durable per-document view metadata, manual keyboard tabs and actual fit-width rendering. Real Bento duplicate/export/return preserves source bytes and distinct tabs through reload; Poppler confirms1,1,2. Injected form-save failure retains draft/tab/focus until Retry. Phone/desktop drawer access and reviewed annotation/extraction paths pass. Full npm test:400passed,0failed. Broader native, authenticated sync and PDF Expert/Apple Books parity remain open.
+
+## Direct JETT annotation UI — 9 September
+
+Plan: [annotation-ui-plan.md](annotation-ui-plan.md). Founder correction: the Bento catalog is not our professional document interface.
+
+- [x] Visible JETT workspace navigation and direct Highlight, Note, Undo and Export PDF toolbar.
+- [x] Stable exact occurrence mapping, cross-page highlights, durable save receipts and retained note drafts on save failure.
+- [x] Independent mapping/highlight review; browser annotation/reload/native PDF export and stale-selection recovery checks.
+- [x] Desktop/tablet/phone screenshots with no horizontal overflow.
+- [x] Full regression gate: build and all 402 tests pass; scoped local implementation/evidence commits accompany this record.
+
+Review: whole-word selections are explicit. Notes currently target one page; highlights can span pages. Browser DOM Range selection and real toolbar clicks are covered; physical touch/drag and full PDF Expert parity remain open. Apple Books remains the minimum EPUB benchmark.

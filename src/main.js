@@ -1,3 +1,5 @@
+import {initAnnotationToolbar} from './annotation-toolbar.js';
+import {selectionStillCurrent} from './pdf-selection.js';
 import { createReaderSession } from './reader-session.js';
 import { initReaderChrome } from './reader-chrome.js';
 import { initBentoPanel } from "./bento-panel.js";
@@ -230,6 +232,7 @@ const state = {
 };
 
 let readerChrome = null;
+let annotationTools = null;
 let readerPersistence = '';
 let switchingReader = false;
 let readerTitles = new Map();
@@ -243,7 +246,7 @@ function renderReaderChrome(){
   readerChrome?.showPersistenceError(readerPersistence);
 }
 function readerTop(){
-  const bottom=document.getElementById('reader-toolbar')?.getBoundingClientRect().bottom;
+  const bottom=document.getElementById('reader-chrome')?.getBoundingClientRect().bottom;
   return Number.isFinite(bottom) && bottom>0 ? bottom+12 : 110;
 }
 function readerAvailableWidth(){
@@ -730,6 +733,7 @@ function setPdfZoom(nextZoom,mode='custom'){
   return queueReader(()=>source===state.pdf ? setPdfZoomNow(nextZoom,mode) : undefined);
 }
 async function setPdfZoomNow(nextZoom,mode='custom',preserveView=false) {
+  annotationTools?.beforeLeave();
   if (!state.pdf) return;
   const source=state.pdf;
   if(!preserveView)captureReaderView();
@@ -776,8 +780,8 @@ async function setPdfZoomNow(nextZoom,mode='custom',preserveView=false) {
   }
 }
 
-pdfZoomOut.addEventListener("click", () => void setPdfZoom(state.pdf?.model.zoom - 0.25));
-pdfZoomIn.addEventListener("click", () => void setPdfZoom(state.pdf?.model.zoom + 0.25));
+pdfZoomOut.addEventListener("click", () => void reportReaderFailure(setPdfZoom(state.pdf?.model.zoom - 0.25)));
+pdfZoomIn.addEventListener("click", () => void reportReaderFailure(setPdfZoom(state.pdf?.model.zoom + 0.25)));
 pdfSearchInput.addEventListener("input", () => {
   if (state.pdf) showPdfSearchState(state.pdf.model.setSearchQuery(pdfSearchInput.value));
 });
@@ -886,6 +890,7 @@ function entryNode(e, { onUndo, onSend, onJump } = {}) {
 }
 
 function renderHistory(entries) {
+  annotationTools?.refresh();
   historyList.textContent = "";
   for (const e of [...entries].reverse()) {
     historyList.appendChild(
@@ -1856,6 +1861,7 @@ function queueReader(task){
 }
 function openDocument(doc, options = {}) {return queueReader(()=>openDocumentNow(doc,options));}
 async function openDocumentNow(doc,options={}){
+  annotationTools?.beforeLeave();
   const session=readerSession.snapshot();
   captureReaderView();
   if(state.doc){await positionMemory.flush(state.doc.id);await pdfFormPanel.flush(state.doc.id);}
@@ -1895,6 +1901,7 @@ async function closeReaderTab(id){
   return queueReader(async()=>{
     const session=readerSession.snapshot();if(!session.tabs.includes(id))return;
     if(session.activeId!==id){readerSession.close(id);renderReaderChrome();return;}
+    annotationTools?.beforeLeave();
     captureReaderView();await positionMemory.flush(id);await pdfFormPanel.flush(id);
     const index=session.tabs.indexOf(id),remaining=session.tabs.filter(tab=>tab!==id);
     const next=remaining[Math.min(index,remaining.length-1)];
@@ -2525,8 +2532,20 @@ window.__jtApp = {
 readerChrome=initReaderChrome({
   activate:id=>reportReaderFailure(activateReaderTab(id)),
   close:id=>closeReaderTab(id).catch(error=>{setStatus(true,error?.message || 'Could not close document.');throw error;}),
-  setWorkspace:workspace=>{if(!state.doc)return;state.readerView={...state.readerView,workspace};readerSession.update(state.doc,state.readerView);renderReaderChrome();},
+  setWorkspace:workspace=>{if(!state.doc)return;annotationTools?.beforeLeave();state.readerView={...state.readerView,workspace};readerSession.update(state.doc,state.readerView);renderReaderChrome();},
   fitWidth:()=>reportReaderFailure(setPdfZoom(null,'fit-width')),
+});
+annotationTools=initAnnotationToolbar({currentDoc:()=>state.doc,root:article,canUndo:()=>engine.entries.some(e=>e.kind==='act'&&!e.undone),
+  run:(kind,target,noteText)=>{const owner=state.doc?.id;return queueReader(async()=>{
+    if(state.doc?.id!==owner)throw new Error('The document changed. Try again in the current document.');
+    if(kind==='undo')return executeVerb('undo',{modality:'pointer'});
+    if(!selectionStillCurrent(target,state.doc,article))throw new Error('The document changed. Select its words again.');
+    if(target.start.blockIndex!==target.end.blockIndex){
+      if(kind!=='highlight')throw new Error('Select words on one page for this note.');
+      return executeVerb('highlight-range',{fromAnchor:target.start.quotedText,toAnchor:target.end.quotedText,rangeStart:target.start,rangeEnd:target.end,rangeDocumentId:target.docId,modality:'pointer',evidence:'Selected PDF words'});
+    }
+    return executeVerb(kind,{...target.start,noteText,modality:'pointer',evidence:'Selected PDF words',matchedText:target.quote});
+  });},review:()=>document.getElementById('pdf-annotation-preview').click(),
 });
 renderReaderChrome();
 let readerResizeTimer;

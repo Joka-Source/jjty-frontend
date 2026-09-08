@@ -1,3 +1,4 @@
+import {selectPdfQuote} from './pdf-selection-helpers.mjs';
 import {openReaderMenu,selectWorkspace,clickReaderControl} from './reader-navigation.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -26,17 +27,29 @@ test('local PDF marks survive reload and export as reviewed standard annotations
   const fixture=path.join(root,'test/fixtures/jett-annotations.pdf'),original=await readFile(fixture);
   await (await page.$('#home-file-input')).uploadFile(fixture);
   await page.waitForSelector('#pdf-annotation-panel:not([hidden])');
-  const sourceId=await page.evaluate(async()=>{
-    const {tokenizeWithSpans}=await import('/src/match.js');
-    const doc=window.__jtApp.currentDoc(),blockIndex=doc.blocks.findIndex(b=>b.locator==='page:2');
-    const text=doc.blocks[blockIndex].text,tokens=tokenizeWithSpans(text);
-    const first=text.indexOf('The orchard is ready.'),second=text.indexOf('The orchard is ready.',first+1);
-    const tokenStart=tokens.findIndex(t=>t.start===second),tokenEnd=tokenStart+3;
-    if(tokenStart<0)throw new Error('Fixture target missing');
-    await window.__jtApp.perform('highlight',blockIndex,{tokenStart,tokenEnd});
-    await window.__jtApp.perform('annotate',blockIndex,{tokenStart,tokenEnd,noteText:'Inspect the second orchard passage.'});
-    return doc.id;
-  });
+  await page.waitForFunction(()=>document.querySelector('#reader-tabs [aria-selected="true"]')?.dataset.documentId===window.__jtApp.currentDoc()?.id);
+  await page.locator('[data-workspace="annotate"]').click();
+  const sourceId=await page.evaluate(()=>window.__jtApp.currentDoc().id);
+  await selectPdfQuote(page,'The orchard is ready.',1);
+  await page.locator('[data-annotation="highlight"]').click();
+  await page.waitForFunction(()=>window.__jtApp.entries().some(e=>e.act==='highlight'));
+  await selectPdfQuote(page,'The orchard is ready.',1);
+  await page.locator('[data-annotation="note"]').click();
+  await page.locator('#annotation-note-text').fill('Inspect the second orchard passage.');
+  assert.equal(await page.$eval('[data-annotation="export"]',n=>n.disabled),true,'unsaved note must not be silently omitted from export');
+  const heldZoom=await page.$eval('#pdf-zoom-value',n=>n.textContent);
+  await page.locator('#pdf-zoom-in').click();
+  await page.waitForFunction(()=>document.getElementById('status-text').textContent.includes('Save or cancel your note'));
+  assert.equal(await page.$eval('#annotation-note-text',n=>n.value),'Inspect the second orchard passage.','zoom must retain note draft');
+  assert.equal(await page.$eval('#pdf-zoom-value',n=>n.textContent),heldZoom);
+  await page.evaluate(()=>{window.annotationOriginalPut=IDBObjectStore.prototype.put;IDBObjectStore.prototype.put=function(...args){if(this.name==='records')throw new DOMException('Injected note quota','QuotaExceededError');return window.annotationOriginalPut.apply(this,args);};});
+  await page.locator('.annotation-note button[type="submit"]').click();
+  await page.waitForFunction(()=>document.querySelector('.annotation-selection').textContent.includes('could not be saved'));
+  assert.equal(await page.$eval('#annotation-note-text',n=>n.value),'Inspect the second orchard passage.');
+  assert.equal(await page.evaluate(()=>window.__jtApp.entries().filter(e=>e.act==='note').length),0);
+  await page.evaluate(()=>{IDBObjectStore.prototype.put=window.annotationOriginalPut;});
+  await page.locator('.annotation-note button[type="submit"]').click();
+  try{await page.waitForFunction(()=>window.__jtApp.entries().some(e=>e.act==='note'),{timeout:10000});}catch(error){throw new Error(await page.$eval('#annotation-toolbar',n=>n.textContent),{cause:error});}
   await page.reload();await page.waitForFunction(()=>window.__jtApp?.booted);
   await page.evaluate(async id=>{
     const {getDoc}=await import('/src/db.js');await window.__jtApp.openDocument(await getDoc(id));window.__jtApp.showView('read');

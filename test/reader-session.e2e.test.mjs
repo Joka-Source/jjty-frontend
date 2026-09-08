@@ -204,3 +204,27 @@ test('missing tab recovery and unavailable session storage preserve the Library'
   assert.ok(stored.bytes > 0);
   assert.deepEqual(errors, []);
 });
+
+test('JETT toolbar creates and undoes a cross-page range and drops selections on document switch', {timeout:120000},async t=>{
+  const {page,errors}=await environment(t);
+  await importPdf(page,'jett-annotations.pdf');
+  await page.locator('[data-workspace="annotate"]').click();
+  const {selectPdfQuote}=await import('./pdf-selection-helpers.mjs');
+  await selectPdfQuote(page,'The northern orchard',0,2);
+  await page.evaluate(()=>{window.rangeStartForTest=getSelection().getRangeAt(0).cloneRange();});
+  await selectPdfQuote(page,'Rotated orchard passage.',0,3);
+  await page.evaluate(()=>{const end=getSelection().getRangeAt(0),range=window.rangeStartForTest;range.setEnd(end.endContainer,end.endOffset);getSelection().removeAllRanges();getSelection().addRange(range);});
+  await page.waitForFunction(()=>!document.querySelector('[data-annotation="highlight"]').disabled&&document.querySelector('[data-annotation="note"]').disabled);
+  await page.locator('[data-annotation="highlight"]').click();
+  await page.waitForFunction(()=>window.__jtApp.entries().some(e=>e.rangeAnchor));
+  const range=await page.evaluate(()=>window.__jtApp.entries().find(e=>e.rangeAnchor));
+  assert.ok(range.rangeAnchor.start.blockIndex<range.rangeAnchor.end.blockIndex);
+  await page.locator('[data-annotation="undo"]').click();
+  await page.waitForFunction(()=>window.__jtApp.entries().some(e=>e.kind==='undo'));
+  assert.equal(await page.evaluate(()=>window.__jtApp.entries().filter(e=>e.kind==='act'&&!e.undone).length),0);
+  await selectPdfQuote(page,'The northern orchard',0,2);
+  await importPdf(page,'jett-fillable.pdf');
+  await page.locator('[data-workspace="annotate"]').click();
+  assert.equal(await page.$eval('[data-annotation="highlight"]',n=>n.disabled),true,'selection from the previous PDF cannot target the new document');
+  assert.deepEqual(errors,[]);
+});

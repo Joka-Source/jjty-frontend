@@ -319,3 +319,19 @@ body.sheet-library #sheet-scrim,body.sheet-history #sheet-scrim,body.sheet-more 
 html { scroll-padding-top:calc(var(--reader-bar-height,52px) + var(--reader-chrome-height,100px) + 12px); }
 
 @media(max-width:760px) { .bar .topnav [data-view-link="settings"] { display:none; } }
+
+/* Direct JETT workspaces over the shared document engines. */
+.reader-workspace-label { display:none; }
+#reader-workspace-nav { display:flex; gap:4px; padding:4px 20px; border-bottom:1px solid var(--line); }
+#reader-workspace-nav button { min-height:40px; padding:8px 16px; border:0; border-radius:6px; background:transparent; color:var(--ink-dim); font:500 14px system-ui; }
+#reader-workspace-nav button[aria-current="page"] { color:var(--ink); background:var(--panel); box-shadow:inset 0 -2px var(--accent); }
+#annotation-toolbar { padding:8px 20px; border-top:1px solid var(--line); font:13px system-ui; }
+body:not([data-view="read"]) #annotation-toolbar,body:not([data-reader-workspace="annotate"]) #annotation-toolbar { display:none; }
+.annotation-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.annotation-actions button,.annotation-note button { min-height:44px; padding:8px 14px; border:1px solid var(--line); border-radius:6px; background:var(--panel); color:var(--ink); }
+.annotation-actions [data-annotation="highlight"]::before { content:'▰'; color:#e3c75f; margin-right:8px; }
+.annotation-selection { margin:8px 0 0; max-width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--ink-dim); }
+.annotation-note { margin-top:10px; max-width:640px; }
+.annotation-note label { display:block; margin-bottom:6px; }
+.annotation-note textarea { display:block; width:100%; box-sizing:border-box; margin-bottom:8px; padding:8px; background:var(--bg); color:var(--ink); border:1px solid var(--line); border-radius:6px; }
+@media(max-width:760px){#reader-workspace-nav{padding:4px 12px;}#reader-workspace-nav button{min-height:44px;padding:8px 12px;}#annotation-toolbar{padding:8px 12px;}}

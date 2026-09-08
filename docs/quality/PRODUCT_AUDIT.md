@@ -1060,3 +1060,9 @@ reconciliation remain explicit missing merge capabilities.
 The current increment is local source and browser/native-library evidence only.
 No engineering push, application deployment, new Android/iPad build or complete
 Bento/PDF Expert parity is claimed. The founder's full parity target is unchanged.
+
+### 9 September — direct annotation workspace
+
+JETT now owns the visible annotation interaction: workspace navigation, Highlight, Note, Undo and reviewed Export PDF. These use the same durable action engine, with explicit mapped targets instead of a current-reading-position fallback. Repeated phrases, cross-page ranges, reload, native annotation readback, injected save failure, stale selection after document change and note retention during zoom are exercised. Independent review confirmed PDF item identities survive overlapping highlights and undo in either order.
+
+Responsive evidence: `human/evidence/2026-09-09/direct-annotation/` in the sibling canonical human repo. These are synthetic browser fixtures, not native/device or full parity approval. Remaining professional UI gaps include direct page organization, Edit and Fill & Sign parity, annotation styles, thumbnail navigation and touch selection validation.

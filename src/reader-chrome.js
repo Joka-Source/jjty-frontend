@@ -103,12 +103,18 @@ export function initReaderChrome({ activate, close, setWorkspace, fitWidth }) {
     if (event.key === 'Delete') { event.preventDefault(); void closeTab(tab.dataset.documentId); }
     // Native button Enter/Space dispatch click, so activation remains manual.
   });
-  $('reader-workspace').addEventListener('change', event => Promise.resolve(setWorkspace(event.target.value)).catch(reportFailure));
+  const workspaceNav=document.createElement('nav');workspaceNav.id='reader-workspace-nav';workspaceNav.setAttribute('aria-label','PDF workspace');
+  for(const option of $('reader-workspace').options){
+    const item=document.createElement('button');item.type='button';item.dataset.workspace=option.value;item.textContent=option.textContent;
+    item.addEventListener('click',()=>{$('reader-workspace').value=option.value;$('reader-workspace').dispatchEvent(new Event('change',{bubbles:true}));});workspaceNav.append(item);
+  }
+  $('reader-toolbar').before(workspaceNav);
+  $('reader-workspace').addEventListener('change', event => Promise.resolve().then(()=>setWorkspace(event.target.value)).catch(error=>{render(current);reportFailure(error);}));
   $('pdf-fit-width').addEventListener('click', () => Promise.resolve(fitWidth()).catch(reportFailure));
 
   function workspaceView() {
     document.body.dataset.readerWorkspace = current.workspace;
-    workspaceBento.hidden = current.workspace === 'read' || $('bento-original').hidden;
+    workspaceBento.hidden = ['read','annotate'].includes(current.workspace) || $('bento-original').hidden;
     workspaceBento.disabled = $('bento-original').disabled;
     workspaceBento.textContent = `${({annotate:'Annotate',organize:'Organize',fill:'Fill'})[current.workspace] || 'Open'} original in Bento`;
     workspaceBento.title = 'Open an original copy. Saved JETT marks and form answers stay here.';
@@ -144,6 +150,7 @@ export function initReaderChrome({ activate, close, setWorkspace, fitWidth }) {
     for(const option of $('reader-workspace').options) option.disabled=option.value!=='read'&&!current.isPdf;
     $('reader-workspace').value = current.isPdf ? current.workspace : 'read';
     $('reader-workspace').disabled = !current.activeId;
+    for(const item of workspaceNav.children){item.disabled=!current.activeId||(item.dataset.workspace!=='read'&&!current.isPdf);item.setAttribute('aria-current',item.dataset.workspace===current.workspace?'page':'false');}
     $('pdf-fit-width').setAttribute('aria-pressed', String(current.zoomMode === 'fit-width'));
     workspaceView();
     if (previousFocus && current.tabs.some(tab => tab.id === previousFocus)) focusTab(previousFocus);
