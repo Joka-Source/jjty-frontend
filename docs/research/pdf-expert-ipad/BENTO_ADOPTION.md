@@ -83,6 +83,8 @@ unchanged. Failed or superseded previews cannot replace a newer review.
 
 Navigation/tag structures (PageLabels, Outlines, Dests, Names, StructTreeRoot and
 OpenAction), restricted/signature/dynamic forms and denied assembly permissions
-remain refused. Deletion, duplication, merge, drag reordering and organizer undo
+remain refused. Deletion, duplication, merge, drag reordering and persistent organizer history
 are not implemented by this increment. Source licensing is AGPL-3.0-only; no
 commercial grant is assumed. This local implementation is not a production release.
+
+A subsequent local increment adds one-step undo for reorder and rotation; it restores the exact prior reviewed bytes and handles render failure, close and supersession. Full build and 268 tests pass.

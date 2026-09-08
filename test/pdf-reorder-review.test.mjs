@@ -28,5 +28,13 @@ test('reorder review validates input, renders a native copy, and downloads its e
  await page.click('#pdf-review-download');await page.waitForFunction(()=>downloads.length===1);
  const result=await page.evaluate(async()=>{const {default:unused,...m}=await import('/node_modules/mupdf/dist/mupdf.js');const doc=new m.PDFDocument(new Uint8Array(downloads[0].bytes)),source=new m.PDFDocument(original);function content(d,i){const p=d.loadPage(i),s=p.toStructuredText();try{return s.asText();}finally{s.destroy();p.destroy();}}try{return {name:downloads[0].name,text:[content(doc,0),content(doc,1)],expected:[content(source,1),content(source,0)]};}finally{doc.destroy();source.destroy();}});
  assert.equal(result.name,'source-reordered.pdf');assert.deepEqual(result.text,result.expected);
+ await page.click('[data-review-undo]');await page.waitForFunction(()=>document.getElementById('pdf-review-title').textContent==='Review original copy'&&!document.getElementById('pdf-review-download').disabled);
+ assert.equal(await page.$eval('[data-review-undo]',n=>n.disabled),true);
+ await page.click('#pdf-review-download');await page.waitForFunction(()=>downloads.length===2);
+ assert.deepEqual(await page.evaluate(()=>downloads[1]),await page.evaluate(()=>({name:'source.pdf',bytes:Array.from(original)})));
+ await page.click('[data-pdf-rotate="right"]');await page.waitForFunction(()=>document.getElementById('pdf-review-title').textContent==='Review rotated original copy'&&!document.getElementById('pdf-review-download').disabled);
+ await page.click('[data-review-undo]');await page.waitForFunction(()=>document.getElementById('pdf-review-title').textContent==='Review original copy'&&!document.getElementById('pdf-review-download').disabled);
+ await page.click('#pdf-review-download');await page.waitForFunction(()=>downloads.length===3);
+ assert.deepEqual(await page.evaluate(()=>downloads[2]),await page.evaluate(()=>({name:'source.pdf',bytes:Array.from(original)})));
  await page.click('#pdf-review-close');assert.equal(await page.$eval('.pdf-review-order button',n=>n.disabled),true);
 });

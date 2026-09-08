@@ -818,3 +818,17 @@ Advanced navigation/tag/attachment structures, signatures, restricted forms,
 deletion and duplication remain outside this bounded operation. Custom ordering
 is implemented; full thumbnail organization and organizer undo remain unproven.
 This is a local engineering checkpoint, not production deployment.
+
+
+## Recoverable page-change undo — PASS_LOCAL
+
+The review retains one prior immutable snapshot after a successful reorder or
+rotation. Undo renders those exact bytes and restores the prior filename. Closing
+or replacing the review clears this history. This is one-step in-preview undo,
+not a persistent multi-step organizer history. Failed undo restores the current
+copy and permits retry; interrupted or superseded undo cannot revive old content.
+
+Exact download-byte assertions cover reorder and rotation undo. Browser failure
+injection covers retry, close and new-review ownership. Final gate: production
+build and **268 tests passed**, no failures or skips. Log: parent
+`runtime/live-voice-diagnosis/review-undo-full.log`. Local only.

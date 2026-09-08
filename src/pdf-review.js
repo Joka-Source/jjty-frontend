@@ -5,13 +5,14 @@ import {parsePageOrder} from '../vendor/bentopdf/page-order.js';
 export function initPdfReview() {
   const dialog=document.getElementById('pdf-review-dialog'), pages=document.getElementById('pdf-review-pages'), status=document.getElementById('pdf-review-status'), download=document.getElementById('pdf-review-download'), print=document.getElementById('pdf-review-print');
   const organizer=document.createElement('form');organizer.className='pdf-review-order';
-  organizer.innerHTML='<label for="pdf-review-order">Page order</label><input id="pdf-review-order" aria-describedby="pdf-review-order-help" maxlength="100000" autocomplete="off"><button type="submit" disabled>Reorder this copy</button><small id="pdf-review-order-help">Include every page once, for example 3,1-2. Numbers refer to the current preview.</small>';
+  organizer.innerHTML='<label for="pdf-review-order">Page order</label><input id="pdf-review-order" aria-describedby="pdf-review-order-help" maxlength="100000" autocomplete="off"><button type="submit" disabled>Reorder this copy</button><button type="button" data-review-undo disabled>Undo page change</button><small id="pdf-review-order-help">Include every page once, for example 3,1-2. Numbers refer to the current preview.</small>';
   pages.before(organizer);
-  const orderInput=organizer.querySelector('input'),orderButton=organizer.querySelector('button');
+  const orderInput=organizer.querySelector('input'),orderButton=organizer.querySelector('button'),undoButton=organizer.querySelector('[data-review-undo]');
+  let previousEdit=null;
   let generation=0, snapshot=null, filename='filled.pdf', reviewKind='filled', pendingCloseEvents=0;
-  function ready(value){orderInput.disabled=!value;orderButton.disabled=!value;download.disabled=!value;if(print)print.disabled=!value;for(const button of pages.querySelectorAll('[data-pdf-rotate]'))button.disabled=!value;}
-  function clear(){generation++;snapshot=null;orderInput.disabled=true;orderButton.disabled=true;download.disabled=true;if(print)print.disabled=true;pages.replaceChildren();}
-  function close(){clear();if(dialog.open){pendingCloseEvents++;dialog.close();}}
+  function ready(value){undoButton.disabled=!value || !previousEdit;orderInput.disabled=!value;orderButton.disabled=!value;download.disabled=!value;if(print)print.disabled=!value;for(const button of pages.querySelectorAll('[data-pdf-rotate]'))button.disabled=!value;}
+  function clear(){generation++;undoButton.disabled=true;snapshot=null;orderInput.disabled=true;orderButton.disabled=true;download.disabled=true;if(print)print.disabled=true;pages.replaceChildren();}
+  function close(){previousEdit=null;clear();if(dialog.open){pendingCloseEvents++;dialog.close();}}
   dialog.addEventListener('close',()=>{
     // close() already cleared synchronously. Its queued event must not cancel
     // a newer preparation that has reserved this still-closed dialog.
@@ -43,6 +44,17 @@ export function initPdfReview() {
     },1000);
     if(version===generation)status.textContent=`Opened ${filename} in a new tab. Use the PDF viewer’s Print control. If your browser downloaded it instead, open that file in your PDF reader.`;
   });
+  undoButton.addEventListener('click',async()=>{
+    if(undoButton.disabled || !previousEdit || !snapshot || !dialog.open)return;
+    const target=previousEdit,source=snapshot.slice(),name=filename,kind=reviewKind,oldPages=[...pages.childNodes],oldOrder=orderInput.value,nextVersion=generation+1;
+    ready(false);
+    let rendered=false;
+    try{rendered=await api.open(target.bytes,target.name,{kind:target.kind,retainUndo:true});}catch{/* Keep the last usable review below. */}
+    if(generation!==nextVersion || !dialog.open)return;
+    if(rendered){previousEdit=null;ready(true);status.textContent='Page change undone. This is the previous reviewed copy.';}
+    else{clear();snapshot=source;filename=name;reviewKind=kind;previousEdit=target;pages.replaceChildren(...oldPages);orderInput.value=oldOrder;ready(true);document.getElementById('pdf-review-title').textContent=`Review ${kind} copy`;status.textContent='The previous copy could not be displayed. Your current reviewed copy is unchanged.';}
+    orderInput.focus({preventScroll:true});
+  });
   organizer.addEventListener('submit',async event=>{
     event.preventDefault();
     if(orderButton.disabled || !snapshot || !dialog.open)return;
@@ -59,12 +71,13 @@ export function initPdfReview() {
       if(version!==generation || !dialog.open)return;
       const bytes=await reorderPdfPages(source,order);
       if(version!==generation || !dialog.open)return;
-      const nextVersion=generation+1;
+      const nextVersion=generation+1,priorUndo=previousEdit;
       let rendered=false;
-      try{rendered=await api.open(bytes,filename.replace(/(?:-reordered)?\.pdf$/i,'')+'-reordered.pdf',{kind:reviewKind.startsWith('reordered ')?reviewKind:`reordered ${reviewKind}`});}catch{/* Restore usable snapshot below. */}
+      try{rendered=await api.open(bytes,filename.replace(/(?:-reordered)?\.pdf$/i,'')+'-reordered.pdf',{kind:reviewKind.startsWith('reordered ')?reviewKind:`reordered ${reviewKind}`,retainUndo:true});}catch{/* Restore usable snapshot below. */}
       if(generation!==nextVersion || !dialog.open)return;
+      if(rendered){previousEdit={bytes:source,name:previousName,kind:previousKind};ready(true);}
       if(!rendered){
-        clear();snapshot=source;filename=previousName;reviewKind=previousKind;
+        previousEdit=priorUndo;clear();snapshot=source;filename=previousName;reviewKind=previousKind;
         pages.replaceChildren(...previousPages);orderInput.value=previousOrder;ready(true);
         document.getElementById('pdf-review-title').textContent=`Review ${previousKind} copy`;
         status.textContent='The reordered copy could not be displayed. The previous reviewed copy is unchanged.';
@@ -89,12 +102,13 @@ export function initPdfReview() {
       if(version!==generation || !dialog.open)return;
       const bytes=await rotatePdfPages(source,[{pageIndex,quarterTurns:direction==='left'?-1:1}]);
       if(version!==generation || !dialog.open)return;
-      const nextVersion=generation+1;
+      const nextVersion=generation+1,priorUndo=previousEdit;
       let rendered=false;
-      try{rendered=await api.open(bytes,name,{kind});}catch{/* Restore the last usable review below. */}
+      try{rendered=await api.open(bytes,name,{kind,retainUndo:true});}catch{/* Restore the last usable review below. */}
       if(generation!==nextVersion || !dialog.open)return;
+      if(rendered){previousEdit={bytes:source,name:previousName,kind:previousKind};ready(true);}
       if(!rendered){
-        clear();snapshot=source;filename=previousName;reviewKind=previousKind;
+        previousEdit=priorUndo;clear();snapshot=source;filename=previousName;reviewKind=previousKind;
         pages.replaceChildren(...previousPages);ready(true);
         document.getElementById('pdf-review-title').textContent=`Review ${previousKind} copy`;
         status.textContent='The rotated copy could not be displayed. The previous reviewed copy is unchanged.';
@@ -114,7 +128,8 @@ export function initPdfReview() {
       ready(true);status.textContent=`Could not rotate this copy. ${reasons[error.code] || 'The change could not be verified.'} The reviewed copy is unchanged.`;
     }
   });
-  const api={close,prepare(){close();const version=generation;return ()=>version===generation;},async open(bytes,name,{kind='filled'}={}){
+  const api={close,prepare(){close();const version=generation;return ()=>version===generation;},async open(bytes,name,{kind='filled',retainUndo=false}={}){
+    if(!retainUndo)previousEdit=null;
     clear();orderInput.removeAttribute('aria-invalid');const version=generation, owned=new Uint8Array(bytes);filename=name;reviewKind=kind;
     document.getElementById('pdf-review-title').textContent=`Review ${kind} copy`;
     status.textContent=`Rendering the exact ${kind} copy…`;if(!dialog.open)dialog.showModal();
