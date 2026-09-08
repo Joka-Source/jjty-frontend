@@ -106,7 +106,11 @@ article.image-source { padding-bottom: 24px; }
 .pdf-review-page canvas {display:block;max-width:100%;height:auto!important;margin:.5rem auto;background:white;}
 .pdf-review-page figcaption {color:#bac2b2;font-size:.85rem;}
 .pdf-review-dialog {font:14px/1.5 system-ui,sans-serif;background:var(--panel);color:var(--ink);border-color:var(--line);}
+.pdf-review-dialog[open] {display:flex;flex-direction:column;overflow:hidden;}
+.pdf-review-header, #pdf-review-status, #pdf-review-download {flex-shrink:0;}
+#pdf-review-download {align-self:flex-start;}
+#pdf-review-pages {min-height:0;overflow:auto;overscroll-behavior:contain;}
 .pdf-review-page figcaption {color:var(--ink-dim);}
-.pdf-review-dialog button, #pdf-form-panel button {font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 14px;min-height:44px;cursor:pointer;}
-.pdf-review-dialog button:hover:not(:disabled), #pdf-form-panel button:hover:not(:disabled) {border-color:var(--accent);}
-.pdf-review-dialog button:disabled, #pdf-form-panel button:disabled {opacity:.5;cursor:default;}
+.pdf-review-dialog button, #pdf-form-panel button, #pdf-annotation-panel button {font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 14px;min-height:44px;cursor:pointer;}
+.pdf-review-dialog button:hover:not(:disabled), #pdf-form-panel button:hover:not(:disabled), #pdf-annotation-panel button:hover:not(:disabled) {border-color:var(--accent);}
+.pdf-review-dialog button:disabled, #pdf-form-panel button:disabled, #pdf-annotation-panel button:disabled {opacity:.5;cursor:default;}

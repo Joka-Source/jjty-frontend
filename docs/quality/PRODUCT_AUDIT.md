@@ -404,3 +404,36 @@ were visually inspected with correct field values and appearances.
 Final fresh gate:152 tests pass in jett-form-preview-final-full-test.log. Review
 and output checks are local evidence only; richer modal accessibility, large-PDF
 performance, annotation embedding and print workflows remain open.
+
+## Portable local annotations
+
+Local highlights, importance marks and notes now export as standard PDF
+annotations through an exact-copy review. Source SHA256, anchor digest, raw page
+tokens, exact word spans and physical page locators are checked before placement.
+MuPDF character quads become smooth compatible line bands; note icons occupy
+clear margins, avoiding text and existing notes. Serialization is reopened and
+verified. Undo excludes marks, and stale or approximate marks fail visibly.
+
+The shared form/annotation review reserves ownership before preparation; document
+switches and newer requests invalidate older work. An independent lifecycle test
+caught a queued-close event cancelling a replacement reservation; the fix consumes
+already-handled close events. Close/download remain visible during page scrolling.
+Plain PDFs without AcroForm now inspect safely. Linked checkboxes with differing
+export states are explicitly unsupported instead of being treated as equivalent.
+
+Final full gate: **170 tests pass**, parent `jett-annotations-verified-full-test.log`.
+Browser proof includes actual saved acts, reload, all-page review, standard PDF.js
+annotation readback, undo, source preservation and phone-width controls. Live
+proof script: `scripts/verify-annotation-ui.mjs`; parent log
+`jett-annotations-ui-proof.log`. The exact UI download was independently checked
+with pypdf and rendered with Poppler: four IDs, contents, subtypes, page placements,
+appearances and bounded quads match; repeated, multiline and rotated targets are
+correct, with no text obscured. Evidence lives in parent
+`runtime/annotation-proof/1788827609149/INDEPENDENT-REVIEW.md`.
+Downloaded PDF SHA256:
+`d9d2b932482ee96f989cd013aa180ce751f1e1f79f2bbbe736843adb5d595feb`.
+
+This is local annotation export, not full annotation/editor parity. Form drafts
+and server work remain separate scopes. Canvas review displays note icons but
+does not open note popups. Physical-device interoperability, printing, signatures,
+complex-script corpora and large-document performance retain separate gates.

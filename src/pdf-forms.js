@@ -6,8 +6,10 @@ async function withForm(bytes, action) {
   const mupdf = await import('mupdf');
   const doc = new mupdf.PDFDocument(copy(bytes)), owned = [];
   const keep = object => { owned.push(object); return object; };
-  const get = (object, ...path) => keep(object.get(...path));
-  const inherited = (object, key) => keep(object.getInheritable(key));
+  // MuPDF's null sentinel has no owning document; asking it for another key
+  // throws. An absent optional dictionary remains absent through traversal.
+  const get = (object, ...path) => object.isNull() ? object : keep(object.get(...path));
+  const inherited = (object, key) => object.isNull() ? object : keep(object.getInheritable(key));
   try {
     doc.disableJS();
     const restrictions = [], fields = [], widgets = [], pages = [];
@@ -68,6 +70,19 @@ async function withForm(bytes, action) {
           ...(type==='radio'||type==='checkbox'?{exportValue:exports[0]??null}:{}),unsupported});
         widgets.push(widget);
       });
+    }
+    // A boolean represents a shared checkbox only when every widget uses the
+    // same on-state. Differing exports require a choice, not several booleans:
+    // the inherited field value alone cannot say which widget is checked.
+    const checkboxGroups = new Map();
+    for (const field of fields) if (field.type === 'checkbox') {
+      const group = checkboxGroups.get(field.groupId) ?? [];
+      group.push(field); checkboxGroups.set(field.groupId, group);
+    }
+    for (const group of checkboxGroups.values()) {
+      if (new Set(group.map(field => field.exportValue)).size > 1) {
+        for (const field of group) field.unsupported.push('shared-checkbox-states-unsupported');
+      }
     }
     const unique=[...new Set(restrictions)];
     return await action({fields,restrictions:unique,canFill:unique.length===0 && fields.some(f=>!f.readOnly && !f.unsupported.length)}, {doc,widgets,pages});

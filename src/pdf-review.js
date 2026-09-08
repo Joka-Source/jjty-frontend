@@ -3,10 +3,15 @@ import {createMuPdfProvider} from './pdf-engine.js';
 // Review and download one immutable PDF snapshot. Never mutates the reader.
 export function initPdfReview() {
   const dialog=document.getElementById('pdf-review-dialog'), pages=document.getElementById('pdf-review-pages'), status=document.getElementById('pdf-review-status'), download=document.getElementById('pdf-review-download');
-  let generation=0, snapshot=null, filename='filled.pdf';
+  let generation=0, snapshot=null, filename='filled.pdf', pendingCloseEvents=0;
   function clear(){generation++;snapshot=null;download.disabled=true;pages.replaceChildren();}
-  function close(){clear();if(dialog.open)dialog.close();}
-  dialog.addEventListener('close',()=>{if(!dialog.open)clear();});
+  function close(){clear();if(dialog.open){pendingCloseEvents++;dialog.close();}}
+  dialog.addEventListener('close',()=>{
+    // close() already cleared synchronously. Its queued event must not cancel
+    // a newer preparation that has reserved this still-closed dialog.
+    if(pendingCloseEvents){pendingCloseEvents--;return;}
+    if(!dialog.open)clear();
+  });
   dialog.addEventListener('cancel',event=>{event.preventDefault();close();});
   document.getElementById('pdf-review-close').addEventListener('click',close);
   download.addEventListener('click',()=>{
@@ -14,9 +19,10 @@ export function initPdfReview() {
     const url=URL.createObjectURL(new Blob([snapshot],{type:'application/pdf'})), link=document.createElement('a');
     link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),30000);
   });
-  return {close,async open(bytes,name){
+  return {close,prepare(){close();const version=generation;return ()=>version===generation;},async open(bytes,name,{kind='filled'}={}){
     clear();const version=generation, owned=new Uint8Array(bytes);filename=name;
-    status.textContent='Rendering the exact filled copy…';if(!dialog.open)dialog.showModal();
+    document.getElementById('pdf-review-title').textContent=`Review ${kind} copy`;
+    status.textContent=`Rendering the exact ${kind} copy…`;if(!dialog.open)dialog.showModal();
     let opened;
     try{
       const mupdf=await import('mupdf');if(version!==generation)return;
@@ -30,7 +36,7 @@ export function initPdfReview() {
           const scale=Math.min(width/natural.width,1.5), viewport=page.getViewport({scale});
           const figure=document.createElement('figure');figure.className='pdf-review-page';
           const caption=document.createElement('figcaption');caption.textContent=`Page ${i} of ${opened.document.numPages}`;
-          const canvas=document.createElement('canvas');canvas.setAttribute('role','img');canvas.setAttribute('aria-label',`Filled PDF, page ${i}`);
+          const canvas=document.createElement('canvas');canvas.setAttribute('role','img');canvas.setAttribute('aria-label',`${kind} PDF, page ${i}`);
           const density=Math.min(devicePixelRatio || 1,2);canvas.width=Math.ceil(viewport.width*density);canvas.height=Math.ceil(viewport.height*density);
           canvas.style.width=`${viewport.width}px`;canvas.style.height=`${viewport.height}px`;
           await page.render({canvasContext:canvas.getContext('2d'),viewport,transform:density===1?null:[density,0,0,density,0,0]}).promise;
@@ -40,7 +46,8 @@ export function initPdfReview() {
         await new Promise(resolve=>setTimeout(resolve,0));
       }
       if(version!==generation)return;
-      snapshot=owned;download.disabled=false;status.textContent='This is the filled PDF that will download. Your original is unchanged.';
+      snapshot=owned;download.disabled=false;status.textContent=`This is the ${kind} PDF that will download. Your original is unchanged.`;
+      return true;
     }catch(error){if(version===generation){snapshot=null;download.disabled=true;status.textContent=`Preview could not be rendered: ${error.message}`;}}
     finally{await opened?.loadingTask.destroy();}
   }};

@@ -24,6 +24,8 @@ import "./style.css";
 import "./jett.css";
 import { initServerPanel } from "./server-panel.js";
 import { initPdfFormPanel } from "./pdf-form-panel.js";
+import { initPdfReview } from "./pdf-review.js";
+import { initPdfAnnotationPanel } from "./pdf-annotation-panel.js";
 import { ingestImage, mountImage } from "./images.js";
 import "../vendor/katex/katex.min.css";
 import "pdfjs-dist/web/pdf_viewer.css";
@@ -319,11 +321,14 @@ function resetPdfTools() {
 }
 
 const serverPanel = initServerPanel({ saveDocument: putDoc });
-const pdfFormPanel = initPdfFormPanel({ saveDocument: putDoc });
+const pdfReview = initPdfReview();
+const pdfFormPanel = initPdfFormPanel({ saveDocument: putDoc, review: pdfReview });
+const pdfAnnotationPanel = initPdfAnnotationPanel({ getRecords, review: pdfReview });
 let unmountImage = null;
 async function renderDoc(doc) {
   serverPanel.setDocument(null);
   void pdfFormPanel.setDocument(null);
+  pdfAnnotationPanel.setDocument(null);
   unmountImage?.(); unmountImage = null;
   await state.pdf?.loadingTask?.destroy?.();
   for (const p of state.blocks) p.remove();
@@ -1484,6 +1489,7 @@ async function openDocumentNow(
   renderDocHead(doc);
   serverPanel.setDocument(doc, state.pdf);
   void pdfFormPanel.setDocument(doc);
+  pdfAnnotationPanel.setDocument(doc);
   await refreshLibrary();
   if (narrowScreen.matches) setSheet(null); // picking a document closes the sheet
   if (navigate) shell?.show("read");

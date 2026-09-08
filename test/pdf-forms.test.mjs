@@ -5,6 +5,7 @@ import {createHash} from 'node:crypto';
 import * as mupdf from 'mupdf';
 import {inspectPdfForm,fillPdfForm} from '../src/pdf-forms.js';
 const original=new Uint8Array(readFileSync(new URL('./fixtures/jett-fillable.pdf',import.meta.url)));
+const plain=new Uint8Array(readFileSync(new URL('./fixtures/jett-annotations.pdf',import.meta.url)));
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 async function fieldKey(name,bytes=original){return (await inspectPdfForm(bytes)).fields.find(f=>f.name===name).key;}
 function altered(edit,saveOptions={}) {
@@ -15,6 +16,12 @@ function altered(edit,saveOptions={}) {
  finally{objects.reverse().forEach(o=>o.destroy());doc.destroy();}
 }
 function renderHash(bytes){const d=new mupdf.PDFDocument(bytes);const p=d.loadPage(0);const pix=p.toPixmap([1,0,0,1,0,0],mupdf.ColorSpace.DeviceRGB,false,true);try{return hash(pix.getPixels());}finally{pix.destroy();p.destroy();d.destroy();}}
+test('plain PDFs without AcroForm report no fields without mutation or failure',async()=>{
+ const before=hash(plain),doc=new mupdf.PDFDocument(plain.slice()),trailer=doc.getTrailer(),form=trailer.get('Root','AcroForm');
+ try{assert.equal(form.isNull(),true);}finally{form.destroy();trailer.destroy();doc.destroy();}
+ assert.deepEqual(await inspectPdfForm(plain),{fields:[],restrictions:[],canFill:false});
+ assert.equal(hash(plain),before);
+});
 test('enumerates real widgets with stable keys, shared values and choice options',async()=>{
  const m=await inspectPdfForm(original);assert.equal(m.canFill,true);assert.deepEqual(m.restrictions,[]);assert.equal(m.fields.length,8);
  assert.equal(new Set(m.fields.map(f=>f.key)).size,8);assert.deepEqual((await inspectPdfForm(original)).fields,m.fields);
@@ -104,4 +111,19 @@ test('required supplied text cannot be blank; optional checkbox can still be cle
  const optional=altered((_doc,form,get)=>get(form,'Fields',4).put('Ff',0));
  const key=await fieldKey('consent',optional),checked=await fillPdfForm(optional,{[key]:true});
  const cleared=await fillPdfForm(checked,{[key]:false});assert.equal((await inspectPdfForm(cleared)).fields.find(f=>f.name==='consent').value,false);
+});
+test('shared checkboxes with different on-states are refused instead of treated as one boolean',async()=>{
+ const bytes=altered((_doc,form,get)=>get(form,'Fields',3).put('Ff',0));
+ const before=hash(bytes),metadata=await inspectPdfForm(bytes);
+ const boxes=metadata.fields.filter(field=>field.name==='delivery');
+ assert.equal(boxes.length,2);
+ assert.ok(boxes.every(field=>field.type==='checkbox'));
+ assert.equal(boxes[0].groupId,boxes[1].groupId);
+ assert.deepEqual(boxes.map(field=>field.exportValue),['Email','Post']);
+ assert.ok(boxes.every(field=>field.unsupported.includes('shared-checkbox-states-unsupported')));
+ for(const field of boxes) await assert.rejects(fillPdfForm(bytes,{[field.key]:true}),/FORM_FIELD_NOT_EDITABLE/);
+ assert.equal(hash(bytes),before);
+ // Unsupported choices do not prevent independent ordinary text edits.
+ const out=await fillPdfForm(bytes,{[await fieldKey('full_name',bytes)]:'Reader'});
+ assert.equal((await inspectPdfForm(out)).fields.find(field=>field.name==='full_name').value,'Reader');
 });
