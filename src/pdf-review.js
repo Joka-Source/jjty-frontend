@@ -2,9 +2,9 @@ import {createMuPdfProvider} from './pdf-engine.js';
 
 // Review and download one immutable PDF snapshot. Never mutates the reader.
 export function initPdfReview() {
-  const dialog=document.getElementById('pdf-review-dialog'), pages=document.getElementById('pdf-review-pages'), status=document.getElementById('pdf-review-status'), download=document.getElementById('pdf-review-download');
+  const dialog=document.getElementById('pdf-review-dialog'), pages=document.getElementById('pdf-review-pages'), status=document.getElementById('pdf-review-status'), download=document.getElementById('pdf-review-download'), print=document.getElementById('pdf-review-print');
   let generation=0, snapshot=null, filename='filled.pdf', pendingCloseEvents=0;
-  function clear(){generation++;snapshot=null;download.disabled=true;pages.replaceChildren();}
+  function clear(){generation++;snapshot=null;download.disabled=true;if(print)print.disabled=true;pages.replaceChildren();}
   function close(){clear();if(dialog.open){pendingCloseEvents++;dialog.close();}}
   dialog.addEventListener('close',()=>{
     // close() already cleared synchronously. Its queued event must not cancel
@@ -18,6 +18,24 @@ export function initPdfReview() {
     if(!snapshot || download.disabled)return;
     const url=URL.createObjectURL(new Blob([snapshot],{type:'application/pdf'})), link=document.createElement('a');
     link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),30000);
+  });
+  print?.addEventListener('click',()=>{
+    if(!snapshot || print.disabled || !dialog.open)return;
+    // Capture exactly the reviewed PDF while the user gesture is active.
+    // The browser's PDF viewer owns print settings and the final print action.
+    const version=generation, url=URL.createObjectURL(new Blob([snapshot],{type:'application/pdf'}));
+    let viewer;
+    try { viewer=window.open(url,'_blank'); }
+    catch { URL.revokeObjectURL(url);if(version===generation)status.textContent='The PDF could not open for printing. Allow pop-ups for this site, or download this copy and print it from your PDF reader.';return; }
+    if(!viewer){URL.revokeObjectURL(url);if(version===generation)status.textContent='The browser blocked the print tab. Allow pop-ups for this site, or download this copy and print it from your PDF reader.';return;}
+    try { viewer.opener=null; } catch { /* Some native viewers isolate their window proxy. */ }
+    // Closing or replacing the review must not invalidate an open PDF viewer.
+    // Revoke only after its tab is closed; browser document teardown owns the
+    // remaining URL lifetime if this application page itself is navigated away.
+    const cleanup=setInterval(()=>{
+      if(viewer.closed){clearInterval(cleanup);URL.revokeObjectURL(url);}
+    },1000);
+    if(version===generation)status.textContent=`Opened ${filename} in a new tab. Use the PDF viewer’s Print control. If your browser downloaded it instead, open that file in your PDF reader.`;
   });
   return {close,prepare(){close();const version=generation;return ()=>version===generation;},async open(bytes,name,{kind='filled'}={}){
     clear();const version=generation, owned=new Uint8Array(bytes);filename=name;
@@ -60,9 +78,9 @@ export function initPdfReview() {
         await new Promise(resolve=>setTimeout(resolve,0));
       }
       if(version!==generation)return;
-      snapshot=owned;download.disabled=false;status.textContent=`This is the ${kind} PDF that will download. Your original is unchanged.`;
+      snapshot=owned;download.disabled=false;if(print)print.disabled=false;status.textContent=`This is the ${kind} PDF that will download. Your original is unchanged.`;
       return true;
-    }catch(error){if(version===generation){snapshot=null;download.disabled=true;status.textContent=`Preview could not be rendered: ${error.message}`;}}
+    }catch(error){if(version===generation){snapshot=null;download.disabled=true;if(print)print.disabled=true;status.textContent=`Preview could not be rendered: ${error.message}`;}}
     finally{await opened?.loadingTask.destroy();}
   }};
 }

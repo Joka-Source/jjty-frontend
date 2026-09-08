@@ -1454,6 +1454,7 @@ function renderDocHead(doc) {
   docHead.hidden = false;
   docTitle.textContent = doc.title;
   document.getElementById("download-original").hidden = !doc.sourceBytes;
+  document.getElementById("review-original").hidden = !doc.sourceBytes || doc.provenance?.sourceKind !== "pdf";
   const p = doc.provenance;
   docProvBtn.hidden = !p;
   docProv.hidden = true;
@@ -1479,6 +1480,12 @@ function renderDocHead(doc) {
     docProv.textContent = bits.filter(Boolean).join(" · ");
   }
 }
+
+document.getElementById("review-original").addEventListener("click", () => {
+  const doc = state.doc;
+  if (!doc?.sourceBytes || doc.provenance?.sourceKind !== "pdf") return;
+  pdfReview.open(pdfSourceBytes(doc.sourceBytes), doc.provenance?.name || `${doc.title}.pdf`, { kind: "original" });
+});
 
 document.getElementById("download-original").addEventListener("click", () => {
   const doc = state.doc;

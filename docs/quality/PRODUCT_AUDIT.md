@@ -17,10 +17,10 @@
 | Find saved work | PASS_LOCAL | Title/content search, empty result, reload and open; synthetic persisted content inspected. |
 | Desktop and phone shell | PASS_LOCAL | Desktop/mobile shell gate, 390px rendered phone with no horizontal overflow; current JETT style. |
 | Voice cursor and downstream actions | PASS_LOCAL | Controlled transcript journey covers in-paragraph movement, exact highlight/restart/undo and pointer precedence. Physical microphone and remote application remain unverified. |
-| PDF import and output parity | UNTESTED | Existing MuPDF adapter; capability matrix and real files required. |
+| PDF import and output parity | PARTIAL_LOCAL | Native review; source-preserving filled, annotated and combined copies; exact multi-page ranges and independent output checks. See checkpoint entries and ../architecture/PDF_COMBINED.md. Full parity remains open. |
 | Markdown structure/source | PASS_LOCAL | Heading, quote and fenced code render; CRLF/BOM reading normalization; downloaded source bytes exactly match after reload. |
-| Images | UNTESTED | Image intake/storage and source-preserving rendering remain to implement. |
-| Accounts / self-hosted sync | UNTESTED | Existing relay prototype is not production identity or durable sync. |
+| Images | PASS_LOCAL | PNG/JPEG/GIF/WebP intake, decoding, display, exact original download and reload verified; see image checkpoint below. |
+| Accounts / self-hosted sync | PARTIAL_LOCAL | Explicit local-development PDF server upload, hash readback, retry/reconnect and undo verified. Production identity, accounts and broad durable sync remain open. |
 | Optional macOS notch / TV / Watch | UNTESTED | Purpose-specific surfaces required; browser brand treatment is not native implementation. |
 
 Continue to the highest-impact failing or unproven journey after every verified
@@ -534,3 +534,24 @@ Final full gate: **200 tests pass**, parent `jett-combined-pdf-final-full-test.l
 This includes the stale-document/delayed-review lifecycle test and independent
 dropdown selection readback. The earlier full run passed 199 before the new
 lifecycle regression was added.
+
+## Exact PDF print handoff — 8 September
+
+`Review original` opens preserved PDF bytes in the shared review. Filled,
+annotated and combined reviews expose the same `Open for printing` action after
+all pages render. It opens an immutable PDF Blob in the browser's native viewer,
+where the person chooses Print. Closing/replacing the review does not invalidate
+an open viewer; closing that viewer releases its URL. Blocked tabs retain the
+copy for download/retry. Invalid PDFs cannot use the handoff.
+
+Private headed Chrome proof verifies a native PDF viewer, exact combined and
+original byte identity, detached opener, URL lifetime, blocked popup recovery,
+render-failure disablement and actual application entry point. The 390px review
+keeps Close, Download and Open for printing in view. Root inspected retained
+native-viewer and phone screenshots under ../runtime/print-proof/native-viewer/.
+No native print action, physical output, margins or other platform proof implied.
+
+Final gate: 201 tests passed, none failed/skipped, plus production build; log
+../jett-pdf-print-final-full-test.log. The earlier full run was interrupted while
+the browser evidence assertion was finalized; it is not a completed gate.
+See ../architecture/PDF_PRINT.md for behavior and practical limits.
