@@ -153,7 +153,7 @@ microphone check is distinct from both transcript injection and the isolated
 synthetic-stream test. It does not prove exact accent/noise matching or identify
 why the upstream browser service returned no words.
 
-Capture now starts a twenty-second deadline when speech is detected. Any
+Capture now starts a twenty-second deadline when speech is detected. Any new
 nonblank recognition result clears it; repeated speech-start events do not
 postpone it. If no words arrive, capture terminates, cancels recovery and reports
 `recognition-no-results`. End, pause and disposal cancel the deadline, and stale
@@ -215,3 +215,46 @@ bundled lease. “End highlighting” was once transcribed as “And highlightin
 one “till” delivery failed. Those are recognition limitations, not successes.
 See parent `runtime/live-voice-diagnosis/staged-physical-receipt.json`. No accent,
 noise, multilingual or long-session reliability is established by this trial.
+
+
+## Finalized reading authority and command prefixes
+
+An unmatched interim hides the moving guide but does not revoke the preceding
+selection: “mark this” can still finish as “mark this important”. If the final
+segment is genuine reading and still unmatched, both spoken targets are cleared
+and the queued command snapshot records that rejection. A later “highlight this”
+cannot fall back to the old visible paragraph. A deliberate text/PDF block click,
+a successful fresh match or a unique explicit range start restores targeting.
+A later click cannot authorize a previously queued rejected command; later
+unmatched reading cannot revoke an already captured valid command.
+
+A standalone “please” adjacent to a recognized command is courtesy, not a
+separate reading segment. The intent adapter preserves the command's source span
+and ordinary prose. This matters for real speech: “Please highlight this” must
+respect a deliberate selection without mistaking its prefix for unmatched text.
+
+Capture delivers each newly finalized segment through interim matching directly
+before its final callback, including multiple finals in one browser result event.
+The cumulative prefix stops at that segment. It then sends the newest nonfinal
+interim, if any. Final callbacks are not repeated, and pause/generation changes
+stop the remainder of a batch. The application-level capture bridge test checks
+both unmatched-reading→command refusal and valid-reading→command targeting.
+
+## Optional local command hints
+
+When the browser exposes `SpeechRecognitionPhrase` and the recognizer's `phrases`
+property, local English sessions apply four small command hints with boost 2.
+They do not contain document text. Other modes/languages and missing APIs retain
+ordinary recognition. A constructor/setter failure disables hints for that
+session; a model's `phrases-not-supported` error permits one normal bounded retry
+without hints on the same local owned track. A repeated rejection is terminal.
+There is no remote fallback or new unbounded restart mechanism.
+
+This uses the experimental [Web Speech contextual-biasing API](https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition/phrases)
+and its [specified phrase/error behavior](https://webaudio.github.io/web-speech-api/#dom-speechrecognition-phrases).
+Actual Chrome accepted all four hints in a local microphone start without error.
+However, “highlight this” was still sometimes recognized as “I like this”, so no
+accuracy improvement is claimed. A bounded negative trial recognized ordinary
+“I like this” without editing, while an explicitly selected passage responded to
+“Please highlight this”. Higher boosts are not justified by this evidence.
+Parent receipt: `runtime/live-voice-diagnosis/voice-target-and-hints-receipt.json`.

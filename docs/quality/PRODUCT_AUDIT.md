@@ -770,3 +770,29 @@ checking enabled after rendering; product printing code was unchanged.
 
 Final gate: Vite production build and **242 tests passed**, zero failures or skips.
 Focused staged journey and independent review passed. Changes are local only.
+
+
+## Stale-target refusal, capture batches and polite commands
+
+Negative-first browser tests proved that unmatched reading could highlight an
+old passage, and that a courtesy prefix could incorrectly reject a deliberately
+selected passage. The application now distinguishes pending interim uncertainty
+from finalized reading rejection, freezes command authority on arrival, preserves
+partial command prefixes and removes standalone command courtesy from reading
+classification. A visible guide is restored when an unfinished command becomes
+a recognized instruction. Pointer recovery works for text and PDF block paths.
+
+Production capture ordering is covered by an application bridge with controlled
+recognizer events: each newly final reading gets matched before its following
+command, even when Chrome batches the results. Optional local English hints have
+32 focused capture tests covering setup, absence, failure, retry, stream ownership,
+pause and batch ordering. The hints were accepted by actual local Chrome; observed
+misrecognitions mean improved recognition accuracy remains unproven.
+
+Physical sample proof covers finalized unrelated reading and refusal of a later
+correctly recognized highlight instruction; ordinary “I like this” with hints
+creates no act; deliberate selection followed by “Please highlight this” creates
+the expected deposit mark. Sanitized receipt is in the parent runtime directory.
+No private document or recording was added to the repository.
+
+Final runtime checkpoint: `2283c3f`, with capture at `fe18da0`. Production build and **249 tests passed**, zero failures or skips. The physical recovery mark was removed by spoken undo; reopening preserved undo and only the original rent sample mark remained. Microphone released; feedback cleared. Frontend changes remain local.
