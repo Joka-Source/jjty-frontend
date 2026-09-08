@@ -3,8 +3,18 @@ import {createMuPdfProvider} from './pdf-engine.js';
 import {parsePageOrder,parsePageSelection} from '../vendor/bentopdf/page-order.js';
 
 // Review and download one immutable PDF snapshot. Never mutates the reader.
-export function initPdfReview() {
+export function initPdfReview({saveCopy}={}) {
   const dialog=document.getElementById('pdf-review-dialog'), pages=document.getElementById('pdf-review-pages'), status=document.getElementById('pdf-review-status'), download=document.getElementById('pdf-review-download'), print=document.getElementById('pdf-review-print');
+  const save=document.createElement('button');save.id='pdf-review-save';save.type='button';save.textContent='Save copy to Library';save.hidden=typeof saveCopy!=='function';save.disabled=true;download.before(save);
+  let origin=null,saving=false;
+  save.addEventListener('click',async()=>{
+    if(save.disabled||!snapshot||!dialog.open||saving)return;
+    const version=generation,bytes=snapshot.slice(),parent=structuredClone(origin),name=filename,kind=reviewKind;
+    saving=true;ready(false);status.textContent='Saving this reviewed copy to your library…';
+    try{await saveCopy(bytes,name,parent,kind,{isCurrent:()=>version===generation&&dialog.open});if(version===generation)close();}
+    catch(error){if(version===generation&&dialog.open){status.textContent=`Could not save this copy. ${error.message || 'Try again.'} The reviewed copy is still available.`;}}
+    finally{saving=false;if(version===generation&&dialog.open)ready(true);else save.disabled=download.disabled||!origin;}
+  });
   const organizer=document.createElement('form');organizer.className='pdf-review-order';
   organizer.innerHTML='<label for="pdf-review-order">Page order</label><input id="pdf-review-order" aria-describedby="pdf-review-order-help" maxlength="100000" autocomplete="off"><button type="submit" disabled>Reorder this copy</button><button type="button" data-review-undo disabled>Undo page change</button><small id="pdf-review-order-help">Include every page once, for example 3,1-2. Numbers refer to the current preview.</small>';
   const extractor=document.createElement('form');extractor.className='pdf-review-extract';
@@ -30,8 +40,8 @@ export function initPdfReview() {
   function setReorderAvailability(value){reorderAvailability=value;orderHelp.textContent=value.allowed?orderInstructions:`Page reordering is unavailable. ${reorderReasons[value.reason] || 'This PDF could not be verified for page changes.'}`;}
   let previousEdit=null;
   let generation=0, snapshot=null, filename='filled.pdf', reviewKind='filled', pendingCloseEvents=0;
-  function ready(value){mergeInput.disabled=!value;mergeButton.disabled=!value || !mergeInput.files.length;extractInput.disabled=!value || !extractAvailability.allowed;extractButton.disabled=!value || !extractAvailability.allowed;undoButton.disabled=!value || !previousEdit;orderInput.disabled=!value || !reorderAvailability.allowed;orderButton.disabled=!value || !reorderAvailability.allowed;download.disabled=!value;if(print)print.disabled=!value;for(const button of pages.querySelectorAll('[data-pdf-rotate]'))button.disabled=!value;}
-  function clear(){generation++;mergeInput.value="";mergeInput.disabled=true;mergeButton.disabled=true;extractAvailability={allowed:false,reason:null};extractHelp.textContent='Checking page extraction availability…';extractInput.disabled=true;extractButton.disabled=true;reorderAvailability={allowed:false,reason:null};orderHelp.textContent='Checking page reordering availability…';undoButton.disabled=true;snapshot=null;orderInput.disabled=true;orderButton.disabled=true;download.disabled=true;if(print)print.disabled=true;pages.replaceChildren();}
+  function ready(value){save.disabled=!value||saving||!origin;mergeInput.disabled=!value;mergeButton.disabled=!value || !mergeInput.files.length;extractInput.disabled=!value || !extractAvailability.allowed;extractButton.disabled=!value || !extractAvailability.allowed;undoButton.disabled=!value || !previousEdit;orderInput.disabled=!value || !reorderAvailability.allowed;orderButton.disabled=!value || !reorderAvailability.allowed;download.disabled=!value;if(print)print.disabled=!value;for(const button of pages.querySelectorAll('[data-pdf-rotate]'))button.disabled=!value;}
+  function clear(){generation++;save.disabled=true;mergeInput.value="";mergeInput.disabled=true;mergeButton.disabled=true;extractAvailability={allowed:false,reason:null};extractHelp.textContent='Checking page extraction availability…';extractInput.disabled=true;extractButton.disabled=true;reorderAvailability={allowed:false,reason:null};orderHelp.textContent='Checking page reordering availability…';undoButton.disabled=true;snapshot=null;orderInput.disabled=true;orderButton.disabled=true;download.disabled=true;if(print)print.disabled=true;pages.replaceChildren();}
   function close(){previousEdit=null;clear();if(dialog.open){pendingCloseEvents++;dialog.close();}}
   dialog.addEventListener('close',()=>{
     // close() already cleared synchronously. Its queued event must not cancel
@@ -211,7 +221,8 @@ export function initPdfReview() {
     }
   });
   initPdfPageOverview({pages,download,orderInput,orderButton,extractInput,extractButton,undoButton});
-  const api={close,prepare(){close();const version=generation;return ()=>version===generation;},async open(bytes,name,{kind='filled',retainUndo=false}={}){
+  const api={close,prepare(){close();const version=generation;return ()=>version===generation;},async open(bytes,name,{kind='filled',retainUndo=false,origin:sourceOrigin=null}={}){
+    if(!retainUndo)origin=sourceOrigin?structuredClone(sourceOrigin):null;
     if(!retainUndo)previousEdit=null;
     clear();extractInput.removeAttribute('aria-invalid');orderInput.removeAttribute('aria-invalid');const version=generation, owned=new Uint8Array(bytes);filename=name;reviewKind=kind;
     document.getElementById('pdf-review-title').textContent=`Review ${kind} copy`;

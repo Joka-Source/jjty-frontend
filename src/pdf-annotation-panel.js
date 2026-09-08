@@ -1,3 +1,4 @@
+import {reviewOrigin} from './reviewed-copy.js';
 import {exportAnnotatedPdf} from './pdf-annotations.js';
 
 const explanations={
@@ -40,7 +41,7 @@ export function initPdfAnnotationPanel({getRecords, review, exportPdf=exportAnno
       if(version!==generation)return;
       if(!ownsReview()){status.textContent='A newer review replaced this request.';return;}
       const filename=`${(doc.provenance.name || doc.title || 'document').replace(/\.pdf$/i,'')}-annotated.pdf`;
-      const rendered=await review.open(bytes,filename,{kind:'annotated'});
+      const rendered=await review.open(bytes,filename,{kind:'annotated',origin:reviewOrigin(doc)});
       if(version===generation)status.textContent=rendered?'Your saved marks are ready to review. The original is unchanged.':'The review was closed or could not be rendered.';
     } catch(error) {
       if(version===generation)status.textContent=`The annotated copy could not be created: ${explanations[error.code] || error.message}`;

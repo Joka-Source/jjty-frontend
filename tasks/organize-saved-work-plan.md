@@ -1,0 +1,7 @@
+# Next: Organize the document with saved work
+
+The primary JETT Organize action must include saved annotations and form answers. Keep explicit Review original available separately. Enter the reader queue with captured document identity; guard unsaved note drafts, flush form changes, and fetch the latest persisted document (the form panel may persist a different object from state.doc). Snapshot the latest source/formDraft and committed records. Compose via exportCombinedPdf with allowFormOnly:true, then open those exact bytes with captured reviewOrigin.
+
+Reserve review ownership before awaiting; check document identity and ownership before publishing. Use the panel's exporting/snapshot lock or a modal preparation state so form edits during preparation cannot be silently excluded. Never reread mutable work at Save copy to Library. If composition fails, preserve the existing document and explain the failure; do not silently open an original-only copy. Original bytes are appropriate only when there is no saved work to compose.
+
+Verify highlight/note plus form answer → Organize → reorder/rotate → Save to Library → reload → independent annotation/field readback. Test failed form flush, mixed source digests, stale preparation and output persistence. Preserve current operation restrictions until their richer structural support is verified. Full Edit/Fill & Sign, Pencil/touch, PDF Expert/Apple Books and three-platform release gates remain open.

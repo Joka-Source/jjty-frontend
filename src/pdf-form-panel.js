@@ -1,3 +1,4 @@
+import {reviewOrigin} from './reviewed-copy.js';
 import {inspectPdfForm, fillPdfForm} from './pdf-forms.js';
 import {initPdfReview} from './pdf-review.js';
 import {exportCombinedPdf} from './pdf-combined.js';
@@ -89,7 +90,7 @@ export function initPdfFormPanel({saveDocument, getRecords, review=initPdfReview
       const filename=`${(doc.provenance.name || doc.title || 'document').replace(/\.pdf$/i,'')}-${hasMarks?'combined':'filled'}.pdf`;
       if(preview){
         if(!ownsReview()){status.textContent='A newer review replaced this request.';return;}
-        const rendered=await review.open(result,filename,{kind:hasMarks?'filled and annotated':'filled'});
+        const rendered=await review.open(result,filename,{kind:hasMarks?'filled and annotated':'filled',origin:reviewOrigin(doc)});
         if(version===generation)status.textContent=rendered?(hasMarks?'Your saved answers and local marks are ready to review or download.':include?'Your saved answers are ready. There were no surviving local marks to include.':'Your saved answers are ready to review or download.'):'The review was closed or could not be rendered.';
         return;
       }

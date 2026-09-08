@@ -119,3 +119,15 @@ Plan: [page-organizer-plan.md](page-organizer-plan.md).
 - [x] Build and all 403 tests pass; final aspect-ratio render check also passes. Local evidence checkpoint accompanies this record.
 
 Remaining: integrated saved annotations/form answers and durable derived-copy Library publication; full professional Organize workspace and native/touch parity.
+
+## Reviewed copies in Library — 9 September
+
+Plan: [reviewed-copy-library-plan.md](reviewed-copy-library-plan.md).
+
+- [x] Save exact reviewed snapshot through shared derived-document import and atomic putDocIfAbsent.
+- [x] Stable parent/output digest identity, explicit primary-source provenance and immutable origin through page edits.
+- [x] Injected storage failure retains review; retry persists exact bytes that survive reload.
+- [x] Late save cannot close/unlock newer review; queued activation rechecks ownership after pending saves.
+- [x] Build and all 404 tests pass; desktop/phone rendered evidence inspected and checkpointed.
+
+Next: compose saved annotations/form answers into the primary Organize workflow and retain the exact resulting copy in Library. Complete merged-input lineage separately; current metadata explicitly identifies the primary source only.

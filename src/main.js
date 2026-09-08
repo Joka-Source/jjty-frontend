@@ -1,3 +1,4 @@
+import {reviewOrigin,reviewedCopyMetadata} from './reviewed-copy.js';
 import {initAnnotationToolbar} from './annotation-toolbar.js';
 import {selectionStillCurrent} from './pdf-selection.js';
 import { createReaderSession } from './reader-session.js';
@@ -507,16 +508,16 @@ function resetPdfTools() {
   globalThis.CSS?.highlights?.delete("jt-pdf-search");
 }
 
+async function importReviewedPdf(bytes,name,metadata,options={}){
+  const pdfjs=await loadPdfJs(),engine=await selectAvailablePdfEngine({pdfjs});
+  const result=await ingestPdfBrowser(engine,bytes,{name});
+  result.provenance={...result.provenance,derivedFrom:metadata.derivedFrom};
+  return addIngested(result,name.replace(/\.pdf$/i,''),{id:metadata.id,...options});
+}
 const bentoPanel = initBentoPanel({
   getCurrentDocument: () => state.doc,
   getDocument: getDoc,
-  async importDocument(bytes, name, metadata) {
-    const pdfjs = await loadPdfJs();
-    const engine = await selectAvailablePdfEngine({ pdfjs });
-    const result = await ingestPdfBrowser(engine, bytes, { name });
-    result.provenance = { ...result.provenance, derivedFrom: metadata.derivedFrom };
-    return addIngested(result, name.replace(/\.pdf$/i, ''), { id: metadata.id });
-  },
+  importDocument: importReviewedPdf,
 });
 const serverPanel = initServerPanel({ saveDocument: putDoc });
 const pdfContents=initPdfContents({
@@ -549,7 +550,12 @@ const pdfContents=initPdfContents({
     return true;
   },
 });
-const pdfReview = initPdfReview();
+const pdfReview = initPdfReview({async saveCopy(bytes,name,origin,kind,{isCurrent}){
+  const metadata=await reviewedCopyMetadata(bytes,origin,kind);
+  const saved=await importReviewedPdf(bytes,name,metadata,{openIf:isCurrent});
+  if(!saved)throw new Error('This copy could not be added to the library.');
+  return saved;
+}});
 initLibraryBackupPanel({refresh: refreshLibrary});
 const documentRename=initDocumentRename({onRenamed:async doc=>{
   if(state.doc?.id===doc.id && (state.doc.titleRevision??0)<=(doc.titleRevision??0)){
@@ -1833,7 +1839,7 @@ function renderDocHead(doc) {
 document.getElementById("review-original").addEventListener("click", () => {
   const doc = state.doc;
   if (!doc?.sourceBytes || doc.provenance?.sourceKind !== "pdf") return;
-  pdfReview.open(pdfSourceBytes(doc.sourceBytes), doc.provenance?.name || `${doc.title}.pdf`, { kind: "original" });
+  pdfReview.open(pdfSourceBytes(doc.sourceBytes), doc.provenance?.name || `${doc.title}.pdf`, { kind: "original", origin:reviewOrigin(doc) });
 });
 
 document.getElementById("download-original").addEventListener("click", () => {
@@ -1861,10 +1867,12 @@ function queueReader(task){
 }
 function openDocument(doc, options = {}) {return queueReader(()=>openDocumentNow(doc,options));}
 async function openDocumentNow(doc,options={}){
+  if(options.openIf&&!options.openIf())return doc;
   annotationTools?.beforeLeave();
   const session=readerSession.snapshot();
   captureReaderView();
   if(state.doc){await positionMemory.flush(state.doc.id);await pdfFormPanel.flush(state.doc.id);}
+  if(options.openIf&&!options.openIf())return doc;
   const held=Object.hasOwn(session.views,doc.id);
   const selectionVersion=positionSelectionVersions.get(doc.id) ?? 0;
   const view=readerSession.get(doc);
@@ -2020,8 +2028,9 @@ async function addIngested(result, nameHint = "", options = {}) {
   };
   if (options.id) doc = await putDocIfAbsent(doc);
   else await putDoc(doc);
+  if(options.openIf&&!options.openIf()){try{await refreshLibrary();}catch{}return doc;}
   try {
-    await openDocument(doc);
+    await openDocument(doc,{openIf:options.openIf});
   } catch {
     // Persistence has already committed. Never report a failed save or prompt
     // a duplicate import just because the reader could not open the result.
