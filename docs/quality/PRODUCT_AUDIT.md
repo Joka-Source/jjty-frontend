@@ -612,3 +612,34 @@ prove earlier queued additions roll back. Root inspected the final 390px preview
 Artifacts: ../runtime/library-backup-proof/library.json, result.json and
 phone-preview.png. This is local recovery proof, not account/cloud synchronization
 or authentication of a backup's author. See ../architecture/LIBRARY_BACKUP.md.
+
+## Native PDF page rotation — 8 September
+
+Reviewed originals, filled and annotated/combined PDFs now offer per-page left
+and right rotation. The operation changes only native leaf-page orientation on
+an owned prepared copy, verifies reopened data and renders the exact output for
+download/print. Stored originals and local drafts/records remain unchanged.
+Inherited angles and full-turn normalization are checked; protected/dynamic
+inputs are refused. Assembly permission is required.
+
+Preservation verification compares the dereferenced catalog/info graph and
+decoded streams, excluding leaf page rotation rather than wrongly treating
+transformed displayed widget bounds as fixed. Independent review caught a
+preview-failure path that discarded the old usable copy. It now restores old
+DOM/bytes/name and controls only while that same review still owns the operation.
+Closing or preparing another review cannot resurrect stale content.
+
+Full gate: 227 tests passed, no failures/skips, with build;
+../jett-pdf-rotation-full-test.log. Core checks include damaged-save rejection.
+Browser tests cover real combined-copy downloads, four-turn normalization,
+original custody and closing/replacement. Three fault-injection scenarios use
+real MuPDF with a delayed failing rotated render to verify exact previous-copy
+recovery and stale ownership guards.
+
+Retained independent proof: ../runtime/pdf-rotation-proof/1788841756846/.
+Rotated PDF SHA256 50d6e15f788450815d900cc462915e60bc6cf08d62013e2fd173c872b9890fda.
+PDF.js confirms rotations90/0 then0/0; pypdf confirms fields/appearances and native
+annotations/contents/quads. Both Poppler pages were independently inspected;
+root also viewed the first rotated page. This is local fixture evidence, not
+physical printing, editing arbitrary PDFs or full page-operation parity.
+See ../architecture/PDF_ROTATION.md.

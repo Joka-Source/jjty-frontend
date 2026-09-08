@@ -109,6 +109,8 @@ article.image-source { padding-bottom: 24px; }
 .pdf-review-dialog[open] {display:flex;flex-direction:column;overflow:hidden;}
 .pdf-review-header, #pdf-review-status, .pdf-review-actions {flex-shrink:0;}
 .pdf-review-actions {display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;}
+.pdf-review-page-actions {display:flex;justify-content:center;gap:.5rem;flex-wrap:wrap;}
+.pdf-review-page-actions button {min-height:44px;}
 #pdf-review-download {align-self:flex-start;}
 #pdf-review-pages {min-height:0;overflow:auto;overscroll-behavior:contain;}
 .pdf-review-notes {text-align:left;border:1px solid var(--line);border-radius:8px;margin:.75rem 0;padding:0 1rem;}
