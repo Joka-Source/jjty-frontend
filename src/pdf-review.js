@@ -40,8 +40,22 @@ export function initPdfReview() {
           const density=Math.min(devicePixelRatio || 1,2);canvas.width=Math.ceil(viewport.width*density);canvas.height=Math.ceil(viewport.height*density);
           canvas.style.width=`${viewport.width}px`;canvas.style.height=`${viewport.height}px`;
           await page.render({canvasContext:canvas.getContext('2d'),viewport,transform:density===1?null:[density,0,0,density,0,0]}).promise;
+          const notes=(await page.getAnnotations()).filter(annotation=>
+            ['Text','FreeText'].includes(annotation.type) && annotation.contents.trim());
           if(version!==generation)return;
-          figure.append(caption,canvas);pages.append(figure);
+          figure.append(caption,canvas);
+          if(notes.length){
+            const details=document.createElement('details');details.className='pdf-review-notes';
+            const summary=document.createElement('summary');summary.textContent=`Notes on page ${i} (${notes.length})`;
+            const list=document.createElement('ol');
+            for(const note of notes){
+              const item=document.createElement('li'),text=document.createElement('p');
+              item.dataset.annotationId=note.id;text.textContent=note.contents;
+              item.append(text);list.append(item);
+            }
+            details.append(summary,list);figure.append(details);
+          }
+          pages.append(figure);
         }finally{page.cleanup();}
         await new Promise(resolve=>setTimeout(resolve,0));
       }

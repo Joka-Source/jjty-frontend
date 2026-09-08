@@ -162,3 +162,34 @@ test("browser loading keeps primary-required PDFs unsupported without MuPDF", as
     (error) => error?.code === "MUPDF_PRIMARY_UNAVAILABLE",
   );
 });
+
+test('MuPDF review reads exact saved annotation contents as plain data and owns returned arrays', async () => {
+  const mupdf=await import('mupdf');
+  const {ingestPdfBrowser}=await import('../src/ingest.js');
+  const {createAnchor}=await import('../src/anchors.js');
+  const {exportAnnotatedPdf}=await import('../src/pdf-annotations.js');
+  const input=new Uint8Array(await readFile(new URL('./fixtures/jett-annotations.pdf',import.meta.url)));
+  const source={id:'saved-note-review',...await ingestPdfBrowser(pdfEngine.createMuPdfProvider(mupdf),input,{name:'notes.pdf'})};
+  const contents='<img src=x onerror="alert(1)">\nनमस्ते — résumé & <b>plain text</b>';
+  const anchor=createAnchor({blockTexts:source.blocks.map(b=>b.text),blockIndex:0,tokenStart:7,tokenEnd:10,docDigest:source.provenance.contentDigest});
+  const bytes=await exportAnnotatedPdf(source,[{id:'literal-note',docId:source.id,kind:'act',act:'note',arrival:'exact',blockIndex:0,anchor,noteText:contents}]);
+  const opened=await pdfEngine.createMuPdfProvider(mupdf).open(bytes);
+  const page=await opened.document.getPage(2);
+  try{
+    const annotations=await page.getAnnotations();assert.equal(annotations.length,1);
+    assert.deepEqual({...annotations[0],rect:[]},{id:'jett:literal-note',type:'Text',contents,rect:[]});
+    assert.equal(annotations[0].rect.length,4);assert.ok(annotations[0].rect.every(Number.isFinite));
+    annotations[0].contents='caller edit';annotations[0].rect[0]=-999;
+    const reread=await page.getAnnotations();assert.equal(reread[0].contents,contents);assert.notEqual(reread[0].rect[0],-999);
+    assert.match((await page.getTextContent()).nativeText,/orchard/);
+  }finally{page.cleanup();await opened.loadingTask.destroy();}
+  await assert.rejects(page.getAnnotations(),/MUPDF_PAGE_CLOSED/);
+});
+
+test('MuPDF provider disables PDF JavaScript before exposing pages',async()=>{
+  const mupdf=await import('mupdf'),original=mupdf.PDFDocument.prototype.disableJS;let disabled=0;
+  mupdf.PDFDocument.prototype.disableJS=function(){disabled++;return original.call(this);};
+  let opened;
+  try{opened=await pdfEngine.createMuPdfProvider(mupdf).open(new Uint8Array(await readFile(realPdfFixture)));assert.equal(disabled,1);}
+  finally{await opened?.loadingTask.destroy();mupdf.PDFDocument.prototype.disableJS=original;}
+});

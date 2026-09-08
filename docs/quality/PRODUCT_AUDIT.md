@@ -437,3 +437,25 @@ This is local annotation export, not full annotation/editor parity. Form drafts
 and server work remain separate scopes. Canvas review displays note icons but
 does not open note popups. Physical-device interoperability, printing, signatures,
 complex-script corpora and large-document performance retain separate gates.
+
+## Read saved PDF notes inside review
+
+Review now provides expandable, keyboard-accessible note sections on each page,
+reading Text/FreeText contents from the exact PDF snapshot. Unicode, newlines and
+HTML-like strings remain literal text. The native engine releases annotation
+wrappers and returns independently owned plain data; it disables PDF JavaScript
+before exposing pages. Repeated reads and reads after page cleanup are tested.
+
+Browser regression covers serialized notes on pages 2/3, no notes on blank page 1,
+keyboard expansion, whitespace, no HTML execution, unchanged input/snapshot,
+close/Escape and replacement with an unannotated PDF. The live UI proof verified
+displayed notes against the saved records and downloaded the reviewed file, with
+desktop and phone captures inspected in
+`runtime/annotation-proof/1788827924393/` under the parent project directory.
+Final full gate: **173 tests pass**, parent `jett-review-notes-full-test.log`.
+Live proof: parent `jett-review-notes-ui-proof.log`.
+
+This closes the icon-only note-reading gap from the previous checkpoint. Clicking
+canvas note icons remains noninteractive; the expandable text is the current
+review interaction. Combined form/local-mark exports and exact spoken ranges
+remain distinct unfinished workflows. Local evidence only; no deployment.

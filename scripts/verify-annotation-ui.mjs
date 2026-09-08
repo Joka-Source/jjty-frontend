@@ -1,4 +1,5 @@
 import puppeteer from 'puppeteer-core';
+import assert from 'node:assert/strict';
 import {mkdir, readdir, writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -43,9 +44,13 @@ try {
   await writeFile(path.join(output,'expected.json'),JSON.stringify(proof.expected,null,2)+'\n');
   await page.locator('#pdf-annotation-panel summary').click();await page.locator('#pdf-annotation-preview').click();
   await page.waitForFunction(()=>document.querySelectorAll('.pdf-review-page').length===3&&!document.querySelector('#pdf-review-download').disabled);
-  await page.$eval('.pdf-review-page:nth-child(2)',n=>n.scrollIntoView({block:'start'}));
+  assert.deepEqual(await page.$$eval('.pdf-review-notes li p',nodes=>nodes.map(n=>n.textContent)),proof.expected.filter(n=>n.subtype==='/Text').map(n=>n.contents));
+  await page.locator('.pdf-review-notes summary').click();
+  await page.$eval('.pdf-review-notes',n=>n.scrollIntoView({block:'center'}));
   await page.screenshot({path:path.join(output,'review-desktop.png')});
-  await page.setViewport({width:390,height:844});await page.screenshot({path:path.join(output,'review-phone.png')});
+  await page.setViewport({width:390,height:844});
+  await page.$eval('.pdf-review-notes',n=>n.scrollIntoView({block:'center'}));
+  await page.screenshot({path:path.join(output,'review-phone.png')});
   await page.locator('#pdf-review-download').click();
   let file;for(let n=0;n<100;n++){file=(await readdir(output)).find(n=>n.endsWith('.pdf'));if(file)break;await new Promise(r=>setTimeout(r,100));}
   if(!file)throw new Error('No PDF downloaded');

@@ -57,11 +57,17 @@ signatures, flatten notes, export local math/quotes as annotations, or establish
 PDF Expert/Acrobat parity. Complex scripts, unusual text extraction, large files
 and richer accessible review remain separate acceptance work. MuPDF's existing
 licensing and deployment requirements remain applicable.
-The canvas review shows note icons; it does not yet open their text as interactive
-popups. Saved note contents remain in JETT history and in the downloaded PDF's
-standard text annotations.
+The review includes keyboard-accessible, expandable notes beneath each page.
+Their contents come from the exact PDF snapshot's `Text` and `FreeText`
+annotations, rather than local history. Text is inserted literally, retaining
+line breaks and wrapping long strings; PDF contents never become HTML. Closing,
+Escape and replacement reviews remove both page images and note text. Clicking
+the icon inside the canvas is not yet an interactive popup.
 
 Tests cover repeated text after a blank page, multiline and rotated targets,
 standard annotation readback, original preservation, stale targets, undo, and
 the browser journey from saved acts through reload, review and download.
 Independent pypdf structure checks and Poppler renders supplement engine checks.
+The engine returns independent plain annotation snapshots and releases native
+annotation wrappers. Repeated reads cannot expose freed native objects or edits
+made by a previous caller. PDF JavaScript is disabled before exposing pages.

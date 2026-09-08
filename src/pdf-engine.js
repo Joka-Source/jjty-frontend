@@ -90,7 +90,7 @@ function copyPixmapToCanvas(pixmap, canvasContext) {
 }
 
 function createMuPdfPage(mupdf, nativePage) {
-  let destroyed = false;
+  let destroyed = false, annotationSnapshot = null, annotationReadError = null;
   const bounds = nativePage.getBounds();
   const viewBox = [...bounds];
   function activePage() {
@@ -163,9 +163,33 @@ function createMuPdfPage(mupdf, nativePage) {
         structuredText.destroy();
       }
     },
+    async getAnnotations() {
+      const page = activePage();
+      if (annotationReadError) throw annotationReadError;
+      if (annotationSnapshot === null) {
+        const annotations = page.getAnnotations();
+        try {
+          annotationSnapshot = annotations.map((annotation, index) => ({
+            id: annotation.getName() || `annotation:${index}`,
+            type: annotation.getType(),
+            contents: annotation.getContents(),
+            rect: [...annotation.getBounds()],
+          }));
+        } catch (error) {
+          annotationReadError = error;
+          throw error;
+        } finally {
+          // MuPDF caches these wrappers on the native page. Keep only plain
+          // data, so repeated reads neither reuse freed wrappers nor leak them.
+          for (const annotation of annotations) annotation.destroy();
+        }
+      }
+      return annotationSnapshot.map(annotation => ({ ...annotation, rect: [...annotation.rect] }));
+    },
     cleanup() {
       if (destroyed) return;
       destroyed = true;
+      annotationSnapshot = null;
       nativePage.destroy();
     },
   });
@@ -185,6 +209,7 @@ export function createMuPdfProvider(mupdf) {
       let nativeDocument;
       try {
         nativeDocument = mupdf.Document.openDocument(ownedBytes(source), "application/pdf");
+        nativeDocument.disableJS?.();
         if (nativeDocument.needsPassword()) throw passwordRequired();
         const document = Object.freeze({
           numPages: nativeDocument.countPages(),

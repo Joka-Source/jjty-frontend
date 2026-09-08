@@ -66,3 +66,8 @@ source-byte preservation and document switching. The full form UI proof now
 downloads from review and retains independent pypdf structure/appearance checks.
 PDF page rendering here is visual; a richer accessible reading representation
 inside this modal remains work alongside the existing editable field panel.
+
+The shared review now exposes persisted Text/FreeText note contents in expandable
+sections beneath their physical pages. These are read from the exact filled PDF
+bytes, including notes already present in the original; this does not merge
+JETT's separate local annotation records into the filled export.
