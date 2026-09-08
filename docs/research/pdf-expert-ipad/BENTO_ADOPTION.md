@@ -88,3 +88,13 @@ are not implemented by this increment. Source licensing is AGPL-3.0-only; no
 commercial grant is assumed. This local implementation is not a production release.
 
 A subsequent local increment adds one-step undo for reorder and rotation; it restores the exact prior reviewed bytes and handles render failure, close and supersession. Full build and 268 tests pass.
+
+
+A later local checkpoint adds bounded semantic bookmark reconstruction for complete
+reordering and early operation availability. Direct/local GoTo destinations,
+nested/collapsed hierarchy, titles, style and coordinates are independently checked.
+This supersedes the blanket Outlines refusal above only for this verified subset.
+Named destinations, external bookmark actions, malformed/oversized trees and
+unremapped numeric links/page actions remain refused. Tagged structures, attachment
+name trees and page labels remain excluded. Build and 279 tests pass. Reader
+bookmark navigation is a separate, still unimplemented interaction.

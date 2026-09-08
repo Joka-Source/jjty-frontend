@@ -832,3 +832,29 @@ Exact download-byte assertions cover reorder and rotation undo. Browser failure
 injection covers retry, close and new-review ownership. Final gate: production
 build and **268 tests passed**, no failures or skips. Log: parent
 `runtime/live-voice-diagnosis/review-undo-full.log`. Local only.
+
+
+## Bookmark preservation and early availability — PASS_LOCAL
+
+Complete reordering now rebuilds a bounded semantic snapshot of PDF bookmarks
+before native rearrangement can mutate the original outline tree. Nested/collapsed
+state, Unicode title bytes, style/color and local direct or GoTo destinations are
+retained; numeric bookmark targets map to their original page identities. Native
+reopen and independent PDF.js checks verify target content and coordinates.
+Injected bookmark loss fails closed. Named destinations, external bookmark
+actions, malformed/cyclic trees and oversized titles remain refused.
+
+Native probes also removed numeric links outside outlines. Existing output
+comparison already refused those exports; shared preflight now detects these
+numeric links/page actions before editing. Direct-reference links remain verified.
+The review disables only reordering for unsupported files, preserving rendering,
+printing and exact downloads. Generation tests cover closed/replaced preflight;
+failed review/undo restore their own availability state. A styled synthetic review
+at 375px has no control overflow and 44px targets; screenshot inspected locally.
+This is browser evidence, not physical mobile-device evidence.
+
+Production build and **279 tests passed**, zero failures/skips. Log: parent
+`runtime/live-voice-diagnosis/outlines-full.log`; screenshot: `reorder-narrow.png`.
+Next reader gap: existing PDF bookmarks are preserved in output but there is no
+reader contents/bookmark navigation surface in the current main/provider code.
+Engineering remains local and the general product goal remains unfinished.
