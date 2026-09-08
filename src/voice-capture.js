@@ -1,11 +1,14 @@
 // Own one browser recognizer. Browser mode may use a remote service. Explicit
 // local mode requires an installed language and processLocally support, with no
 // remote fallback. Neither mode guarantees uninterrupted browser audio capture.
-export function createVoiceCapture({ Recognition, lang, processingMode = 'browser', acquireAudio, onState, onInterim, onFinal,
+const LOCAL_ENGLISH_HINTS = Object.freeze(['highlight this', 'start highlighting', 'end highlighting', 'stop highlighting']);
+
+export function createVoiceCapture({ Recognition, SpeechRecognitionPhrase = globalThis.SpeechRecognitionPhrase, lang, processingMode = 'browser', acquireAudio, onState, onInterim, onFinal,
   schedule = setTimeout, cancel = clearTimeout, retryLimit = 3 }) {
   let wanted = false, owner = null, generation = 0, timer = null, failures = 0;
   let inputStream = null, acquisition = null, removeEnded = null;
   let speechDeadline = null;
+  const hintedRecognizers = new WeakSet();
   function clearSpeechDeadline() {
     if (speechDeadline !== null) cancel(speechDeadline);
     speechDeadline = null;
@@ -48,6 +51,20 @@ export function createVoiceCapture({ Recognition, lang, processingMode = 'browse
         if (rec.processLocally !== true) { terminal('error', 'local-unsupported'); return; }
       }
     } catch { terminal('error', 'setup-failed'); return; }
+    if (session.mode === 'local' && typeof session.lang === 'string' && /^en(?:-|$)/i.test(session.lang)
+      && !session.hintsDisabled && typeof SpeechRecognitionPhrase === 'function' && 'phrases' in rec) {
+      try {
+        rec.phrases = LOCAL_ENGLISH_HINTS.map(phrase => new SpeechRecognitionPhrase(phrase, 2));
+        hintedRecognizers.add(rec);
+      } catch {
+        // Hints are optional. Replace even a partially configured recognizer,
+        // preserving the session and any owned input track without reopening it.
+        session.hintsDisabled = true;
+        owner = null;
+        try { rec.abort(); } catch { /* No capture has started on this instance. */ }
+        return prepare(session);
+      }
+    }
     return rec;
   }
   function launch(version, session, prepared) {
@@ -72,25 +89,42 @@ export function createVoiceCapture({ Recognition, lang, processingMode = 'browse
       if (!current()) return;
       const results = event.results;
       let full = '';
-      for (const result of results) full += `${result[0].transcript} `;
-      if (full.trim()) {
-        clearSpeechDeadline();
-        onInterim(full, results[results.length - 1]?.[0]?.transcript ?? '');
-      }
-      for (let i = finalized; i < results.length; i++) {
+      for (let i = 0; i < results.length; i++) {
         if (!current()) return;
-        if (results[i].isFinal) {
+        const text = results[i][0].transcript;
+        full += `${text} `;
+        if (results[i].isFinal && i >= finalized) {
           finalized = i + 1;
-          const text = results[i][0].transcript;
-          // Only newly finalized speech proves recovery. Empty events or endless
-          // interim hypotheses must not replenish a failing session's retry budget.
-          if (text.trim()) { failures = 0; onFinal(text); }
+          if (text.trim()) {
+            clearSpeechDeadline();
+            // Match each new final against its own evidence before dispatching
+            // it. A later command in the same browser event must not hide the
+            // preceding reading segment from the application's target checks.
+            onInterim(full, text);
+            if (!current()) return;
+            // Only new final speech replenishes the bounded recovery budget.
+            failures = 0;
+            onFinal(text);
+          }
         }
+      }
+      if (!current()) return;
+      const latest = results[results.length - 1];
+      if (latest && !latest.isFinal && latest[0].transcript.trim()) {
+        clearSpeechDeadline();
+        onInterim(full, latest[0].transcript);
       }
     };
     rec.onerror = event => {
       if (!current()) return;
       error = event.error;
+      if (error === 'phrases-not-supported' && session.mode === 'local'
+        && hintedRecognizers.has(rec) && !session.hintsDisabled) {
+        // The normal bounded onend recovery owns this single retry. Subsequent
+        // recognizers get no hints; a repeated rejection becomes terminal.
+        session.hintsDisabled = true;
+        return;
+      }
       if (['not-allowed', 'service-not-allowed'].includes(error)) terminal('denied', error);
       else if (!['no-speech', 'network'].includes(error)) terminal('error', error);
     };

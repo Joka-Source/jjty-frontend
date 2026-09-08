@@ -231,3 +231,61 @@ test('repeated speech-start events cannot postpone the no-result deadline', () =
   rec.onspeechstart();const first=[...r.timers.keys()][0];rec.onspeechstart();
   assert.deepEqual([...r.timers.keys()],[first]);r.tick();assert.equal(r.states.at(-1),'error');
 });
+
+function phraseRig({mode='local',lang='en-US',phraseApi=true,phraseProperty=true,setterThrows=false}={}) {
+  const stream=fakeStream(),recognizers=[],timers=new Map(),states=[],acquisitions=[];let nextTimer=0;
+  class Phrase { constructor(phrase,boost){this.phrase=phrase;this.boost=boost;} }
+  class Recognition {
+    static async available(){return 'available';}
+    constructor(){this.processLocally=false;this.aborts=0;if(phraseProperty){let list=[];Object.defineProperty(this,'phrases',{get:()=>list,set:value=>{if(setterThrows)throw new Error('hints unsupported');list=value;}});}recognizers.push(this);}
+    start(track){this.track=track;this.started={local:this.processLocally,phrases:this.phrases?.map(p=>({phrase:p.phrase,boost:p.boost}))??[]};}
+    abort(){this.aborts++;this.onend?.();}
+  }
+  const capture=createVoiceCapture({Recognition,SpeechRecognitionPhrase:phraseApi?Phrase:null,processingMode:mode,lang,
+    acquireAudio:async()=>{acquisitions.push(true);return stream;},onState:(state,reason)=>states.push({state,reason}),onInterim(){},onFinal(){},
+    schedule:(fn,delay)=>{timers.set(++nextTimer,{fn,delay});return nextTimer;},cancel:id=>timers.delete(id)});
+  const tick=()=>{const [id,timer]=timers.entries().next().value;timers.delete(id);timer.fn();};
+  return {capture,stream,recognizers,timers,states,acquisitions,tick};
+}
+test('local English command hints are configured before start and reconstructed on restart',async()=>{
+ const r=phraseRig();await r.capture.start();const first=r.recognizers[0];
+ assert.ok(first.started.phrases.some(p=>p.phrase==='highlight this'&&p.boost===2));assert.ok(first.started.phrases.some(p=>p.phrase==='end highlighting'&&p.boost===2));
+ first.onend();r.tick();assert.deepEqual(r.recognizers[1].started.phrases,first.started.phrases);assert.equal(r.acquisitions.length,1);r.capture.pause();
+});
+test('remote, non-English and absent phrase capabilities keep ordinary recognition',async()=>{
+ for(const options of [{mode:'browser'},{lang:'hi-IN'},{phraseApi:false},{phraseProperty:false},{setterThrows:true}]){
+  const r=phraseRig(options);await r.capture.start();const active=r.recognizers.at(-1);assert.ok(active.started);assert.deepEqual(active.started.phrases,[]);assert.equal(r.states.at(-1).state,'starting');r.capture.pause();
+ }
+});
+test('model rejection retries once without hints on the same owned track, then fails closed',async()=>{
+ const r=phraseRig();await r.capture.start();const first=r.recognizers[0];first.onerror({error:'phrases-not-supported'});first.onend();
+ assert.equal(r.stream.track.stops,0);assert.equal([...r.timers.values()][0].delay,500);r.tick();const next=r.recognizers[1];
+ assert.equal(next.track,first.track);assert.equal(next.started.local,true);assert.deepEqual(next.started.phrases,[]);assert.equal(r.acquisitions.length,1);
+ next.onerror({error:'phrases-not-supported'});next.onend();assert.equal(r.states.at(-1).state,'error');assert.equal(r.timers.size,0);assert.equal(r.stream.track.stops,1);
+});
+test('pausing the no-hints retry fences late end and scheduled recovery',async()=>{
+ const r=phraseRig();await r.capture.start();const first=r.recognizers[0];first.onerror({error:'phrases-not-supported'});first.onend();
+ const pending=[...r.timers.values()][0].fn;r.capture.pause();pending();first.onend();
+ assert.equal(r.recognizers.length,1);assert.equal(r.timers.size,0);assert.equal(r.stream.track.stops,1);
+});
+
+test('batched new finals pair each segment with its own cumulative interim before dispatch',()=>{
+ const trace=[];let rec;
+ class Recognition{constructor(){rec=this;}start(){}abort(){}}
+ const capture=createVoiceCapture({Recognition,onState(){},onInterim:(full,latest)=>trace.push(['interim',full,latest]),onFinal:text=>trace.push(['final',text])});capture.start();
+ const event={results:[{0:{transcript:'unmatched reading'},isFinal:true},{0:{transcript:'highlight this'},isFinal:true}]};
+ rec.onresult(event);
+ assert.deepEqual(trace,[['interim','unmatched reading ','unmatched reading'],['final','unmatched reading'],['interim','unmatched reading highlight this ','highlight this'],['final','highlight this']]);
+ rec.onresult(event);assert.equal(trace.filter(x=>x[0]==='final').length,2);
+ rec.onresult({results:[...event.results,{0:{transcript:'next reading'},isFinal:false}]});
+ assert.deepEqual(trace.at(-1),['interim','unmatched reading highlight this next reading ','next reading']);capture.pause();
+});
+test('pause from either paired callback prevents remaining batched finals',()=>{
+ for(const pauseAt of ['interim','final']){
+  const trace=[];let rec,capture;
+  class Recognition{constructor(){rec=this;}start(){}abort(){}}
+  capture=createVoiceCapture({Recognition,onState(){},onInterim:(_full,text)=>{trace.push(['interim',text]);if(pauseAt==='interim')capture.pause();},onFinal:text=>{trace.push(['final',text]);if(pauseAt==='final')capture.pause();}});capture.start();
+  rec.onresult({results:[{0:{transcript:'reading'},isFinal:true},{0:{transcript:'highlight this'},isFinal:true}]});
+  assert.deepEqual(trace,pauseAt==='interim'?[['interim','reading']]:[['interim','reading'],['final','reading']]);
+ }
+});
