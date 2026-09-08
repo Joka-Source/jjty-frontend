@@ -19,6 +19,9 @@ import { surfaceArrive } from "./motion.js";
 import { OrgStore, SPACE_KINDS, MEMBER_ROLES, ValidationError } from "./org.js";
 import { LANGS, MOTION_LEVELS, loadPerson, savePerson, clearSettings } from "./settings.js";
 import { nowIso } from "./records.js";
+import { deriveRangeSegments } from "./anchors.js";
+import { splitParagraphs } from "./doc.js";
+import { contentDigest } from "./ingest.js";
 import {
   documentFromSpaceFeedItem,
   makeSpaceFeedItem,
@@ -251,17 +254,34 @@ export function initShell(ctx) {
   // --- history (the full what-happened surface) ----------------------------
 
   let historyFilter = "all";
+  let historyQuery = "";
+  let historyRenderVersion = 0;
 
   async function allEntries() {
     const docs = await ctx.getDocs();
     const byDoc = new Map(docs.map((d) => [d.id, d]));
     const wanted = historyFilter === "all" ? docs : docs.filter((d) => d.id === historyFilter);
     const rows = [];
+    const searchTexts = new Map();
     for (const d of wanted) {
-      for (const e of await ctx.getRecords(d.id)) rows.push(e);
+      const records = await ctx.getRecords(d.id);
+      const blockTexts = d.blocks?.length ? d.blocks.map(block => block.text) : splitParagraphs(d.text);
+      const docDigest = records.some(e => e.rangeAnchor)
+        ? d.provenance?.contentDigest ?? await contentDigest(d.text ?? blockTexts.join("\n\n")) : null;
+      for (const e of records) {
+        rows.push(e);
+        let passage = [e.anchor?.quotedText, e.matchedText].filter(Boolean).join(" ");
+        if (e.rangeAnchor) {
+          // Rebuild from the current source and both validated endpoints. A
+          // stale derived cache must never make unrelated middle text match.
+          try { passage = deriveRangeSegments(e.rangeAnchor, { blockTexts, docDigest }).map(segment => segment.quotedText).join(" "); }
+          catch { passage = ""; }
+        }
+        searchTexts.set(e.id, [passage, e.noteText].filter(Boolean).join(" ").normalize("NFKC").toLocaleLowerCase());
+      }
     }
     rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    return { rows, byDoc, docs };
+    return { rows, byDoc, docs, searchTexts };
   }
 
   /** Undo an act that may belong to a document that is not open: the record
@@ -289,7 +309,18 @@ export function initShell(ctx) {
   }
 
   async function renderHistoryAll() {
-    const { rows, byDoc, docs } = await allEntries();
+    const version = ++historyRenderVersion;
+    $("history-search-status").textContent = historyQuery.trim() ? "Searching…" : "Loading records…";
+    $("history-all").hidden = true;
+    $("history-empty").hidden = true;
+    const { rows, byDoc, docs, searchTexts } = await allEntries();
+    if (version !== historyRenderVersion) return;
+    const terms = historyQuery.normalize("NFKC").toLocaleLowerCase().trim().split(/\s+/).filter(Boolean);
+    const visible = terms.length ? rows.filter(e => {
+      if (e.kind !== "act" || e.undone) return false;
+      const text = searchTexts.get(e.id) ?? "";
+      return terms.every(term => text.includes(term));
+    }) : rows;
     const sel = $("history-filter");
     sel.textContent = "";
     const all = document.createElement("option");
@@ -305,9 +336,20 @@ export function initShell(ctx) {
     sel.value = historyFilter;
     const list = $("history-all");
     list.textContent = "";
-    $("history-empty").hidden = rows.length > 0;
-    for (const e of rows) {
-      const node = ctx.entryNode(e, { onUndo: (entry) => undoAnywhere(entry, byDoc) });
+    list.hidden = false;
+    $("history-empty").hidden = visible.length > 0;
+    $("history-empty").textContent = terms.length ? "No saved passages or notes match these words." : "No saved records yet. Highlight a passage or add a note to find it here.";
+    $("history-search-status").textContent = `${visible.length} ${terms.length ? "matches" : "records"}`;
+    for (const e of visible) {
+      const node = ctx.entryNode(e, {
+        onUndo: (entry) => undoAnywhere(entry, byDoc),
+        onJump: async entry => {
+          const doc = byDoc.get(entry.docId);
+          if (!doc) return;
+          try { await ctx.openSavedPassage(doc, entry); }
+          catch { ctx.setStatus(true, "This saved passage could not be opened. Please try again."); }
+        },
+      });
       const from = document.createElement("div");
       from.className = "prov";
       from.textContent = `in “${byDoc.get(e.docId)?.title ?? e.docId}”`;
@@ -315,6 +357,11 @@ export function initShell(ctx) {
       list.appendChild(node);
     }
   }
+
+  $("history-search").addEventListener("input", e => {
+    historyQuery = e.target.value;
+    renderHistoryAll();
+  });
 
   $("history-filter").addEventListener("change", (e) => {
     historyFilter = e.target.value;

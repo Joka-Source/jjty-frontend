@@ -54,7 +54,7 @@ import {
 } from "./pdf-reading.js";
 import { decideTarget, decidePhraseTarget } from "./targeting.js";
 import { findRangeTargets } from "./range-targets.js";
-import { createAnchor } from "./anchors.js";
+import { createAnchor, resolveAnchor } from "./anchors.js";
 import { contentDigest } from "./ingest.js";
 import {
   putDoc,
@@ -736,7 +736,7 @@ function spanLabel(e) {
 
 /** Build the DOM for one history entry. Shared by the reading-side panel
  * and the full what-happened surface (which passes its own undo handler). */
-function entryNode(e, { onUndo, onSend } = {}) {
+function entryNode(e, { onUndo, onSend, onJump } = {}) {
   const li = document.createElement("li");
   li.className = `entry ${e.kind}${e.undone ? " struck" : ""}`;
   const head = document.createElement("div");
@@ -773,6 +773,14 @@ function entryNode(e, { onUndo, onSend } = {}) {
   pre.textContent = JSON.stringify({ cursor: e.cursor, proof: e.receipt }, null, 2);
   det.appendChild(pre);
   li.appendChild(det);
+
+  if (onJump && e.anchor && e.kind === "act" && !e.undone) {
+    const jump = document.createElement("button");
+    jump.className = "jump-btn";
+    jump.textContent = "Go to passage";
+    jump.addEventListener("click", () => onJump(e));
+    li.appendChild(jump);
+  }
 
   if (e.kind === "act" && !e.undone) {
     const btn = document.createElement("button");
@@ -1771,6 +1779,7 @@ async function openDocumentNow(
     modality = "pointer",
     returnReason = "opened from documents",
     requirePosition = false,
+    savedAnchor = null,
   } = {}
 ) {
   const selectionVersion = positionSelectionVersions.get(doc.id) ?? 0;
@@ -1789,6 +1798,25 @@ async function openDocumentNow(
   await refreshLibrary();
   if (narrowScreen.matches) setSheet(null); // picking a document closes the sheet
   if (navigate) shell?.show("read");
+  if (savedAnchor) {
+    if ((positionSelectionVersions.get(doc.id) ?? 0) !== selectionVersion) return null;
+    const openedDocument = state.doc;
+    const docDigest = doc.provenance?.contentDigest ?? await contentDigest(doc.text ?? state.blockTexts.join("\n\n"));
+    if (state.doc !== openedDocument || state.doc?.id !== doc.id || (positionSelectionVersions.get(doc.id) ?? 0) !== selectionVersion) return null;
+    const target = resolveAnchor(savedAnchor, { blockTexts: state.blockTexts, docDigest });
+    if (target.arrival === "lost") {
+      setStatus(true, "The saved words could not be located in this document.");
+      return null;
+    }
+    state.currentBlock = target.blockIndex;
+    state.lastMatch = null;
+    state.lastReadingMatch = null;
+    state.matcher?.reset();
+    state.blocks[target.blockIndex]?.scrollIntoView({ block: "center" });
+    moveMarker(target.blockIndex, target);
+    setStatus(true, `Saved passage: “${target.quotedText}”`);
+    return target;
+  }
   const position = await positionForDoc(doc);
   if ((positionSelectionVersions.get(doc.id) ?? 0) !== selectionVersion) return null;
   if (!position) {
@@ -2364,6 +2392,7 @@ async function boot() {
     relativeReadTime,
     getInbox: () => inbox,
     entryNode,
+    openSavedPassage: (doc, entry) => openDocument(doc, { savedAnchor: entry.anchor }),
     openDocument: (doc) =>
       openDocument(doc, { modality: "pointer", returnReason: "opened from home" }),
     ingestFile,
