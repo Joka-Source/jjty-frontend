@@ -1,3 +1,4 @@
+import { createCaptureJournal } from './capture-journal.js';
 import { createCommandJournal } from './command-journal.js';
 import { mountCommandJournal } from './command-journal-panel.js';
 import { createVoiceCapture } from './voice-capture.js';
@@ -94,6 +95,7 @@ import { emitGlass } from "./glass-tap.js";
 import { mountGlassDevRoute } from "./glass-route.js";
 
 const commandJournal = createCommandJournal();
+const captureJournal = createCaptureJournal(commandJournal);
 mountCommandJournal(commandJournal);
 
 const article = document.getElementById("doc");
@@ -1570,7 +1572,7 @@ function onInterim(fullText, latestSegment = fullText) {
 
 let speechQueue = Promise.resolve();
 function onFinalSegment(segment, {source = SIM?'sim':'voice'} = {}) {
-  const traceId = commandJournal.begin({source,rawText:segment});
+  const traceId = commandJournal.begin({source,rawText:segment,...(source==='voice'?{captureId:captureJournal.currentId()}: {})});
   showHeard(segment, true);
   emitGlass({ kind: "transcriptEvent", text: segment, final: true, source: SIM ? "sim" : "speech" });
   const intentStarted = performance.now();
@@ -2121,6 +2123,7 @@ const capture = createVoiceCapture({
   onInterim,
   onFinal: onFinalSegment,
   onState: (state, reason, { audioHeld = false } = {}) => {
+    captureJournal.record(state,reason,{audioHeld},settings.voiceProcessing);
     mic.audioHeld = audioHeld;
     if (['paused','off','denied','error','unavailable','local-unavailable'].includes(state)) { cancelStagedRange(); showHeard(''); }
     if (state === 'error' && reason?.startsWith('local-')) state = 'local-unavailable';

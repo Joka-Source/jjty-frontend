@@ -30,7 +30,7 @@ export function mountCommandJournal(journal) {
     for(const row of journal.list().slice(-30).reverse()){
       const li=document.createElement('li'),label=document.createElement('p');
       const events=row.events ?? row.steps ?? [];
-      label.textContent=`${row.source ?? 'command'} · ${events.map(e=>[e.stage,e.intent,e.status].filter(Boolean).join(': ')).join(' → ') || 'received'}`;
+      label.textContent=`${row.source ?? 'command'} · ${events.map(e=>[e.stage,e.intent,e.captureState,e.reason==='none'?null:e.reason,e.status].filter(Boolean).join(': ')).join(' → ') || 'received'}`;
       li.append(label);
       const raw=events.find(event=>event.rawText)?.rawText;
       if(raw){const words=document.createElement('p');words.textContent=raw;li.append(words);}

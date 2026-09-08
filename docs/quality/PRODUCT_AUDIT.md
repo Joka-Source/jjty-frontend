@@ -1002,3 +1002,26 @@ longer timeout; all original selection/restore/source-preservation assertions
 remain. The final combined gate includes that correction and the actual metadata
 download/readback proof. Status: PASS_LOCAL. No deployment or general live-speech
 reliability claim.
+
+
+## Capture failures before a command
+
+The local feedback loop now observes the existing capture onState callback. Each
+start owns one capture-only trace through preparation and reconnects. A terminal
+state ends that ownership. Failures before recognizer start still get a record;
+no final transcript or successful command is invented. A final voice command
+links to its retained capture trace. Errors are allowlisted, text-free metadata.
+App-owned `audioHeld` is distinct from a browser-managed microphone.
+
+The actual browser application with an injected fake recognizer verifies a
+recognition-no-results failure, retry, linked exact highlight receipt, pause and
+rejection of late callbacks. No physical microphone requests occurred. Four
+adapter lifecycle tests and the journal checks pass. This is better diagnosis,
+not a new capture algorithm or evidence that human speech reliability is fixed.
+Shared CLAUDE.md routing and the Codex AGENTS.md entry point now make GStack
+workflow selection explicit for future agents.
+
+Final gate: build and **344/344** tests pass, zero failures/skips/cancellations
+(`capture-journal-full.log`). Status: PASS_LOCAL for the diagnostic addition.
+Application microphone acquisition, recognition algorithms and retry policy are
+unchanged; the physical-user quality boundary remains open.

@@ -28,6 +28,9 @@ are excluded from this export. Local trace IDs join stages within the export.
 
 ## Evidence semantics
 
+- `capture`: session state, processing route and an allowlisted failure reason.
+  Starting/listening/reconnecting remain one trace; terminal states end ownership.
+  A failed start has no fabricated heard event.
 - `heard`: a final transcript or a pointer command entered the pipeline.
 - `intent`: parsed command or reading, separate from target certainty.
 - `target`: matched, ambiguous or missing, with numeric range metadata when known.
@@ -39,8 +42,13 @@ are excluded from this export. Local trace IDs join stages within the export.
 Stages for one utterance share an ID. A target ambiguity choice retains the original command ID through confirmation.
 Generic grammar-choice and document-return prompts still need broader parent
 attribution; do not infer complete lineage for every application control.
-Interim audio frames, physical capture state, errors before a final transcript,
-non-registry controls and every OS command are not covered by this journal.
+Final voice commands link to the retained capture session through `capture_id`.
+The bounded journal can evict old sessions; it is not an unbounded audit ledger.
+Capture state records distinguish no-results failures, reconnects, denied access
+and unavailable local engines. `audioHeld` means the app owns a live input stream;
+false does not establish whether the browser service owns a microphone.
+Interim audio frames, audio signal quality, non-registry controls and every OS
+command are not covered by this journal.
 The existing capture diagnostics and controlled voice benchmark cover different
 layers. Do not label this the history of every possible application event.
 
