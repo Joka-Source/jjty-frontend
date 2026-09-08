@@ -204,6 +204,8 @@ const state = {
   tokenMeta: [],
   currentBlock: -1,
   lastMatch: null, // { score, blockIndex }
+  rejectedReading: false,
+  pendingReadingRejected: false,
   lastReadingMatch: null, // frozen when a final segment is ordinary reading
   matcher: null, // js or wasm engine
   engineKind: "",
@@ -297,6 +299,8 @@ async function handleStagedRange(command, snapshot, evidence) {
       const end = state.tokenMeta.findIndex(t => t.blockIndex === visibleStart.blockIndex && t.tokenIndex === visibleStart.tokenEnd);
       state.lastMatch = {score:1, blockIndex:visibleStart.blockIndex, start, end, target:visibleStart, candidates:[{...visibleStart,score:1}]};
       state.lastReadingMatch = state.lastMatch;
+      state.rejectedReading = false;
+      state.pendingReadingRejected = false;
       moveMarker(visibleStart.blockIndex, visibleStart);
       state.blocks[visibleStart.blockIndex]?.scrollIntoView({behavior:'smooth',block:'center'});
       rememberPosition(visibleStart.blockIndex);
@@ -359,6 +363,8 @@ function pdfSourceBytes(sourceBytes) {
 }
 
 function selectPdfBlock(blockIndex) {
+  state.rejectedReading = false;
+  state.pendingReadingRejected = false;
   // A deliberate selection supersedes the previous spoken location.
   state.lastMatch = null;
   state.lastReadingMatch = null;
@@ -457,6 +463,8 @@ async function renderDoc(doc) {
     currentBlock: -1,
     lastMatch: null,
     lastReadingMatch: null,
+    rejectedReading: false,
+    pendingReadingRejected: false,
     matcher: null,
     pdf: null,
   });
@@ -1012,6 +1020,11 @@ async function performTargeted(verbId, args) {
   if (args.target || Number.isInteger(args.blockIndex)) {
     return performActAtTarget(verbId, args, args.target ?? null, args.targetChoice ?? null);
   }
+  if (args.voiceTarget?.rejectedReading) {
+    emitCommandResult(verbId, 'none', 'The most recent reading did not match a passage.');
+    setStatus(true, 'Those words did not match — read the passage again or select it before highlighting.');
+    return null;
+  }
   const targetMatch = args.voiceTarget ? args.voiceTarget.match : state.lastReadingMatch ?? state.lastMatch;
   const targetBlock = targetMatch?.blockIndex ?? args.voiceTarget?.blockIndex ?? state.currentBlock;
   if (targetBlock < 0) {
@@ -1399,13 +1412,34 @@ function onInterim(fullText, latestSegment = fullText) {
   // Recognition results include earlier finalized reading. A fresh command
   // must not replay that old text into the cursor after a pointer selection.
   const preview = new IntentStream().push({ text: latestSegment, final: true });
-  if (preview.length && preview.every(event => toCommand(event).type !== "reading")) return;
+  if (preview.length && preview.every(event => toCommand(event).type !== "reading")) {
+    // An incomplete command may have hidden the live guide as unmatched.
+    // Once recognized as a command, restore its still-valid prior target.
+    if (!state.rejectedReading && state.currentBlock >= 0) {
+      if (state.pendingReadingRejected) setStatus(true, 'Following your selection');
+      state.pendingReadingRejected = false;
+      const match = state.lastReadingMatch ?? state.lastMatch;
+      moveMarker(match?.blockIndex ?? state.currentBlock, match?.target ?? null);
+    }
+    return;
+  }
   if (!state.matcher) return;
   emitGlass({ kind: "transcriptEvent", text: fullText, final: false, source: SIM ? "sim" : "speech" });
   const matchStarted = performance.now();
   const m = state.matcher.follow(fullText);
   emitGlass({ kind: "latencyMark", stage: "matcher", durationMs: performance.now() - matchStarted, budgetMs: 1 });
-  if (!m || m.blockIndex == null || m.blockIndex < 0) return;
+  if (!m || m.blockIndex == null || m.blockIndex < 0) {
+    if (tokenize(latestSegment).length) {
+      state.pendingReadingRejected = true;
+      markerDriver.stop();
+      marker.classList.remove('on');
+      setStatus(true, 'Heard you, but those words do not match this document.');
+    }
+    return;
+  }
+  if (state.rejectedReading || state.pendingReadingRejected) setStatus(true, 'Following your reading');
+  state.rejectedReading = false;
+  state.pendingReadingRejected = false;
   const b = m.blockIndex;
   const target = targetForGlobalRange(m.start, m.end, b);
   const candidates = (m.candidates ?? [])
@@ -1471,13 +1505,21 @@ function onFinalSegment(segment) {
   const intentStarted = performance.now();
   const stagedCommand = mathState.active ? null : parseStagedRange(segment);
   const events = intentStream.push({ text: segment, final: true });
+  const hasReading = !mathState.active && (!stagedCommand || (stagedCommand.type === 'end' && !stagedCommand.explicit && !stagedRange)) && events.some(event => toCommand(event).type === 'reading');
+  // Interim 'mark this' may become 'mark this important'. Only a finalized
+  // reading rejection invalidates authority; command prefixes cannot erase it.
+  if (hasReading && state.pendingReadingRejected) {
+    state.rejectedReading = true;
+    state.lastMatch = null;
+    state.lastReadingMatch = null;
+  }
   // Freeze reading evidence at recognition arrival, before a later interim
   // transcript can move the cursor while an earlier action is being saved.
-  if (!mathState.active && (!stagedCommand || (stagedCommand.type === 'end' && !stagedCommand.explicit && !stagedRange)) && events.some(event => toCommand(event).type === "reading") && state.lastMatch) {
+  if (hasReading && state.lastMatch) {
     state.lastReadingMatch = state.lastMatch;
   }
   const snapshot = {
-    rangeGeneration, rangeSource:rangeSource(),
+    rangeGeneration, rangeSource:rangeSource(), rejectedReading:state.rejectedReading,
     intentDuration: performance.now() - intentStarted,
     docId: state.doc?.id,
     match: stagedCommand?.type === 'start' ? state.lastMatch ?? state.lastReadingMatch : state.lastReadingMatch ?? state.lastMatch,

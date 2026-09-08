@@ -73,3 +73,11 @@ test("return phrases map to current and named document commands", () => {
     { type: "return", documentName: "river survey" }
   );
 });
+
+
+test("courtesy beside a command is not reading, while actual prose remains reading", () => {
+  assert.deepEqual(events('Please highlight this').map(toCommand).map(c=>c.type), ['act']);
+  assert.deepEqual(events('Highlight this please').map(toCommand).map(c=>c.type), ['act']);
+  assert.deepEqual(events('Please read this passage').map(toCommand).map(c=>c.type), ['reading']);
+  assert.deepEqual(events('Purple elephants highlight this').map(toCommand).map(c=>c.type), ['reading','act']);
+});

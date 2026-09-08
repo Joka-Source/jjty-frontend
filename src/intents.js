@@ -6,10 +6,21 @@
 // the "did you mean…" prompt. It never guesses: an ambiguous event is
 // returned as {type:"ask"} and the app must ask the person.
 
-import { IntentStream } from "../vendor/jt-speech/index.js";
+import { IntentStream as SourceIntentStream } from "../vendor/jt-speech/index.js";
 import { verbRegistry } from "./registry/index.js";
 
-export { IntentStream };
+// Keep source spans unchanged, but do not treat a standalone courtesy word
+// beside a recognized instruction as document reading that invalidates its target.
+export class IntentStream extends SourceIntentStream {
+  push(input) {
+    const events = super.push(input);
+    if (!events.some(event => toCommand(event).type !== 'reading')) return events;
+    return events.filter(event => {
+      const command = toCommand(event);
+      return command.type !== 'reading' || !/^please[,.!?]*$/i.test(command.text.trim());
+    });
+  }
+}
 
 /**
  * Map one jt-speech IntentEvent to an app-level command.

@@ -74,6 +74,30 @@ test('spoken range survives reading, resolves repeated endpoints, cancels and pe
    await window.__jtApp.openDocument(doc);
  });
  await speak('till the sound roof');assert.equal(await count(),0,'same document source replacement cancels');
+ await add('The deposit is held securely.\n\nThe roof needs repairs before winter.');
+ await page.evaluate(async()=>{
+   window.__jtApp.follow('The deposit is held securely');
+   await window.__jtApp.voiceSegment('The deposit is held securely');
+   const {createVoiceCapture}=await import('/src/voice-capture.js');
+   let rec; const pending=[];
+   class Recognition {constructor(){rec=this;} start(){this.onstart?.();} abort(){}}
+   const capture=createVoiceCapture({Recognition,lang:'en-US',onInterim:(...args)=>window.__jtApp.follow(...args),onFinal:text=>pending.push(window.__jtApp.voiceSegment(text)),onState:()=>{}});
+   window.batchCapture=capture;window.batchRecognizer=rec;
+   capture.start();window.batchRecognizer=rec;window.batchPending=pending;
+   const result=text=>Object.assign([{transcript:text}],{isFinal:true});
+   window.batchResults=[result('volcanoes orbit galaxies purple elephants juggle quantum spaghetti'),result('highlight this')];
+   rec.onresult({results:window.batchResults});
+   await Promise.all(pending);
+ });
+ assert.equal(await count(),0,'batched unmatched reading cannot authorize the following command');
+ await page.evaluate(async()=>{
+   const result=text=>Object.assign([{transcript:text}],{isFinal:true});
+   window.batchResults.push(result('The roof needs repairs before winter'),result('highlight this'));
+   window.batchRecognizer.onresult({results:window.batchResults});
+   await Promise.all(window.batchPending);window.batchCapture.dispose();
+ });
+ assert.equal(await count(),1,'batched valid reading restores command authority');
+ assert.equal(await page.evaluate(()=>window.__jtApp.entries().find(e=>e.kind==='act').blockIndex),1);
  await add('Read the deposit carefully. End with the sound roof.');
  await page.evaluate(()=>window.__jtApp.follow('the deposit'));
  await speak('start highlighting here');await speak('until the sound roof');assert.equal(await count(),1,'here uses the cursor selection');

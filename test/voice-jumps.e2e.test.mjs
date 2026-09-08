@@ -35,6 +35,52 @@ test('short distinctive spoken jumps move the cursor before an explicit act, in 
   assert.equal(act.anchor?.quotedText,'and failures');
   await page.reload();await page.waitForFunction(()=>window.__jtApp?.booted);
   assert.equal(await page.evaluate(id=>window.__jtApp.entries().filter(e=>e.kind==='act'&&e.id===id).length,act.id),1);
+  await page.evaluate(async()=>{
+   await window.__jtApp.addDocument('The deposit is held in a protected account.\n\nThe roof needs repairs before winter.','Rejected speech');
+   window.__jtApp.follow('The deposit is held in a protected account');
+   await window.__jtApp.voiceSegment('The deposit is held in a protected account');
+   window.__jtApp.follow('volcanoes orbit galaxies purple elephants juggle quantum spaghetti');
+   await window.__jtApp.voiceSegment('volcanoes orbit galaxies purple elephants juggle quantum spaghetti');
+   await window.__jtApp.voiceSegment('highlight this');
+  });
+  assert.equal(await page.evaluate(()=>window.__jtApp.entries().filter(e=>e.kind==='act').length),0,'unmatched reading cannot authorize an old highlight');
+  await page.evaluate(()=>window.__jtApp.showView('read'));
+  await page.click('#doc .reading-block:last-child');
+  await page.evaluate(()=>window.__jtApp.voiceSegment('highlight this'));
+  assert.equal(await page.evaluate(()=>window.__jtApp.entries().filter(e=>e.kind==='act').length),1,'explicit pointer selection restores voice targeting');
+  await page.evaluate(async()=>{
+   window.__jtApp.follow('volcanoes orbit galaxies purple elephants juggle quantum spaghetti');
+   await window.__jtApp.voiceSegment('volcanoes orbit galaxies purple elephants juggle quantum spaghetti');
+   const rejected = window.__jtApp.voiceSegment('highlight this');
+   document.querySelectorAll('#doc .reading-block')[1].click();
+   await rejected;
+  });
+  assert.equal(await page.evaluate(()=>window.__jtApp.entries().filter(e=>e.kind==='act').length),1,'a later click cannot authorize an already rejected command');
+  await page.evaluate(async()=>{
+   window.__jtApp.follow('The roof needs repairs before winter');
+   const accepted = window.__jtApp.voiceSegment('highlight this');
+   window.__jtApp.follow('volcanoes orbit galaxies purple elephants juggle quantum spaghetti');
+   const reading=window.__jtApp.voiceSegment('volcanoes orbit galaxies purple elephants juggle quantum spaghetti');
+   await Promise.all([accepted,reading]);
+  });
+  assert.equal(await page.evaluate(()=>window.__jtApp.entries().filter(e=>e.kind==='act').length),2,'later unmatched speech cannot revoke a previously resolved command');
+  await page.evaluate(async()=>{
+   document.querySelectorAll('#doc .reading-block')[1].click();
+   window.__jtApp.follow('mark');
+   window.__jtApp.follow('mark this');
+   window.__jtApp.follow('mark this important');
+   await window.__jtApp.voiceSegment('mark this important');
+  });
+  assert.equal(await page.evaluate(()=>window.__jtApp.entries().filter(e=>e.kind==='act'&&e.act==='important').length),1,'partial command prefixes preserve pointer authority');
+  assert.equal(await page.$eval('#marker',n=>n.classList.contains('on')),true,'recognized command restores its valid guide');
+  const beforeCourtesy=await page.evaluate(()=>window.__jtApp.entries().filter(e=>e.kind==='act').length);
+  await page.evaluate(async()=>{
+   document.querySelectorAll('#doc .reading-block')[1].click();
+   window.__jtApp.follow('please');
+   window.__jtApp.follow('please highlight this');
+   await window.__jtApp.voiceSegment('please highlight this');
+  });
+  assert.equal(await page.evaluate(()=>window.__jtApp.entries().filter(e=>e.kind==='act').length),beforeCourtesy+1,'polite command preserves deliberate selection');
   await page.close();
  }
 });
