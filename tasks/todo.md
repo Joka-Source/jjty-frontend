@@ -107,3 +107,15 @@ Plan: [annotation-ui-plan.md](annotation-ui-plan.md). Founder correction: the Be
 - [x] Full regression gate: build and all 402 tests pass; scoped local implementation/evidence commits accompany this record.
 
 Review: whole-word selections are explicit. Notes currently target one page; highlights can span pages. Browser DOM Range selection and real toolbar clicks are covered; physical touch/drag and full PDF Expert parity remain open. Apple Books remains the minimum EPUB benchmark.
+
+## Visual page organization — 9 September
+
+Plan: [page-organizer-plan.md](page-organizer-plan.md).
+
+- [x] Direct Organize pages entry in JETT with explicit original-copy scope.
+- [x] Visual overview, page selection, move earlier/later and extraction through verified snapshot operations; accessible Undo remains available.
+- [x] Independently parsed downloaded order/extraction, byte-exact undo, rollback and restricted-document focused tests.
+- [x] Independent review repaired incremental-render move closure; reviewed phone/desktop layouts.
+- [x] Build and all 403 tests pass; final aspect-ratio render check also passes. Local evidence checkpoint accompanies this record.
+
+Remaining: integrated saved annotations/form answers and durable derived-copy Library publication; full professional Organize workspace and native/touch parity.

@@ -1066,3 +1066,9 @@ Bento/PDF Expert parity is claimed. The founder's full parity target is unchange
 JETT now owns the visible annotation interaction: workspace navigation, Highlight, Note, Undo and reviewed Export PDF. These use the same durable action engine, with explicit mapped targets instead of a current-reading-position fallback. Repeated phrases, cross-page ranges, reload, native annotation readback, injected save failure, stale selection after document change and note retention during zoom are exercised. Independent review confirmed PDF item identities survive overlapping highlights and undo in either order.
 
 Responsive evidence: `human/evidence/2026-09-09/direct-annotation/` in the sibling canonical human repo. These are synthetic browser fixtures, not native/device or full parity approval. Remaining professional UI gaps include direct page organization, Edit and Fill & Sign parity, annotation styles, thumbnail navigation and touch selection validation.
+
+### 9 September — visual page organization
+
+The JETT Organize workspace opens an explicitly scoped original copy in our review. Page overview supplies visual selection, move earlier/later, extraction, rotation and Undo; snapshot changes use the existing verified engines and recovery paths. Native buttons and checkboxes support keyboard use. The overview collapses advanced typed-page controls and preserves full-size inspection by toggling back. Independent review found and repaired an incremental-render closure bug; handlers now resolve the live page list when invoked.
+
+A real JETT browser journey independently parses the downloaded reordered and extracted PDFs with PDF.js and verifies undo reproduces exact original bytes. This is original-copy organization, not yet saved-work composition or durable Library publication. Full parity remains open.

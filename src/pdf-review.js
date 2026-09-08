@@ -1,3 +1,4 @@
+import {initPdfPageOverview} from './pdf-page-overview.js';
 import {createMuPdfProvider} from './pdf-engine.js';
 import {parsePageOrder,parsePageSelection} from '../vendor/bentopdf/page-order.js';
 
@@ -209,6 +210,7 @@ export function initPdfReview() {
       ready(true);status.textContent=`Could not rotate this copy. ${reasons[error.code] || 'The change could not be verified.'} The reviewed copy is unchanged.`;
     }
   });
+  initPdfPageOverview({pages,download,orderInput,orderButton,extractInput,extractButton,undoButton});
   const api={close,prepare(){close();const version=generation;return ()=>version===generation;},async open(bytes,name,{kind='filled',retainUndo=false}={}){
     if(!retainUndo)previousEdit=null;
     clear();extractInput.removeAttribute('aria-invalid');orderInput.removeAttribute('aria-invalid');const version=generation, owned=new Uint8Array(bytes);filename=name;reviewKind=kind;
@@ -236,7 +238,7 @@ export function initPdfReview() {
           }
           const canvas=document.createElement('canvas');canvas.setAttribute('role','img');canvas.setAttribute('aria-label',`${kind} PDF, page ${i}`);
           const density=Math.min(devicePixelRatio || 1,2);canvas.width=Math.ceil(viewport.width*density);canvas.height=Math.ceil(viewport.height*density);
-          canvas.style.width=`${viewport.width}px`;canvas.style.height=`${viewport.height}px`;
+          canvas.style.setProperty('--review-aspect',String(viewport.width/viewport.height));canvas.style.width=`${viewport.width}px`;canvas.style.height=`${viewport.height}px`;
           await page.render({canvasContext:canvas.getContext('2d'),viewport,transform:density===1?null:[density,0,0,density,0,0]}).promise;
           const notes=(await page.getAnnotations()).filter(annotation=>
             ['Text','FreeText'].includes(annotation.type) && annotation.contents.trim());

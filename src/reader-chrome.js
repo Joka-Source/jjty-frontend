@@ -35,6 +35,7 @@ export function initReaderChrome({ activate, close, setWorkspace, fitWidth }) {
   move('pdf-annotation-panel', 'reader-workspace-panel');
   move('pdf-form-panel', 'reader-workspace-panel');
   move('review-original', 'reader-organize-panel');
+  const organizePages=document.createElement('button');organizePages.type='button';organizePages.id='reader-organize-pages';organizePages.textContent='Organize pages';organizePages.addEventListener('click',()=>{$('review-original').click();});$('reader-workspace-panel').append(organizePages);
   const workspaceBento = document.createElement('button');
   workspaceBento.id = 'reader-workspace-bento'; workspaceBento.type = 'button';
   workspaceBento.addEventListener('click', () => {
@@ -114,7 +115,9 @@ export function initReaderChrome({ activate, close, setWorkspace, fitWidth }) {
 
   function workspaceView() {
     document.body.dataset.readerWorkspace = current.workspace;
-    workspaceBento.hidden = ['read','annotate'].includes(current.workspace) || $('bento-original').hidden;
+    organizePages.hidden=current.workspace!=='organize'||!current.isPdf;
+    organizePages.disabled=!current.activeId;
+    workspaceBento.hidden = ['read','annotate','organize'].includes(current.workspace) || $('bento-original').hidden;
     workspaceBento.disabled = $('bento-original').disabled;
     workspaceBento.textContent = `${({annotate:'Annotate',organize:'Organize',fill:'Fill'})[current.workspace] || 'Open'} original in Bento`;
     workspaceBento.title = 'Open an original copy. Saved JETT marks and form answers stay here.';
@@ -122,7 +125,7 @@ export function initReaderChrome({ activate, close, setWorkspace, fitWidth }) {
     const panel = current.workspace === 'fill' ? $('pdf-form-panel') : current.workspace === 'annotate' ? $('pdf-annotation-panel') : null;
     if (panel) panel.open = true;
     $('reader-workspace-hint').textContent = current.workspace === 'fill' && $('pdf-form-panel').hidden
-      ? 'No fillable fields are available here. More tools includes Bento PDF form tools.' : '';
+      ? 'No fillable fields are available here. More tools includes Bento PDF form tools.' : current.workspace==='organize' ? 'Organize an original copy. Saved JETT marks and form answers stay in this document.' : '';
     $('reader-workspace-hint').hidden = !$('reader-workspace-hint').textContent;
   }
   function render(value) {
