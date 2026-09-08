@@ -7,6 +7,14 @@ import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import puppeteer from "puppeteer-core";
 import mupdf from "mupdf";
+// Fail before OCR setup if either local application is unavailable.
+for (const url of ["http://127.0.0.1:5174/", "http://127.0.0.1:5181/"]) {
+  const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+  assert.ok(
+    response.ok,
+    `Local application unavailable: ${url} (${response.status})`,
+  );
+}
 const require = createRequire(import.meta.url);
 const {
   PDFDocument,
@@ -59,6 +67,56 @@ const assets = [],
   diagnostics = [],
   networkSessions = [];
 let page, bento, token;
+const pointerEvidence = [];
+async function clickPointer(selector, name) {
+  const element = await bento.waitForSelector(selector, { visible: true });
+  if (!(await element.isIntersectingViewport({ threshold: 1 })))
+    await element.scrollIntoView();
+  // Reproduce the ordinary near-bottom viewport position where the fixed
+  // handoff banner previously intercepted an otherwise visible tool button.
+  const deltaY = await element.evaluate(
+    (target) => target.getBoundingClientRect().bottom - (innerHeight - 16),
+  );
+  await bento.mouse.wheel({ deltaY });
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  const geometry = await element.evaluate((target) => {
+    const rect = target.getBoundingClientRect();
+    const x = rect.x + rect.width / 2,
+      y = rect.y + rect.height / 2;
+    const hit = document.elementFromPoint(x, y);
+    return {
+      target: target.id || target.textContent.trim(),
+      rect: rect.toJSON(),
+      x,
+      y,
+      hit: hit
+        ? {
+            tag: hit.tagName,
+            id: hit.id,
+            text: hit.textContent.trim().slice(0, 180),
+          }
+        : null,
+      reachable: target === hit || target.contains(hit),
+      viewport: { width: innerWidth, height: innerHeight, scrollY },
+      banner: document
+        .querySelector("[data-jett-handoff]")
+        ?.getBoundingClientRect()
+        .toJSON(),
+    };
+  });
+  pointerEvidence.push({ name, ...geometry });
+  await writeFile(
+    `${directory}/pointer-geometry.json`,
+    JSON.stringify(pointerEvidence, null, 2),
+  );
+  await bento.screenshot({ path: `${directory}/pointer-${name}.png` });
+  if (process.env.BENTO_POINTER_REPRO !== "1")
+    assert.ok(
+      geometry.reachable,
+      `${name} center intercepted by ${geometry.hit?.text}`,
+    );
+  await bento.mouse.click(geometry.x, geometry.y);
+}
 const networkPolicy = {
   externalHttpHttpsBlockedBeforeBrowserLaunch: blockExternal,
   freshProfile: true,
@@ -273,13 +331,6 @@ try {
     !(await bento.$eval('.lang-checkbox[value="hin"]', (e) => e.checked))
   )
     await bento.click('.lang-checkbox[value="hin"]');
-  if (
-    mixed &&
-    !(await bento.$eval('.lang-checkbox[value="hin"]', (e) => e.checked))
-  ) {
-    await bento.focus('.lang-checkbox[value="hin"]');
-    await bento.keyboard.press("Space");
-  }
   const selectedLanguages = await bento.$$eval(
     ".lang-checkbox:checked",
     (els) => els.map((el) => el.value),
@@ -309,8 +360,7 @@ try {
     });
   }
   const started = Date.now();
-  await bento.focus("#process-btn");
-  await bento.keyboard.press("Enter");
+  await clickPointer("#process-btn", "process");
   await bento.waitForSelector("#ocr-progress:not(.hidden)", { timeout: 10000 });
   const checkpoint = setInterval(async () => {
     try {
@@ -378,7 +428,8 @@ try {
         diagnostics,
         networkPolicy,
         controlPath:
-          "OCR process and PDF download use focused buttons plus Enter; pointer overlap remains a separate unverified path",
+          "OCR process and PDF download use actual pointer clicks with center hit-target assertions",
+        pointerEvidence,
         deniedRequests,
       },
       null,
@@ -396,12 +447,79 @@ try {
     path: `${directory}/ocr-recognized.png`,
     fullPage: true,
   });
-  await bento.focus("#download-searchable-pdf");
-  await bento.keyboard.press("Enter");
+  await clickPointer("#download-searchable-pdf", "export");
   await bento.waitForFunction(
     () => document.body.innerText.includes("PDF export ready."),
     { timeout: 30000 },
   );
+  await bento.setViewport({ width: 390, height: 844 });
+  const narrowControls = [];
+  for (const control of await bento.$$(
+    "[data-jett-handoff] a, [data-jett-handoff] button",
+  )) {
+    if (!(await control.isVisible())) continue;
+    await control.scrollIntoView();
+    const geometry = await control.evaluate((target) => {
+      const rect = target.getBoundingClientRect();
+      const x = rect.x + rect.width / 2,
+        y = rect.y + rect.height / 2;
+      const hit = document.elementFromPoint(x, y);
+      return {
+        text: target.textContent.trim(),
+        rect: rect.toJSON(),
+        x,
+        y,
+        reachable: hit === target || target.contains(hit),
+        banner: document
+          .querySelector("[data-jett-handoff]")
+          .getBoundingClientRect()
+          .toJSON(),
+      };
+    });
+    narrowControls.push(geometry);
+    assert.ok(
+      geometry.reachable,
+      `Narrow banner control unreachable: ${geometry.text}`,
+    );
+    assert.ok(
+      geometry.rect.left >= 0 && geometry.rect.right <= 390,
+      "Narrow banner control overflows viewport",
+    );
+    if (geometry.text === "Return to JETT") {
+      await bento.screenshot({
+        path: `${directory}/pointer-narrow-banner.png`,
+      });
+      const opened = browser.waitForTarget(
+        (target) =>
+          target.opener() === bento.target() &&
+          target.url().startsWith("http://127.0.0.1:5174/"),
+        { timeout: 10000 },
+      );
+      await bento.mouse.click(geometry.x, geometry.y);
+      const returnedPage = await (await opened).page();
+      await returnedPage
+        .waitForFunction(() => window.__jtApp?.booted, { timeout: 10000 })
+        .catch(async (error) => {
+          await writeFile(
+            `${directory}/return-popup-failure.txt`,
+            await returnedPage.content(),
+          );
+          await returnedPage.screenshot({
+            path: `${directory}/return-popup-failure.png`,
+          });
+          throw error;
+        });
+      await returnedPage.close();
+    }
+  }
+  assert.ok(
+    narrowControls.some((control) => control.text === "Return to JETT"),
+  );
+  await writeFile(
+    `${directory}/pointer-narrow-geometry.json`,
+    JSON.stringify(narrowControls, null, 2),
+  );
+  await bento.setViewport({ width: 1440, height: 1000 });
   await page.bringToFront();
   await page.reload();
   await page.waitForFunction(() => window.__jtApp?.booted);
@@ -573,6 +691,10 @@ try {
       "An OCR asset came from outside loopback",
     );
   }
+  assert.ok(
+    pointerEvidence.every((item) => item.reachable),
+    "A pointer action was intercepted",
+  );
   await writeFile(
     `${directory}/ocr-proof.json`,
     JSON.stringify(
@@ -593,7 +715,8 @@ try {
         diagnostics,
         networkPolicy,
         controlPath:
-          "OCR process and PDF download use focused buttons plus Enter; pointer overlap remains a separate unverified path",
+          "OCR process and PDF download use actual pointer clicks with center hit-target assertions",
+        pointerEvidence,
         deniedRequests,
         recognition,
         selectedLanguages,
@@ -604,6 +727,11 @@ try {
         firstUseNetworkDependency: blockExternal
           ? "Fresh profile with external HTTP(S) blocked browser-wide including workers; local JETT and Bento servers remain required. Not server-free PWA offline."
           : "External requests allowed for this run",
+        narrowBanner: {
+          viewport: { width: 390, height: 844 },
+          controls: narrowControls,
+          returnPointerOpenedJett: true,
+        },
         sourceReloadAndResultReopen: true,
         search,
         hindiSearch,
@@ -628,7 +756,8 @@ try {
         diagnostics,
         networkPolicy,
         controlPath:
-          "OCR process and PDF download use focused buttons plus Enter; pointer overlap remains a separate unverified path",
+          "OCR process and PDF download use actual pointer clicks with center hit-target assertions",
+        pointerEvidence,
         deniedRequests,
       },
       null,
