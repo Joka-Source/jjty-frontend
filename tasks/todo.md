@@ -169,3 +169,16 @@ Plan: [shared-navigation-plan.md](shared-navigation-plan.md).
 - [x] Build and all 408 tests pass; desktop search/Return render inspected. Independent review confirms held-restore test preserves persistence and blank-page safety.
 
 Next: execute [reader-page-browser-plan.md](reader-page-browser-plan.md): collapsible Reader thumbnails and Contents outside sticky chrome, using the same navigation path and preserving page ownership, saved work and view position. Apple Books remains the EPUB baseline; full PDF Expert parity and native/voice/sync/release gates remain open.
+
+## Reader Pages and Contents panel — 9 September
+
+Plan: [reader-page-browser-plan.md](reader-page-browser-plan.md).
+
+- [x] Pages opens an out-of-flow desktop side panel or mobile modal drawer; Contents moves out of the sticky toolbar.
+- [x] Physical page thumbnails use existing source canvases with a 12-preview allocation cap and offscreen/source/zoom cleanup.
+- [x] Shared navigation preserves Return; mobile success closes before destination focus; rejected note navigation retains the drawer.
+- [x] Focused browser checks: fixed document geometry, bounded 200-page preview allocation, mobile cancellation, source replacement, open-panel zoom and rotated aspect.
+- [x] Repaired native dialog intrinsic-height overflow and dark-theme contrast before completion.
+- [x] Build and all 409 tests pass; independent final review clean; rendered desktop/phone evidence inspected. Same-value page entry regression uses actual pointer focus plus Enter.
+
+Next: execute [reader-docked-pages-plan.md](reader-docked-pages-plan.md) so the desktop panel reserves space without hiding document text, preserving page/offset through fit and custom zoom. Then deepen own-UI annotation tools and persistent styles; preserve native/Apple Books/voice/sync/release requirements. Page previews currently show the rendered source page, not DOM annotation overlays.

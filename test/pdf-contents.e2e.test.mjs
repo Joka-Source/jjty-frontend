@@ -12,7 +12,7 @@ test('real PDF contents navigation keeps marks, returns to reading place and sur
   await page.waitForFunction(()=>document.querySelector('#pdf-contents-list .pdf-contents-target'));
   await page.waitForFunction(()=>document.body.dataset.view==='read');
   await page.locator('.pdf-text-layer[data-block="0"]').click();
-  await page.click('#pdf-contents summary');
+  await page.click('#reader-pages-toggle');await page.click('#pdf-contents summary');
   const chapter='#pdf-contents-list > li:first-child > .pdf-contents-row > .pdf-contents-target';
   await page.click(chapter);assert.equal(await page.evaluate(()=>window.__jtApp.currentBlock()),chapterBlock);
   assert.ok(await page.$eval('.pdf-page[data-page="3"]',n=>n.getBoundingClientRect().top>=90&&n.getBoundingClientRect().top<innerHeight-120));

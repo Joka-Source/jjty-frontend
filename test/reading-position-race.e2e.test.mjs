@@ -83,7 +83,7 @@ test('a bookmark selected while saved reading position returns keeps the newer p
   });
   await step('saved restore held',()=>page.waitForFunction(()=>typeof window.__releasePositionRestore==='function'));
   assert.equal(await page.evaluate(()=>window.__heldPosition.blockIndex),0,'held result really is the old saved place');
-  await page.$eval('#pdf-contents',node=>{node.open=true;});
+  if(!await page.$eval('#reader-page-browser',n=>n.open))await page.click('#reader-pages-toggle');await page.$eval('#pdf-contents',node=>{node.open=true;});
   await step('choose chapter bookmark',()=>page.click('#pdf-contents-list .pdf-contents-target'));
   assert.doesNotMatch(await page.$eval('#pdf-contents-status',n=>n.textContent),/Opened page/,'queued bookmark does not report success before restore releases');
   await step('release saved restore',()=>page.evaluate(async()=>{window.__releasePositionRestore();await window.__reopening;}));
@@ -105,7 +105,7 @@ test('a bookmark selected while saved reading position returns keeps the newer p
   });
   await step('blank-page restore held',()=>page.waitForFunction(()=>typeof window.__releasePositionRestore==='function'));
   assert.equal(await page.evaluate(()=>window.__heldPosition.blockIndex),chapterBlock,'blank-page trial holds the previous real text position');
-  await page.$eval('#pdf-contents',node=>{node.open=true;});
+  if(!await page.$eval('#reader-page-browser',n=>n.open))await page.click('#reader-pages-toggle');await page.$eval('#pdf-contents',node=>{node.open=true;});
   await step('choose blank-page bookmark',()=>page.click('#pdf-contents-list > li:last-child .pdf-contents-target'));
   assert.doesNotMatch(await page.$eval('#pdf-contents-status',n=>n.textContent),/Opened page/,'blank-page jump waits for the owned restore');
   await step('release saved restore',()=>page.evaluate(async()=>{window.__releasePositionRestore();await window.__reopening;}));

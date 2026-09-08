@@ -234,5 +234,10 @@ test('numbered page navigation clears old selections and keeps blank pages untar
  const {selectPdfQuote}=await import('./pdf-selection-helpers.mjs');await selectPdfQuote(page,'The northern orchard',0,2);
  await page.locator('#reader-page-number').fill('1');await page.keyboard.press('Enter');await page.waitForFunction(()=>document.getElementById('reader-page-number').value==='1'&&!document.getElementById('reader-page-return').disabled);
  assert.equal(await page.$eval('[data-annotation="highlight"]',n=>n.disabled),true);assert.equal(await page.evaluate(()=>getSelection().toString()),'');
- assert.equal(await page.$eval('#marker',n=>n.classList.contains('on')),false);assert.equal(await page.evaluate(()=>document.activeElement.dataset.page),'1');assert.deepEqual(errors,[]);
+ assert.equal(await page.$eval('#marker',n=>n.classList.contains('on')),false);assert.equal(await page.evaluate(()=>document.activeElement.dataset.page),'1');
+ const returnLabel=await page.$eval('#reader-page-return',n=>n.textContent);await selectPdfQuote(page,'The northern orchard',0,2);
+ await page.$eval('.pdf-page[data-page="1"]',n=>scrollBy({top:n.getBoundingClientRect().top-document.getElementById('reader-chrome').getBoundingClientRect().bottom-12,behavior:'instant'}));
+ await page.waitForFunction(()=>document.getElementById('reader-page-number').value==='1');
+ await page.click('#reader-page-number');await page.keyboard.press('Enter');await page.waitForFunction(()=>getSelection().toString()==='');
+ assert.equal(await page.$eval('[data-annotation="highlight"]',n=>n.disabled),true,'same physical page jump also clears old selection');assert.equal(await page.$eval('#reader-page-return',n=>n.textContent),returnLabel);assert.deepEqual(errors,[]);
 });

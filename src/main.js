@@ -1,3 +1,4 @@
+import {initReaderPageBrowser} from './reader-page-browser.js';
 import {initReaderPageNavigation} from './reader-page-navigation.js';
 import {exportCombinedPdf} from './pdf-combined.js';
 import {reviewOrigin,reviewedCopyMetadata} from './reviewed-copy.js';
@@ -34,6 +35,7 @@ import { initVoiceSettings } from './voice-settings.js';
 
 import "./style.css";
 import "./jett.css";
+import "./reader-page-browser.css";
 import { initServerPanel } from "./server-panel.js";
 import { initPdfFormPanel } from "./pdf-form-panel.js";
 import { initPdfContents } from "./pdf-contents.js";
@@ -235,6 +237,7 @@ const state = {
 };
 
 let pageNavigation = null;
+let pageBrowser = null;
 let readerChrome = null;
 let annotationTools = null;
 let readerPersistence = '';
@@ -249,6 +252,7 @@ function renderReaderChrome(){
   const session = readerSession.snapshot();
   readerChrome?.render({tabs:session.tabs.map(id=>({id,title:readerTitles.get(id) || 'Document'})),activeId:state.doc?.id===session.activeId?session.activeId:null,workspace:state.readerView?.workspace || 'read',zoomMode:state.readerView?.zoomMode || 'fit-width',isPdf:state.doc?.provenance?.sourceKind==='pdf' && !!state.doc.sourceBytes});
   readerChrome?.showPersistenceError(readerPersistence);
+  pageBrowser?.refresh();
 }
 function navigationState(){
   if(!state.pdf||!state.doc||document.body.dataset.view!=='read')return null;
@@ -256,7 +260,7 @@ function navigationState(){
   const current=pages.find(page=>page.getBoundingClientRect().bottom>top)||pages.at(-1);
   return {owner:`${state.doc.id}:${state.doc.provenance?.contentDigest}`,page:Number(current.dataset.page),total:pages.length,returnPage:state.readerView?.returnPlace?.pageNumber};
 }
-function navigateReaderPage(target,owner){return queueReader(()=>navigateReaderPageNow(target,owner));}
+function navigateReaderPage(target,owner,options={}){return queueReader(()=>navigateReaderPageNow(target,owner,options));}
 async function navigateReaderPageNow(target,owner,options={}){
   if(navigationState()?.owner!==owner)throw new Error('The document changed. Choose a page in the current document.');
   annotationTools?.beforeLeave();captureReaderView();const departure={...state.readerView};
@@ -264,7 +268,7 @@ async function navigateReaderPageNow(target,owner,options={}){
   const pageNumber=place?.pageNumber??target;
   const pages=[...article.querySelectorAll(':scope > .pdf-page')];
   if(!Number.isInteger(pageNumber)||pageNumber<1||pageNumber>pages.length)throw new Error('That page is unavailable.');
-  if(target!=='return'&&!options.hit&&pageNumber===navigationState().page)return;
+  const samePage=target!=='return'&&!options.hit&&pageNumber===navigationState().page;
   if(place){await setPdfZoomNow(place.zoom,place.zoomMode,false,true);}
   if(navigationState()?.owner!==owner)throw new Error('Return to the Reader to continue this page jump.');
   cancelStagedRange();
@@ -275,7 +279,7 @@ async function navigateReaderPageNow(target,owner,options={}){
   selectPdfBlock(blockIndex);if(blockIndex<0){marker.classList.remove('on');state.rejectedReading=true;}
   const hitRect=options.hit?domRangeForCharacters(state.blocks[blockIndex],options.hit.charStart,options.hit.charEnd)?.getBoundingClientRect():null;
   const offset=place?.pageOffset??(hitRect?(hitRect.top-page.getBoundingClientRect().top)/page.getBoundingClientRect().height:0);
-  state.readerView={...state.readerView,pageNumber,pageOffset:offset,blockIndex,returnPlace:place?null:departure.returnPlace??{pageNumber:departure.pageNumber,pageOffset:departure.pageOffset,blockIndex:departure.blockIndex,zoom:departure.zoom,zoomMode:departure.zoomMode}};
+  state.readerView={...state.readerView,pageNumber,pageOffset:offset,blockIndex,returnPlace:place?null:samePage?departure.returnPlace:departure.returnPlace??{pageNumber:departure.pageNumber,pageOffset:departure.pageOffset,blockIndex:departure.blockIndex,zoom:departure.zoom,zoomMode:departure.zoomMode}};
   pageNavigation?.refresh();
   const rect=page.getBoundingClientRect();scrollBy({top:rect.top+offset*rect.height-readerTop(),behavior:'instant'});
   readerSession.update(state.doc,state.readerView);if(options.focus!==false){setStatus(true,`${place?'Returned to':'Opened'} page ${pageNumber}.`);page.tabIndex=-1;page.focus({preventScroll:true});}pageNavigation?.refresh();
@@ -556,7 +560,7 @@ const bentoPanel = initBentoPanel({
 });
 const serverPanel = initServerPanel({ saveDocument: putDoc });
 const pdfContents=initPdfContents({sharedReturn:true,
-  onNavigate(pageNumber,source){if(source!==state.pdf)return false;return navigateReaderPage(pageNumber,navigationState()?.owner);}
+  onNavigate(pageNumber,source){if(source!==state.pdf)return false;return pageBrowser?pageBrowser.navigate(pageNumber,navigationState()?.owner):navigateReaderPage(pageNumber,navigationState()?.owner);}
 });
 const pdfReview = initPdfReview({async saveCopy(bytes,name,origin,kind,{isCurrent}){
   const metadata=await reviewedCopyMetadata(bytes,origin,kind);
@@ -2593,6 +2597,7 @@ readerChrome=initReaderChrome({
   fitWidth:()=>reportReaderFailure(setPdfZoom(null,'fit-width')),
 });
 pageNavigation=initReaderPageNavigation({read:navigationState,navigate:navigateReaderPage});
+pageBrowser=initReaderPageBrowser({read:navigationState,navigate:navigateReaderPage});
 annotationTools=initAnnotationToolbar({currentDoc:()=>state.doc,root:article,canUndo:()=>engine.entries.some(e=>e.kind==='act'&&!e.undone),
   run:(kind,target,noteText)=>{const owner=state.doc?.id;return queueReader(async()=>{
     if(state.doc?.id!==owner)throw new Error('The document changed. Try again in the current document.');
