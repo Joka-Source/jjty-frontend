@@ -719,3 +719,27 @@ This mocked failure test is separate from the real-audio configuration recovery.
 Full local gate passed: build plus 234 tests, zero failures/skips; log
 ../runtime/live-voice-diagnosis/watchdog-full.log. The reason-code assertion was
 also rerun in the focused 26-test suite. Product change is local only.
+
+## Responsive spoken jumps — 8 September
+
+The founder reported that reading a deposit phrase then jumping to “failures”
+left the cursor behind. A negative-first browser test reproduced that exact
+failure (block0 retained rather than block1). The eight-word fuzzy window could
+mix old and new speech; fewer than three words also produced no raw match.
+
+The shared application adapter now permits conservative exact, unique suffix
+recovery across both engines. Six focused tests cover cumulative/isolated jumps,
+repeated/common/numeric rejection, preserved exact and fuzzy spans, and real WASM
+wrapper behavior. Raw kernel parity tests still pass separately.
+
+Browser proof passes for JS and WASM: controlled transcript input moves the marker
+to the distinctive new passage, creates no act while merely reading, and saves
+an exact anchored highlight only after an explicit instruction. Reload retains
+the same act. This browser regression uses controlled transcript input and is
+not a fresh physical-microphone accuracy claim. Earlier live audio proof remains
+separately recorded. Evidence: ../runtime/live-voice-diagnosis/jumps-before.log,
+jumps-after.log and test/voice-jumps.e2e.test.mjs.
+
+Full local gate: build and 241 tests passed, zero failures or skips;
+../runtime/live-voice-diagnosis/jumps-full.log. The focused browser test covers
+both actual engine selections; no silent JS fallback is accepted for WASM proof.

@@ -160,3 +160,24 @@ postpone it. If no words arrive, capture terminates, cancels recovery and report
 callbacks cannot stop a newer session. This bounds the observed silent-service
 failure without treating microphone activity as successful recognition. It does
 not detect every possible recognizer stall after a result has already arrived.
+
+## Short-word cursor recovery
+
+The application now wraps both matching engines in the same deterministic
+recovery adapter. The raw fuzzy kernels and their parity gate remain unchanged.
+When an eight-word running transcript spans an unrelated jump, the adapter can
+use the longest exact suffix that occurs once in the document. A one-word
+recovery needs a distinctive word of at least four letters; common English
+function/control words, numbers and repeated locations do not qualify.
+
+Complete exact phrases keep their original spans and alternatives. Confident
+fuzzy phrases also keep their span when their two trailing tokens align, so an
+ASR misspelling earlier in a phrase does not collapse the selection to its last
+word. A successful recovery clears the old engine proximity hint. It does not
+lower the action policy or create an edit: the user must still issue an action.
+
+This is conservative English-oriented pointing recovery, not free-form semantic
+reasoning, multilingual command parity or staged selection. The founder's
+conversational “start highlighting … till …” requirement still needs explicit
+selection state, source-bound start retention, cancellation and atomic commit.
+The existing complete “highlight from … to …” command remains the range path.
