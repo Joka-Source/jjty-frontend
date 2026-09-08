@@ -1,3 +1,4 @@
+import {exportCombinedPdf} from './pdf-combined.js';
 import {reviewOrigin,reviewedCopyMetadata} from './reviewed-copy.js';
 import {initAnnotationToolbar} from './annotation-toolbar.js';
 import {selectionStillCurrent} from './pdf-selection.js';
@@ -1836,6 +1837,31 @@ function renderDocHead(doc) {
   }
 }
 
+function organizeDocument(){
+  annotationTools?.beforeLeave();
+  const parent=state.doc;if(!parent?.sourceBytes||parent.provenance?.sourceKind!=='pdf')return;
+  const identity=reviewOrigin(parent),ownsReview=pdfReview.prepare('Including your saved highlights, notes and form answers…');
+  return queueReader(async()=>{
+    const isCurrent=()=>ownsReview()&&state.doc?.id===identity.documentId&&state.doc?.provenance?.contentDigest===identity.contentDigest;
+    try{
+      if(!isCurrent())return;
+      await pdfFormPanel.flush(identity.documentId);
+      if(!isCurrent())return;
+      const source=await getDoc(identity.documentId);
+      if(!isCurrent())return;
+      if(!source||source.provenance?.contentDigest!==identity.contentDigest)throw new Error('The source changed. Reopen the document before organizing it.');
+      const records=await getRecords(source.id);
+      if(!isCurrent())return;
+      const undone=new Set(records.filter(r=>r.docId===source.id&&r.act==='undo').map(r=>r.undoes));
+      const hasMarks=records.some(r=>r.docId===source.id&&r.kind==='act'&&['highlight','note','important'].includes(r.act)&&!r.undone&&!undone.has(r.id));
+      const hasForms=source.formDraft&&Object.keys(source.formDraft.values||{}).length>0;
+      const bytes=hasMarks||hasForms?(await exportCombinedPdf({source,savedFormDraft:source.formDraft??null,committedRecords:records,allowFormOnly:true})).bytes:pdfSourceBytes(source.sourceBytes).slice();
+      if(!isCurrent())return;
+      await pdfReview.open(bytes,`${(source.provenance.name||source.title||'document').replace(/\.pdf$/i,'')}-organized.pdf`,{kind:hasMarks||hasForms?'saved-work':'original',origin:identity});
+    }catch(error){if(ownsReview()){pdfReview.close();throw error;}}
+  });
+}
+
 document.getElementById("review-original").addEventListener("click", () => {
   const doc = state.doc;
   if (!doc?.sourceBytes || doc.provenance?.sourceKind !== "pdf") return;
@@ -2539,6 +2565,7 @@ window.__jtApp = {
 // Boot
 
 readerChrome=initReaderChrome({
+  organize:organizeDocument,
   activate:id=>reportReaderFailure(activateReaderTab(id)),
   close:id=>closeReaderTab(id).catch(error=>{setStatus(true,error?.message || 'Could not close document.');throw error;}),
   setWorkspace:workspace=>{if(!state.doc)return;annotationTools?.beforeLeave();state.readerView={...state.readerView,workspace};readerSession.update(state.doc,state.readerView);renderReaderChrome();},

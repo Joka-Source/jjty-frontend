@@ -131,3 +131,16 @@ Plan: [reviewed-copy-library-plan.md](reviewed-copy-library-plan.md).
 - [x] Build and all 404 tests pass; desktop/phone rendered evidence inspected and checkpointed.
 
 Next: compose saved annotations/form answers into the primary Organize workflow and retain the exact resulting copy in Library. Complete merged-input lineage separately; current metadata explicitly identifies the primary source only.
+
+## Organize with saved work — 9 September
+
+Plan: [organize-saved-work-plan.md](organize-saved-work-plan.md).
+
+- [x] Primary Organize snapshots latest persisted form answers and committed marks; explicit original review remains separate.
+- [x] Native modal preparation prevents additional form input; queue/review ownership checks discard cancelled results.
+- [x] Actual failed-form-save/retry, Highlight/Note toolbar, cancelled preparation, rotation, Library save and reload journey.
+- [x] Independent PDF.js field/annotation/rotation readback and Poppler rendered output; source bytes unchanged.
+- [x] Independent review repaired modal close timing guard.
+- [x] Build and all 405 tests pass; exact PDF/readback/rendered evidence checkpointed.
+
+Next: direct Reader page navigation and thumbnail access, then richer annotation and Edit/Fill & Sign interactions against the PDF Expert inventory. Preserve Apple Books EPUB and all cross-platform gates.

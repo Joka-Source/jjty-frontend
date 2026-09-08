@@ -221,7 +221,7 @@ export function initPdfReview({saveCopy}={}) {
     }
   });
   initPdfPageOverview({pages,download,orderInput,orderButton,extractInput,extractButton,undoButton});
-  const api={close,prepare(){close();const version=generation;return ()=>version===generation;},async open(bytes,name,{kind='filled',retainUndo=false,origin:sourceOrigin=null}={}){
+  const api={close,prepare(message){close();const version=generation;if(message){document.getElementById('pdf-review-title').textContent='Preparing your copy';status.textContent=message;dialog.showModal();}return ()=>version===generation&&(!message||dialog.open);},async open(bytes,name,{kind='filled',retainUndo=false,origin:sourceOrigin=null}={}){
     if(!retainUndo)origin=sourceOrigin?structuredClone(sourceOrigin):null;
     if(!retainUndo)previousEdit=null;
     clear();extractInput.removeAttribute('aria-invalid');orderInput.removeAttribute('aria-invalid');const version=generation, owned=new Uint8Array(bytes);filename=name;reviewKind=kind;
