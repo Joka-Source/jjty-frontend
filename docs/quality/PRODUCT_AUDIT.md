@@ -889,3 +889,35 @@ changed after the full gate. Logs in parent `runtime/live-voice-diagnosis/`:
 `contents-full.log`, `contents-build.log`, `contents-styled.log`.
 Next voice measurement remains a same-audio, local recognition comparison with
 hints off versus boost2 and ordinary-speech controls; accuracy remains unproven.
+
+## Controlled local recognition comparison — PASS_LOCAL
+
+The reproducible [benchmark](VOICE_BENCHMARK.md) now feeds identical synthetic
+Samantha audio to native Chrome 151 local recognition, with hints off and boost2.
+The final run uses the application's continuous-recognition setting. Both
+conditions returned finalized matching text for all eight samples, matched all
+four expected command intents, and produced no commands from four ordinary
+speech/reading controls. This small clean corpus shows no measured hint advantage;
+it does not establish human speech, accent/noise, target selection or action
+persistence reliability. Application recognition behavior was not changed.
+
+The experiment initially exposed its own endpoint defect: waiting after an
+AudioBufferSource ended did not supply useful silence to recognition. Short
+commands could remain interim-only until forced stop. Adding explicit zero-valued
+audio samples fixed that test condition; both single and continuous native runs
+then returned 16/16 finalized transcripts. Earlier incomplete runs are retained,
+not scored as successful recognition. The scorer rejects interim/error/no-data
+success and uses the real application intent parser.
+
+Chrome reported English available at JETT's existing origin but downloadable at
+the isolated benchmark origin. The final run used a same-origin frame with
+microphone access denied by Permissions Policy. It made zero physical microphone
+requests, never connected to speaker output, installed no model, and attempted
+no remote fallback. All sixteen generated tracks ended and the AudioContext
+closed. The temporary frame source and benchmark server were removed/stopped.
+
+Evidence: parent `runtime/voice-ab/results.json`, timestamped earlier receipts,
+`score.json`, corpus hashes and `focused-tests.log`. Fourteen focused scorer and
+actual generated-script lifecycle tests pass. No application code changed; the
+earlier full application gate remains the latest full gate. Native Android voice
+and real conversational recognition quality remain open.
