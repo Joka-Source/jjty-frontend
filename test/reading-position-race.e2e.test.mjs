@@ -73,6 +73,7 @@ test('a bookmark selected while saved reading position returns keeps the newer p
   const chapterBlock=await page.evaluate(()=>window.__jtApp.currentDoc().blocks.findIndex(b=>b.locator==='page:3'));
   assert.equal(chapterBlock,1,'fixture has two extracted text blocks following a blank first page');
   assert.equal(await page.evaluate(()=>window.__jtApp.currentDoc().blocks.findIndex(b=>b.locator==='page:1')),-1);
+  if(!await page.$eval('#reader-page-browser',n=>n.open)){await page.click('#reader-pages-toggle');await page.waitForFunction(()=>document.getElementById('reader-page-browser').open);}
   await page.evaluate(()=>{
     window.__positionRestoreGate=position=>{
       window.__heldPosition=position;
@@ -94,6 +95,7 @@ test('a bookmark selected while saved reading position returns keeps the newer p
   // With no newer selection, the ordinary reopen still restores block 1.
   await step('untouched reopen',()=>page.evaluate(()=>window.__jtApp.openDocument(window.__jtApp.currentDoc())));
   assert.equal(await page.evaluate(()=>window.__jtApp.currentBlock()),chapterBlock,'untouched reopen restores the saved place');
+  if(!await page.$eval('#reader-page-browser',n=>n.open)){await page.click('#reader-pages-toggle');await page.waitForFunction(()=>document.getElementById('reader-page-browser').open);}
   await page.evaluate(()=>{
     delete window.__releasePositionRestore;
     window.__positionRestoreGate=position=>{

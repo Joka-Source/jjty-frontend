@@ -26,3 +26,5 @@
 #reader-page-browser-status:empty{display:none;}
 #reader-page-browser::backdrop{background:#11182755;}
 @media(max-width:640px){#reader-page-browser{inset:var(--page-browser-top, 140px) 8px 8px;width:auto;max-width:none;height:calc(100dvh - var(--page-browser-top, 140px) - 8px);border-radius:12px;} .reader-page-preview,.reader-page-preview canvas{max-height:220px;}}
+
+@media(min-width:641px){body[data-view="read"][data-reader-pages-docked="true"] #reader-main{margin-left:324px;}}

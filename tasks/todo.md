@@ -182,3 +182,17 @@ Plan: [reader-page-browser-plan.md](reader-page-browser-plan.md).
 - [x] Build and all 409 tests pass; independent final review clean; rendered desktop/phone evidence inspected. Same-value page entry regression uses actual pointer focus plus Enter.
 
 Next: execute [reader-docked-pages-plan.md](reader-docked-pages-plan.md) so the desktop panel reserves space without hiding document text, preserving page/offset through fit and custom zoom. Then deepen own-UI annotation tools and persistent styles; preserve native/Apple Books/voice/sync/release requirements. Page previews currently show the rendered source page, not DOM annotation overlays.
+
+## Dock desktop Pages — 9 September
+
+Plan: [reader-docked-pages-plan.md](reader-docked-pages-plan.md).
+
+- [x] Desktop panel reserves document space; Fit width rerenders through the reader queue, custom scale remains exact.
+- [x] Page/offset and Return survive transition; delayed scroll capture is suppressed while geometry changes.
+- [x] Failure restores gutter, source canvases, model/view and horizontal position; successful retry clears its own error.
+- [x] Held render cancelled by route change cannot reopen/dock a stale surface; duplicate toggles are disabled.
+- [x] Dirty-note close is refused without data loss; breakpoint invalidation closes desktop surface and permits mobile modal recovery.
+- [x] Focused recovery/Contents/held-position journeys pass; independent final review clean.
+- [x] Build and all 409 tests pass; docked desktop and mobile renders inspected.
+
+Next: execute [pdf-text-markup-plan.md](pdf-text-markup-plan.md) through the existing operation/schema/paint/export/undo pipeline for underline, strikethrough and color. Independent review adds backup/restore style custody. Do not create a parallel annotation store or substitute server-only capability for local UI parity. Keep Apple Books/native voice/sync/release gates active.

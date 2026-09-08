@@ -242,6 +242,7 @@ let readerChrome = null;
 let annotationTools = null;
 let readerPersistence = '';
 let switchingReader = false;
+let readerLayoutBusy = false;
 let readerTitles = new Map();
 const readerSession = createReaderSession({onError(message){
   readerPersistence = message;
@@ -285,6 +286,38 @@ async function navigateReaderPageNow(target,owner,options={}){
   readerSession.update(state.doc,state.readerView);if(options.focus!==false){setStatus(true,`${place?'Returned to':'Opened'} page ${pageNumber}.`);page.tabIndex=-1;page.focus({preventScroll:true});}pageNavigation?.refresh();
 }
 
+function setPageBrowserLayout({open,modal=false,owner,isCurrent=()=>true,force=false}){
+  if(force){delete document.body.dataset.readerPagesDocked;return Promise.resolve();}
+  return queueReader(async()=>{
+    if(!isCurrent())return false;
+    if(navigationState()?.owner!==owner)throw new Error('The document changed. Open Pages in the current document.');
+    const dock=!!open&&!modal,previousDock=document.body.dataset.readerPagesDocked==='true';
+    if(dock===previousDock)return;
+    annotationTools?.beforeLeave();
+    clearTimeout(readerScrollTimer);clearTimeout(readerResizeTimer);captureReaderView();
+    const source=state.pdf,snapshot={view:{...state.readerView},blocks:state.blocks,pages:[...article.querySelectorAll(':scope > .pdf-page')],zoom:source.model.zoom,left:article.scrollLeft};
+    readerLayoutBusy=true;
+    document.body.dataset.readerPagesDocked=String(dock);
+    try{
+      if(snapshot.view.zoomMode==='fit-width')await setPdfZoomNow(null,'fit-width',true,true);
+      if(!isCurrent()||state.pdf!==source||navigationState()?.owner!==owner)throw new Error('The reader changed before Pages finished resizing.');
+      state.readerView={...snapshot.view,zoom:source.model.zoom};restoreReaderView();article.scrollLeft=snapshot.left;
+      captureReaderView({force:true});renderReaderChrome();
+    }catch(error){
+      // A route/source invalidation owns its own closed layout; do not resurrect it.
+      const owns=state.pdf===source&&navigationState()?.owner===owner&&isCurrent();
+      document.body.dataset.readerPagesDocked=String(owns&&previousDock);
+      if(state.pdf===source){
+        for(const page of article.querySelectorAll(':scope > .pdf-page'))page.remove();article.append(...snapshot.pages);
+        state.blocks=snapshot.blocks;source.blocks=snapshot.blocks;source.model.setZoom(snapshot.zoom);state.readerView=snapshot.view;
+        pdfZoomValue.textContent=`${Math.round(snapshot.zoom*100)}%`;showPdfSearchState(source.model.searchState(),{scroll:false});
+        if(owns){restoreReaderView();article.scrollLeft=snapshot.left;}renderReaderChrome();
+      }
+      throw error;
+    }finally{readerLayoutBusy=false;}
+  });
+}
+
 function readerTop(){
   const bottom=document.getElementById('reader-chrome')?.getBoundingClientRect().bottom;
   return Number.isFinite(bottom) && bottom>0 ? bottom+12 : 110;
@@ -295,7 +328,7 @@ function readerAvailableWidth(){
   return Math.max(0,article.clientWidth-parseFloat(css.paddingLeft||0)-parseFloat(css.paddingRight||0)-2);
 }
 function captureReaderView({force=false,persist=true}={}){
-  if((switchingReader && !force) || !state.doc || document.body.dataset.view!=='read')return;
+  if(((switchingReader||readerLayoutBusy) && !force) || !state.doc || document.body.dataset.view!=='read')return;
   const top=readerTop();
   const pages=[...article.querySelectorAll(':scope > .pdf-page')];
   const page=pages.find(node=>node.getBoundingClientRect().bottom>top) || pages.at(-1);
@@ -2597,7 +2630,7 @@ readerChrome=initReaderChrome({
   fitWidth:()=>reportReaderFailure(setPdfZoom(null,'fit-width')),
 });
 pageNavigation=initReaderPageNavigation({read:navigationState,navigate:navigateReaderPage});
-pageBrowser=initReaderPageBrowser({read:navigationState,navigate:navigateReaderPage});
+pageBrowser=initReaderPageBrowser({read:navigationState,navigate:navigateReaderPage,layout:setPageBrowserLayout});
 annotationTools=initAnnotationToolbar({currentDoc:()=>state.doc,root:article,canUndo:()=>engine.entries.some(e=>e.kind==='act'&&!e.undone),
   run:(kind,target,noteText)=>{const owner=state.doc?.id;return queueReader(async()=>{
     if(state.doc?.id!==owner)throw new Error('The document changed. Try again in the current document.');
@@ -2625,7 +2658,7 @@ async function boot() {
     engineState: () => ({ kind: state.engineKind, mode: ENGINE_MODE }),
     currentDoc: () => state.doc,
     onViewChange(next,prev){if(prev==='read' && next!==prev)captureReaderView();},
-    afterViewChange(next,prev){if(next==='read' && prev!==next && !switchingReader)requestAnimationFrame(()=>{
+    afterViewChange(next,prev){pageBrowser?.refresh();if(next==='read' && prev!==next && !switchingReader)requestAnimationFrame(()=>{
       void reportReaderFailure(queueReader(async()=>{if(document.body.dataset.view!=='read')return;if(state.readerView?.zoomMode==='fit-width')await setPdfZoomNow(null,'fit-width',true);restoreReaderView();}));
     });},
     getDocs,
