@@ -1,3 +1,4 @@
+import { initBentoPanel } from "./bento-panel.js";
 import { createCaptureJournal } from './capture-journal.js';
 import { createCommandJournal } from './command-journal.js';
 import { mountCommandJournal } from './command-journal-panel.js';
@@ -58,6 +59,7 @@ import { createAnchor, resolveAnchor } from "./anchors.js";
 import { contentDigest } from "./ingest.js";
 import {
   putDoc,
+  putDocIfAbsent,
   getDoc,
   getDocs,
   getRecords,
@@ -441,6 +443,17 @@ function resetPdfTools() {
   globalThis.CSS?.highlights?.delete("jt-pdf-search");
 }
 
+const bentoPanel = initBentoPanel({
+  getCurrentDocument: () => state.doc,
+  getDocument: getDoc,
+  async importDocument(bytes, name, metadata) {
+    const pdfjs = await loadPdfJs();
+    const engine = await selectAvailablePdfEngine({ pdfjs });
+    const result = await ingestPdfBrowser(engine, bytes, { name });
+    result.provenance = { ...result.provenance, derivedFrom: metadata.derivedFrom };
+    return addIngested(result, name.replace(/\.pdf$/i, ''), { id: metadata.id });
+  },
+});
 const serverPanel = initServerPanel({ saveDocument: putDoc });
 const pdfContents=initPdfContents({
   getPlace(source){
@@ -1712,6 +1725,7 @@ function renderDocHead(doc) {
   micHint.hidden = doc.provenance?.sourceKind === "image";
   docHead.hidden = false;
   docTitle.textContent = doc.title;
+  bentoPanel.update(doc);
   document.getElementById("download-original").hidden = !doc.sourceBytes;
   document.getElementById("review-original").hidden = !doc.sourceBytes || doc.provenance?.sourceKind !== "pdf";
   const p = doc.provenance;
@@ -1840,7 +1854,7 @@ async function openDocumentNow(
 }
 
 /** Store an IngestResult (jt-connectors shape) as a jt document. */
-async function addIngested(result, nameHint = "") {
+async function addIngested(result, nameHint = "", options = {}) {
   const viewableImagePdf = result.refusal?.kind === "image-only" && result.sourceBytes;
   const viewableImage = result.provenance.sourceKind === "image" && result.sourceBytes && result.imageSource;
   if (!result.blocks.length && !viewableImagePdf && !viewableImage) {
@@ -1848,8 +1862,8 @@ async function addIngested(result, nameHint = "") {
     return null;
   }
   const text = result.blocks.map((b) => b.text).join("\n\n");
-  const doc = {
-    id: rid("doc"),
+  let doc = {
+    id: options.id || rid("doc"),
     title:
       result.provenance.title ||
       nameHint ||
@@ -1867,7 +1881,8 @@ async function addIngested(result, nameHint = "") {
     createdAt: nowIso(),
     revision: 1,
   };
-  await putDoc(doc);
+  if (options.id) doc = await putDocIfAbsent(doc);
+  else await putDoc(doc);
   try {
     await openDocument(doc);
   } catch {

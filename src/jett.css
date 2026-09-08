@@ -164,3 +164,10 @@ article.image-source { padding-bottom: 24px; }
 .command-journal ol { padding-inline-start: 1.4rem; }
 .command-journal li { margin-block: 1rem; }
 .command-journal button, .command-journal select { min-height: 44px; max-width: 100%; margin: .25rem; }
+
+/* A session stays available across library/reader navigation and reload. */
+.bento-return { position: fixed; left: 50%; transform: translateX(-50%); bottom: 64px; z-index: 35; margin: 16px auto; padding: 14px 18px; max-width: 800px; width: calc(100% - 32px); box-sizing: border-box; border: 1px solid var(--line, #d4d9d5); border-radius: 16px; background: var(--paper, #fafbf8); color: var(--ink, #222d28); box-shadow: 0 6px 24px #00000015; }
+.bento-return[hidden] { display: none; }
+.bento-return p { margin: 0 0 10px; }
+.bento-return > div { display: flex; gap: 8px; flex-wrap: wrap; }
+#bento-tools { margin: 0 0 16px; }

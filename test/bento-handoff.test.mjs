@@ -1,0 +1,23 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { createBentoHandoff, bentoBase, BENTO_PENDING_KEY } from '../src/bento-handoff.js';
+const bytes = new TextEncoder().encode('%PDF-1.7\nfixture');
+const token = '1234567890abcdef1234567890abcdef';
+const digest = b => createHash('sha256').update(b).digest('hex');
+function fixture() {
+ const data = new Map(), docs = new Map(), calls = [];
+ const storage = { getItem: k => data.get(k) || null, setItem: (k,v) => data.set(k,v), removeItem: k => data.delete(k) };
+ let result = { ready:true, name:'edited.pdf', digest:digest(bytes), base64:Buffer.from(bytes).toString('base64') }, cleanupStatus = 204, imports = 0;
+ const bridge = createBentoHandoff({base:'http://127.0.0.1:5181',storage,getDocument:async id=>docs.get(id),importDocument:async (b,n,m)=>{imports++; const doc={id:m.id,title:n,sourceBytes:b,provenance:m};docs.set(doc.id,doc);return doc;},fetch:async (url,options)=>{calls.push([url,options]);return options.method === 'POST' ? new Response(JSON.stringify({token})) : options.method === 'DELETE' ? new Response(null,{status:cleanupStatus}) : new Response(JSON.stringify(result));}});
+ return {bridge,data,docs,calls,setResult:r=>result=r,setCleanup:s=>cleanupStatus=s,imports:()=>imports};
+}
+const source={id:'original',title:'Source',sourceBytes:bytes,provenance:{sourceKind:'pdf',name:'source.pdf',contentDigest:'source-digest'}};
+test('Bento local default is never assumed on public deployments',()=>{assert.equal(bentoBase('', 'example.com'),null); assert.equal(bentoBase('', 'localhost'),'http://127.0.0.1:5181');assert.throws(()=>bentoBase('javascript:alert(1)','localhost'));});
+test('original copy persists session and immutable provenance; retry imports once',async()=>{const f=fixture();const original=bytes.slice();await f.bridge.start(source);assert.deepEqual(bytes,original);assert.ok(f.data.get(BENTO_PENDING_KEY)); f.setCleanup(503);let saved=await f.bridge.save();assert.equal(saved.cleanupPending,true);assert.equal(f.imports(),1);f.setCleanup(404);saved=await f.bridge.save();assert.equal(saved.cleanupPending,false);assert.equal(f.imports(),1);assert.equal(f.bridge.pending(),null);assert.equal(saved.doc.provenance.derivedFrom.documentId,'original');assert.equal(f.calls.at(-1)[1].headers['If-Match'],digest(bytes));});
+test('new export during import keeps pending and saves distinct version',async()=>{const f=fixture();await f.bridge.start(source);f.setCleanup(409);const a=await f.bridge.save();assert.ok(a.newerResult);const changed=new TextEncoder().encode('%PDF-1.7\nsecond');f.setResult({ready:true,name:'second.pdf',digest:digest(changed),base64:Buffer.from(changed).toString('base64')});f.setCleanup(204);const b=await f.bridge.save();assert.notEqual(a.doc.id,b.doc.id);assert.equal(f.docs.size,2);});
+test('not ready and non-PDF returns cannot publish',async()=>{const f=fixture();await f.bridge.start(source);f.setResult({ready:false});assert.equal(await f.bridge.save(),null);f.setResult({ready:true,digest:digest(bytes),base64:Buffer.from('bad').toString('base64')});await assert.rejects(f.bridge.save(),/invalid/);assert.equal(f.imports(),0);assert.ok(f.bridge.pending());});
+test('result hash mismatch cannot publish or acknowledge',async()=>{const f=fixture();await f.bridge.start(source);f.setResult({ready:true,digest:'0'.repeat(64),base64:Buffer.from(bytes).toString('base64')});await assert.rejects(f.bridge.save(),/verification/);assert.equal(f.imports(),0);assert.equal(f.calls.some(c=>c[1].method==='DELETE'),false);});
+test('malformed and expired session can be dismissed',async()=>{const f=fixture();f.data.set(BENTO_PENDING_KEY,'{bad');assert.throws(()=>f.bridge.pending());await f.bridge.dismiss();assert.equal(f.bridge.pending(),null);await f.bridge.start(source);f.setCleanup(410);await f.bridge.dismiss();assert.equal(f.bridge.pending(),null);});
+test('a second source cannot replace an outstanding session',async()=>{const f=fixture();await f.bridge.start(source);const pending=f.data.get(BENTO_PENDING_KEY);await assert.rejects(f.bridge.start({...source,id:'second'}),/current Bento session/);assert.equal(f.data.get(BENTO_PENDING_KEY),pending);assert.equal(f.calls.filter(c=>c[1].method==='POST').length,1);});
+test('oversized or non-PDF original cannot leave JETT',async()=>{const f=fixture();await assert.rejects(f.bridge.start({...source,sourceBytes:new Uint8Array(64*1024*1024+1)}),/up to 64/);await assert.rejects(f.bridge.start({...source,sourceBytes:new TextEncoder().encode('hello')}),/PDF/);assert.equal(f.calls.length,0);});

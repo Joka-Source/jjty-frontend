@@ -82,6 +82,11 @@ async function updateDocument(id, patch) {
   });
 }
 
+export async function putDocIfAbsent(doc) {
+  const incoming = structuredClone(doc);
+  return updateDocument(incoming.id, existing => existing || incoming);
+}
+
 export async function putDoc(doc) {
   const incoming = structuredClone(doc);
   await updateDocument(incoming.id, existing => {

@@ -71,6 +71,7 @@
     <section class="view" id="view-home" hidden>
       <div class="library-heading"><div><p class="eyebrow">Your space</p><h1>Pick up where you left off.</h1><p class="library-intro">A place for what you’re reading, thinking and keeping.</p></div><span class="local-label">Saved on this device</span></div>
       <div class="library-tools"><label class="library-search"><span>Find in your library</span><input id="home-search" type="search" placeholder="Search documents…" autocomplete="off" /></label><p id="home-result-count" role="status"></p></div>
+      <button id="bento-tools" class="quiet-btn">Full PDF tools · Bento</button>
       <p id="home-intake-state" class="intake-state" role="status" hidden></p>
       <div class="home-empty" id="home-empty" hidden>
         <p>Bring something you want to spend time with.</p>
@@ -317,6 +318,7 @@
           <button id="doc-prov-btn" class="doc-prov-btn" hidden>where this came from</button>
           <button id="download-original" class="doc-prov-btn" hidden>Download original</button>
           <button id="review-original" class="doc-prov-btn" hidden>Review original</button>
+          <button id="bento-original" class="doc-prov-btn" hidden title="Open a copy of the original PDF. JETT annotations and form changes stay in JETT.">Open original in Bento</button>
           <div id="doc-prov" class="doc-prov" hidden></div>
         </div>
         <section class="math-station" id="math-station" aria-labelledby="math-station-title">
@@ -472,6 +474,10 @@
       <span>install jt for offline reading.</span>
       <a id="install-hint-link" href="#/settings">open settings</a>
       <button id="install-hint-dismiss" type="button">not now</button>
+    </aside>
+    <aside id="bento-return" class="bento-return" hidden aria-label="Bento return session">
+      <p id="bento-status" role="status"></p>
+      <div><button id="bento-save">Save Bento result</button><button id="bento-resume">Return to Bento</button><button id="bento-dismiss" class="quiet-btn">Dismiss session</button></div>
     </aside>
     <script type="module" src="/src/main.js"></script>
   </body>
