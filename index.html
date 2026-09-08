@@ -229,8 +229,15 @@
       </div>
       <div class="setting">
         <h2>your data</h2>
+        <button id="library-backup-download">Back up library</button>
+        <p class="hint">Back up saved documents, local changes, form answers and reading positions. Server connections and shared spaces are separate.</p>
+        <label for="library-backup-file">Restore a library backup</label>
+        <input id="library-backup-file" type="file" accept="application/json,.json">
+        <p id="library-backup-preview" class="hint"></p>
+        <button id="library-backup-restore" hidden disabled>Restore these documents</button>
+        <p id="library-backup-status" class="hint" role="status"></p>
         <button id="export-btn">download everything as JSON</button>
-        <p class="hint">documents, records, arrivals, spaces, space feeds, settings &mdash; one file, yours.</p>
+        <p class="hint">All data as JSON, including arrivals, spaces, space feeds and settings. Use Back up library above for a file JETT can restore.</p>
         <button id="delete-btn" class="danger">delete everything on this device</button>
         <p class="hint" id="delete-state"></p>
       </div>

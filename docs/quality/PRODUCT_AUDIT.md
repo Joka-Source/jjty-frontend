@@ -582,3 +582,33 @@ is ready and rejects native starts with any other track. It installs no packs.
 Evidence: ../runtime/local-speech-proof/continuity-result.json. This does not
 prove physical microphone/OS indicator behavior, natural device interruption,
 or lossless speech during the recognition restart interval.
+
+## Local library recovery — 8 September
+
+Settings now downloads a versioned library backup and previews a selected backup
+before explicit restoration. The backup covers saved documents, original bytes,
+form answers, local records and reading positions. A coherent readonly snapshot
+and add-only atomic restore preserve destination data; any ID collision aborts
+all incoming additions. Server links/pending requests, settings, microphone
+preferences and sharing memberships are excluded. Complete raw JSON export is
+still separate. Both encoding and decoding enforce a 100 MiB limit.
+
+Core validation checks bytes/digests, shapes, relationships, duplicate/undo IDs
+and bounded indices, and recomputes cached anchor resolution without modifying
+historical receipts. Independent review found and fixed loss of form fields
+whose names resembled configuration keys, a malformed math history crash, and
+premature failure reporting before IndexedDB rollback finished. Legacy text and
+approximate migration retain their uncertainty.
+
+Full gate: 216 tests passed, no failures/skips, plus build;
+../jett-library-backup-full-test.log. After copy polish, the final build and
+expanded browser test passed (../jett-library-backup-final-build.log and
+../jett-library-backup-final-browser.log). That test restores PDF, text, PNG and
+Markdown into a separate context with an existing document, verifies exact source
+bytes, decoded image dimensions, saved form answer, highlight, unchanged receipt
+and reading position after reload, and rejects duplicate/malformed files without
+mutation. Dedicated database tests force later record/position conflicts to
+prove earlier queued additions roll back. Root inspected the final 390px preview.
+Artifacts: ../runtime/library-backup-proof/library.json, result.json and
+phone-preview.png. This is local recovery proof, not account/cloud synchronization
+or authentication of a backup's author. See ../architecture/LIBRARY_BACKUP.md.

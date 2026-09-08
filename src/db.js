@@ -183,3 +183,43 @@ export async function getRecords(docId) {
     req.onerror = () => reject(req.error);
   });
 }
+
+/** A coherent view of the three local-library stores, excluding network state. */
+export async function readLibrarySnapshot() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(['docs', 'records', 'positions'], 'readonly');
+    const requests = Object.fromEntries(['docs', 'records', 'positions'].map(name =>
+      [name, transaction.objectStore(name).getAll()]));
+    transaction.oncomplete = () => resolve(Object.fromEntries(Object.entries(requests).map(([name, request]) => [name, request.result])));
+    transaction.onerror = transaction.onabort = () => reject(transaction.error ?? new Error('BACKUP_SNAPSHOT_FAILED'));
+  });
+}
+
+/** Validate first, then add everything atomically. A collision aborts all writes. */
+export async function restoreLibrarySnapshot(snapshot) {
+  const { validateLibrarySnapshot } = await import('./library-backup.js');
+  const staged = await validateLibrarySnapshot(snapshot);
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(['docs', 'records', 'positions'], 'readwrite');
+    transaction.oncomplete = () => resolve({ documents: staged.docs.length, records: staged.records.length, positions: staged.positions.length });
+    let requestError;
+    transaction.onerror = event => { requestError ??= event.target.error; };
+    transaction.onabort = () => {
+      const cause = requestError ?? transaction.error;
+      const error = new Error(cause?.name === 'ConstraintError' ? 'BACKUP_ID_COLLISION' : 'BACKUP_RESTORE_FAILED', { cause });
+      error.code = error.message;
+      reject(error);
+    };
+    try {
+      for (const name of ['docs', 'records', 'positions']) {
+        const store = transaction.objectStore(name);
+        for (const value of staged[name]) store.add(value);
+      }
+    } catch (cause) {
+      transaction.abort();
+      reject(new Error('BACKUP_RESTORE_FAILED', { cause }));
+    }
+  });
+}

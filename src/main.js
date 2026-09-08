@@ -25,6 +25,7 @@ import "./jett.css";
 import { initServerPanel } from "./server-panel.js";
 import { initPdfFormPanel } from "./pdf-form-panel.js";
 import { initPdfReview } from "./pdf-review.js";
+import { initLibraryBackupPanel } from "./library-backup-panel.js";
 import { initPdfAnnotationPanel } from "./pdf-annotation-panel.js";
 import { ingestImage, mountImage } from "./images.js";
 import "../vendor/katex/katex.min.css";
@@ -325,6 +326,7 @@ function resetPdfTools() {
 
 const serverPanel = initServerPanel({ saveDocument: putDoc });
 const pdfReview = initPdfReview();
+initLibraryBackupPanel({refresh: refreshLibrary});
 const pdfFormPanel = initPdfFormPanel({ saveDocument: putDoc, getRecords, review: pdfReview });
 const pdfAnnotationPanel = initPdfAnnotationPanel({ getRecords, review: pdfReview });
 let unmountImage = null;
