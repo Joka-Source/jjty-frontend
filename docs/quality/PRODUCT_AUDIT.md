@@ -663,3 +663,31 @@ documents during a pending save. Root visually inspected the final 390px dialog
 at ../runtime/document-rename-proof/phone-rename.png. This changes a local library
 name; it does not rename an external file or implement cloud synchronization.
 See ../architecture/DOCUMENT_NAMES.md.
+
+## Research baseline explorer — 8 September
+
+Founder clarification changes the first target to current PDF Expert iPad/iPhone
+feature and interaction parity, with BentoPDF implementation reuse. Physical
+iPad observation is deferred while online research proceeds. The old Mac copy
+is excluded as a current iPad reference.
+
+Tracked docs/research/pdf-expert-ipad now contains ten qualitative observations
+from eleven public threads, 24 documented interactions from nine official pages,
+and ten Bento source adoption contracts at upstream
+d69566ebefb9cc3ea2d8db4f845596356998a882 (2.8.8). These are not representative
+sentiment statistics or completed feature counts. Source/code existence checks
+passed; no upstream install or execution. A separate teacher account in the
+ontology is not included in the eleven-thread sample.
+
+PASS_LOCAL for the research artifact: self-contained explorer browser checks
+verify 44 entries, filters 10/24/10, search/combined filters, empty recovery,
+clear/focus, native keyboard disclosure, HTTPS source links, 390px layout, zero
+external requests and zero page errors. Root inspected final mobile rendering.
+Evidence ../runtime/research-explorer-proof/result.json, desktop.png, mobile.png.
+Regenerate with node scripts/build-research-view.mjs. No product-runtime code
+changed, so no repeated full product gate; previous 231-test tour gate remains
+the current runtime evidence. This is research delivery, not iPad parity proof.
+
+Bounded local and history searches including the founder's IIIT Nagpur clue did
+not locate the reported Reddit mirror/lab; no broad archive access or collection
+claim. Public research continued independently.

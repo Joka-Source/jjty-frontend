@@ -1,0 +1,378 @@
+{
+  "format": "jett-bento-reuse-contracts",
+  "version": 1,
+  "inspectionMode": "source-only; no setup, install, build, worker or WASM execution",
+  "upstreamCommit": "d69566ebefb9cc3ea2d8db4f845596356998a882",
+  "upstreamPackageVersion": "2.8.8",
+  "generatedAt": "2026-09-08",
+  "scope": "Concrete adaptation contracts for page/navigation work toward founder-requested PDF Expert parity; not parity certification",
+  "sourceLicenseEvidence": {
+    "package.json": "license: AGPL-3.0-only",
+    "LICENSE": "GNU Affero General Public License version3",
+    "docs/licensing.md": "Describes separate commercial licensing; no commercial grant assumed or acquired"
+  },
+  "dependencyDeclarations": {
+    "sortablejs": {
+      "version": "1.15.7",
+      "license": "MIT",
+      "evidence": "package-lock.json"
+    },
+    "pdf-lib": {
+      "version": "1.17.1",
+      "license": "MIT",
+      "evidence": "package-lock.json"
+    },
+    "pdfjs-dist": {
+      "version": "5.5.207",
+      "license": "Apache-2.0",
+      "evidence": "package-lock.json"
+    },
+    "coherentpdf": {
+      "runtimeUrl": "https://cdn.jsdelivr.net/npm/coherentpdf@2.5.5/dist/",
+      "licenseDeclaration": "AGPL-3.0",
+      "evidence": [
+        "src/js/utils/wasm-provider.ts",
+        "README.md"
+      ]
+    }
+  },
+  "contracts": [
+    {
+      "id": "tool-navigation",
+      "feature": "Tool discovery and category navigation",
+      "sourceModules": [
+        "src/js/main.ts"
+      ],
+      "observedBehavior": "Category groups can collapse and persist collapsed state; search filters name/subtitle/link and deduplicates tools into a results grid.",
+      "reuseBoundary": "Adapt real category/search rendering into a scoped tool registry adapter; use JETT document context and capability state to select actions.",
+      "improvementsAndRisks": [
+        "Current code queries global DOM and clones tool cards; contextual availability and selected document must not be inferred from a tool label.",
+        "Do not replace the current document or lose review preparation while navigating tools."
+      ],
+      "fixtureAcceptance": [
+        "Searching rotate returns one usable action; no duplicate results from multiple categories.",
+        "Opening and closing page tools preserves active document, selected page, unsaved review and focus.",
+        "Unavailable tools explain the missing engine rather than expose a dead primary action."
+      ],
+      "attribution": {
+        "upstream": "alam00000/bentopdf",
+        "commit": "d69566ebefb9cc3ea2d8db4f845596356998a882",
+        "sourceLinks": [
+          "https://github.com/alam00000/bentopdf/blob/d69566ebefb9cc3ea2d8db4f845596356998a882/src/js/main.ts"
+        ],
+        "applicationLicenseDeclaration": "AGPL-3.0-only",
+        "declarationFiles": [
+          "package.json",
+          "LICENSE"
+        ],
+        "fileSpecificLicenseOverrideObserved": false
+      }
+    },
+    {
+      "id": "page-selection",
+      "feature": "Explicit page selection and ranges",
+      "sourceModules": [
+        "src/js/logic/split-pdf-page.ts",
+        "src/js/utils/split-pdf-helpers.ts",
+        "src/tests/split-pdf-helpers.test.ts"
+      ],
+      "observedBehavior": "Thumbnail click toggles selected classes; selected pages drive split output. Helpers parse range groups and even/odd indices.",
+      "reuseBoundary": "Reuse parsing and selection behavior as pure page-ID operations; adapt with a controlled selection Set and explicit batch operation plan.",
+      "improvementsAndRisks": [
+        "parseRangeGroups silently skips invalid terms and does not require integer inputs.",
+        "DOM CSS classes currently act as selection state; changing render batches must not clear logical selection."
+      ],
+      "fixtureAcceptance": [
+        "Select pages1,3,5 then reorder: selection follows original page IDs.",
+        "Range1-3,5 resolves exactly to four pages; fractional, malformed and out-of-range terms return errors before any operation.",
+        "Keyboard selection and explicit all/none controls produce the same plan as pointer selection."
+      ],
+      "attribution": {
+        "upstream": "alam00000/bentopdf",
+        "commit": "d69566ebefb9cc3ea2d8db4f845596356998a882",
+        "sourceLinks": [
+          "https://github.com/alam00000/bentopdf/blob/d69566ebefb9cc3ea2d8db4f845596356998a882/src/js/logic/split-pdf-page.ts",
+          "https://github.com/alam00000/bentopdf/blob/d69566ebefb9cc3ea2d8db4f845596356998a882/src/js/utils/split-pdf-helpers.ts",
+          "https://github.com/alam00000/bentopdf/blob/d69566ebefb9cc3ea2d8db4f845596356998a882/src/tests/split-pdf-helpers.test.ts"
+        ],
+        "applicationLicenseDeclaration": "AGPL-3.0-only",
+        "declarationFiles": [
+          "package.json",
+          "LICENSE"
+        ],
+        "fileSpecificLicenseOverrideObserved": false
+      }
+    },
+    {
+      "id": "page-reorder",
+      "feature": "Drag reorder with visible order",
+      "sourceModules": [
+        "src/js/logic/organize-pdf-page.ts",
+        "src/pages/organize-pdf.html"
+      ],
+      "observedBehavior": "SortableJS uses150ms animation, chosen/ghost/drag classes and opacity changes; originalPageIndex survives ordering; a custom-order input provides another reorder path.",
+      "reuseBoundary": "Adapt Sortable integration and original-page identity model into instance-owned JETT organizer state; use explicit reorder commands rather than reading DOM as authority.",
+      "improvementsAndRisks": [
+        "Current onEnd resets opacity but does not itself renumber labels.",
+        "Sortable drag alone does not provide sufficient keyboard reorder behavior; document switching must dispose the old instance."
+      ],
+      "fixtureAcceptance": [
+        "Reorder3,1,2 updates labels and exported page order while source digest remains unchanged.",
+        "Keyboard move up/down and pointer drag produce identical plans.",
+        "Rapid reorder followed by switching documents cannot apply to the new document."
+      ],
+      "attribution": {
+        "upstream": "alam00000/bentopdf",
+        "commit": "d69566ebefb9cc3ea2d8db4f845596356998a882",
+        "sourceLinks": [
+          "https://github.com/alam00000/bentopdf/blob/d69566ebefb9cc3ea2d8db4f845596356998a882/src/js/logic/organize-pdf-page.ts",
+          "https://github.com/alam00000/bentopdf/blob/d69566ebefb9cc3ea2d8db4f845596356998a882/src/pages/organize-pdf.html"
+        ],
+        "applicationLicenseDeclaration": "AGPL-3.0-only",
+        "declarationFiles": [
+          "package.json",
+          "LICENSE"
+        ],
+        "fileSpecificLicenseOverrideObserved": false
+      }
+    },
+    {
+      "id": "duplicate-delete",
+      "feature": "Duplicate and remove pages safely",
+      "sourceModules": [
+        "src/js/logic/organize-pdf-page.ts"
+      ],
+      "observedBehavior": "Duplicate clones a thumbnail and reattaches duplicate/delete handlers; delete refuses removal of the final remaining page.",
+      "reuseBoundary": "Reuse controls and final-page guard, with explicit unique instance IDs referencing immutable source-page IDs, plus undo history.",
+      "improvementsAndRisks": [
+        "cloneNode does not clone event listeners; previewInit metadata and preview button can be cloned without their handlers.",
+        "Removing nodes directly supplies no durable undo plan."
+      ],
+      "fixtureAcceptance": [
+        "Duplicate page2 twice: three separately selectable instances render and preview the same correct source page.",
+        "Deleting then undoing restores exact page order and selection.",
+        "Deleting the final page is refused without modifying prepared bytes."
+      ],
+      "attribution": {
+        "upstream": "alam00000/bentopdf",
+        "commit": "d69566ebefb9cc3ea2d8db4f845596356998a882",
+        "sourceLinks": [
+          "https://github.com/alam00000/bentopdf/blob/d69566ebefb9cc3ea2d8db4f845596356998a882/src/js/logic/organize-pdf-page.ts"
+        ],
+        "applicationLicenseDeclaration": "AGPL-3.0-only",
+        "declarationFiles": [
+          "package.json",
+          "LICENSE"
+        ],
+        "fileSpecificLicenseOverrideObserved": false
+      }
+    },
+    {
+      "id": "thumbnail-preview",
+      "feature": "Full-page preview and navigation",
+      "sourceModules": [
+        "src/js/utils/page-preview.ts"
+      ],
+      "observedBehavior": "Preview overlay supports next/previous, Escape, arrow keys, backdrop close and page-count display; Space previews the hovered thumbnail.",
+      "reuseBoundary": "Adapt overlay navigation and controls to scoped preview state, immutable source identity and focused rather than hover-only keyboard targeting.",
+      "improvementsAndRisks": [
+        "Global singleton and document keydown handler span every tool.",
+        "Async renderPreviewPage has no generation fence; rapid page changes can finish out of order.",
+        "Focus trapping/restoration and hover-hidden28px control accessibility require improvement."
+      ],
+      "fixtureAcceptance": [
+        "Delay page1 render then request page2: page2 remains visible after both complete.",
+        "Escape restores focus to the invoking thumbnail; all controls work without hover.",
+        "After duplicate/reorder, preview shows original source page and current organizer position clearly."
+      ],
+      "attribution": {
+        "upstream": "alam00000/bentopdf",
+        "commit": "d69566ebefb9cc3ea2d8db4f845596356998a882",
+        "sourceLinks": [
+          "https://github.com/alam00000/bentopdf/blob/d69566ebefb9cc3ea2d8db4f845596356998a882/src/js/utils/page-preview.ts"
+        ],
+        "applicationLicenseDeclaration": "AGPL-3.0-only",
+        "declarationFiles": [
+          "package.json",
+          "LICENSE"
+        ],
+        "fileSpecificLicenseOverrideObserved": false
+      }
+    },
+    {
+      "id": "progressive-render",
+      "feature": "Progressive thumbnails and progress",
+      "sourceModules": [
+        "src/js/utils/render-utils.ts"
+      ],
+      "observedBehavior": "Creates placeholders for all pages, initial rendering capped at20, default batches8 and two eager batches; progress and batch-complete callbacks accompany lazy observation.",
+      "reuseBoundary": "Reuse actual scheduler/placeholder structure behind document-scoped rendering jobs, bounded canvas memory and cancellation tokens.",
+      "improvementsAndRisks": [
+        "Global lazyLoadState is unsuitable for multiple concurrent document previews.",
+        "Organizer currently renders all thumbnails sequentially; adopting shared renderer is an improvement, not existing organizer behavior."
+      ],
+      "fixtureAcceptance": [
+        "A200-page fixture gives usable first thumbnails before all pages finish.",
+        "Scrolling fills placeholders without altering selected page IDs.",
+        "Closing organizer releases canvases and prevents late results from appending to a new document."
+      ],
+      "attribution": {
+        "upstream": "alam00000/bentopdf",
+        "commit": "d69566ebefb9cc3ea2d8db4f845596356998a882",
+        "sourceLinks": [
+          "https://github.com/alam00000/bentopdf/blob/d69566ebefb9cc3ea2d8db4f845596356998a882/src/js/utils/render-utils.ts"
+        ],
+        "applicationLicenseDeclaration": "AGPL-3.0-only",
+        "declarationFiles": [
+          "package.json",
+          "LICENSE"
+        ],
+        "fileSpecificLicenseOverrideObserved": false
+      }
+    },
+    {
+      "id": "cancel-cleanup",
+      "feature": "Cancellation and owned resources",
+      "sourceModules": [
+        "src/js/utils/render-utils.ts",
+        "src/js/utils/page-preview.ts",
+        "src/js/logic/merge-pdf-page.ts"
+      ],
+      "observedBehavior": "cleanupLazyRendering disconnects observer and clears task maps/eager queue; hidePreview hides modal and restores overflow. Merge owns a Worker with message/error callbacks.",
+      "reuseBoundary": "Reuse cleanup entrypoints as adapter lifecycle hooks; add actual in-flight PDF render cancellation and operation worker termination/disposal where required.",
+      "improvementsAndRisks": [
+        "Clearing queues is not proof that in-flight renders or worker computation stopped.",
+        "Closing an overlay is not equivalent to canceling a pending export."
+      ],
+      "fixtureAcceptance": [
+        "Cancel during thumbnail rendering and during export: no stale UI writes, no replacement download, worker/render resources released.",
+        "Cancel restores previous usable review instead of clearing it.",
+        "Cancel then immediately start another document cannot receive the old progress or result."
+      ],
+      "attribution": {
+        "upstream": "alam00000/bentopdf",
+        "commit": "d69566ebefb9cc3ea2d8db4f845596356998a882",
+        "sourceLinks": [
+          "https://github.com/alam00000/bentopdf/blob/d69566ebefb9cc3ea2d8db4f845596356998a882/src/js/utils/render-utils.ts",
+          "https://github.com/alam00000/bentopdf/blob/d69566ebefb9cc3ea2d8db4f845596356998a882/src/js/utils/page-preview.ts",
+          "https://github.com/alam00000/bentopdf/blob/d69566ebefb9cc3ea2d8db4f845596356998a882/src/js/logic/merge-pdf-page.ts"
+        ],
+        "applicationLicenseDeclaration": "AGPL-3.0-only",
+        "declarationFiles": [
+          "package.json",
+          "LICENSE"
+        ],
+        "fileSpecificLicenseOverrideObserved": false
+      }
+    },
+    {
+      "id": "batch-rotation",
+      "feature": "Per-page and batch rotation feedback",
+      "sourceModules": [
+        "src/js/logic/rotate-pdf-page.ts",
+        "src/js/utils/rotation-state.ts",
+        "src/js/utils/pdf-operations.ts",
+        "src/tests/rotate-pdf-page.test.ts"
+      ],
+      "observedBehavior": "Page rotation array drives thumbnail transforms; UI exposes page wrappers and rotation displays; PDF operation copies pages for right angles and embeds page contents for arbitrary angles.",
+      "reuseBoundary": "Adapt page selection/rotation feedback; route90-degree changes through JETT native verified rotatePdfPages and an explicit immutable operation plan.",
+      "improvementsAndRisks": [
+        "Array index must not become identity after reorder or duplication.",
+        "Arbitrary-angle embedding and fresh-document copying have different preservation semantics from leaf /Rotate.",
+        "CSS preview is not evidence that final PDF contains matching native rotation."
+      ],
+      "fixtureAcceptance": [
+        "Selected pages1,3 rotate90degrees; page2 remains unchanged after saved-PDF reopen.",
+        "Inherited negative Rotate and rotated annotation/form fixtures retain native content and field values.",
+        "Undo resets both displayed transforms and operation plan; original bytes remain exact."
+      ],
+      "attribution": {
+        "upstream": "alam00000/bentopdf",
+        "commit": "d69566ebefb9cc3ea2d8db4f845596356998a882",
+        "sourceLinks": [
+          "https://github.com/alam00000/bentopdf/blob/d69566ebefb9cc3ea2d8db4f845596356998a882/src/js/logic/rotate-pdf-page.ts",
+          "https://github.com/alam00000/bentopdf/blob/d69566ebefb9cc3ea2d8db4f845596356998a882/src/js/utils/rotation-state.ts",
+          "https://github.com/alam00000/bentopdf/blob/d69566ebefb9cc3ea2d8db4f845596356998a882/src/js/utils/pdf-operations.ts",
+          "https://github.com/alam00000/bentopdf/blob/d69566ebefb9cc3ea2d8db4f845596356998a882/src/tests/rotate-pdf-page.test.ts"
+        ],
+        "applicationLicenseDeclaration": "AGPL-3.0-only",
+        "declarationFiles": [
+          "package.json",
+          "LICENSE"
+        ],
+        "fileSpecificLicenseOverrideObserved": false
+      }
+    },
+    {
+      "id": "export-review",
+      "feature": "Prepared output, progress and download",
+      "sourceModules": [
+        "src/js/logic/organize-pdf-page.ts",
+        "src/js/utils/helpers.ts",
+        "src/js/ui.ts"
+      ],
+      "observedBehavior": "Organizer reads chosen original indices, copies pages into a new pdf-lib document, saves bytes and downloads under source filename; loader and success/error modals report progress.",
+      "reuseBoundary": "Adapt operation execution and progress callbacks to JETT prepare/review/confirm export; derived filename and original custody stay explicit.",
+      "improvementsAndRisks": [
+        "copyPages does not by itself prove retention of document-level fields, outlines or attachments.",
+        "Success modal after a download action cannot prove the user saved a file.",
+        "Read-only source, signed/protected-document gates and serialized preservation checks must remain."
+      ],
+      "fixtureAcceptance": [
+        "Reopened output has exact requested page sequence and intended duplicates.",
+        "Fixtures include repeated form widgets, annotations, outlines, attachments and rotated pages; unsupported transformations fail before replacing review.",
+        "Render/export failure leaves the previous prepared PDF printable/downloadable; blocked downloads report useful status."
+      ],
+      "attribution": {
+        "upstream": "alam00000/bentopdf",
+        "commit": "d69566ebefb9cc3ea2d8db4f845596356998a882",
+        "sourceLinks": [
+          "https://github.com/alam00000/bentopdf/blob/d69566ebefb9cc3ea2d8db4f845596356998a882/src/js/logic/organize-pdf-page.ts",
+          "https://github.com/alam00000/bentopdf/blob/d69566ebefb9cc3ea2d8db4f845596356998a882/src/js/utils/helpers.ts",
+          "https://github.com/alam00000/bentopdf/blob/d69566ebefb9cc3ea2d8db4f845596356998a882/src/js/ui.ts"
+        ],
+        "applicationLicenseDeclaration": "AGPL-3.0-only",
+        "declarationFiles": [
+          "package.json",
+          "LICENSE"
+        ],
+        "fileSpecificLicenseOverrideObserved": false
+      }
+    },
+    {
+      "id": "merge-jobs",
+      "feature": "Multiple-file page order and worker execution",
+      "sourceModules": [
+        "src/js/logic/merge-pdf-page.ts",
+        "src/js/types/merge-worker-type.ts",
+        "public/workers/merge.worker.js"
+      ],
+      "observedBehavior": "Separate file and thumbnail Sortable flows construct merge jobs; worker imports configured CPDF script and returns success/error through its protocol.",
+      "reuseBoundary": "Reuse file/page job structures and UI while binding each source to digest, engine capability and owned worker session.",
+      "improvementsAndRisks": [
+        "Worker receives a runtime script URL; JETT must not silently inherit third-party CDN execution.",
+        "Different input documents can share page numbers and filenames; source identity requires more than label/index."
+      ],
+      "fixtureAcceptance": [
+        "Merge two PDFs with repeated filenames using unique source IDs and verify requested interleaving.",
+        "Wrong-engine URL or worker failure leaves all source documents and previous review unchanged.",
+        "Abort invalidates the job; late success cannot open or download a superseded result."
+      ],
+      "attribution": {
+        "upstream": "alam00000/bentopdf",
+        "commit": "d69566ebefb9cc3ea2d8db4f845596356998a882",
+        "sourceLinks": [
+          "https://github.com/alam00000/bentopdf/blob/d69566ebefb9cc3ea2d8db4f845596356998a882/src/js/logic/merge-pdf-page.ts",
+          "https://github.com/alam00000/bentopdf/blob/d69566ebefb9cc3ea2d8db4f845596356998a882/src/js/types/merge-worker-type.ts",
+          "https://github.com/alam00000/bentopdf/blob/d69566ebefb9cc3ea2d8db4f845596356998a882/public/workers/merge.worker.js"
+        ],
+        "applicationLicenseDeclaration": "AGPL-3.0-only",
+        "declarationFiles": [
+          "package.json",
+          "LICENSE"
+        ],
+        "fileSpecificLicenseOverrideObserved": false
+      }
+    }
+  ]
+}
