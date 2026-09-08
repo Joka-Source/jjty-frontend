@@ -2,6 +2,15 @@
 
 Inspected 8 September 2026. This is a source adoption map, not an integration-complete claim.
 
+## Current execution — 9 September 2026
+
+The source-only inspection below is historical. Actual upstream Bento2.8.8 is now installed and running from a separate integration worktree. Founder direction superseded the isolated-organizer recommendation below: adopt the full application immediately. JETT Reader now chooses Organize, Edit PDF, Fill forms or Sign PDF and hands an immutable original copy to the actual upstream handler. Returned PDF bytes are verified and saved as a distinct durable JETT document.
+
+Real isolated Chrome journeys have verified organize/duplicate, added text in the PDF editor, fillable fields and a typed visual signature through export, durable JETT save, reload and Library reopen. Independent Poppler/pdf-lib readback confirms the tested content; originals retain their byte hashes. This added-text test does not prove editing existing PDF text, and a visual signature is not a cryptographic signature.
+
+Current canonical revisions, acceptance evidence and remaining boundaries are recorded in [the founder SSOT](../../../../human/JETT_SSOT.md) and its `evidence/2026-09-09/` directory. Local runtime work is not deployment, native integration or full PDF Expert parity. The source map and licence declarations below remain historical reference evidence.
+
+
 ## Exact reference
 
 - Upstream: https://github.com/alam00000/bentopdf

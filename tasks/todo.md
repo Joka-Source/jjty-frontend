@@ -15,3 +15,16 @@ Plan: preserve upstream at d69566e, adapt in separate runtime/bento-jett worktre
 Ownership: bento_bridge owns isolated Bento worktree; frontend_bento owns frontend implementation; lead owns integration/review evidence and SSOT. Existing README edits preserved.
 
 Review: actual upstream Multi Tool source intake -> duplicate -> PDF export -> durable JETT return -> Library reopen after reload passed in isolated Chrome. Poppler independently confirmed three pages in order1,1,2; original bytes unchanged. Full frontend suite387 passed, additional focused service/IndexedDB checks passed. Local integration only; original-copy handoff excludes JETT annotations. Android backup remains paused. Next: cover Edit PDF and Fill/Sign return journeys and remove handoff loss on upstream reset navigation.
+
+## Bento editing continuation
+
+Prior turn: progress; installed integration and verified source/edit/export/reopen with independent readback.
+
+- [x] Verify real Edit PDF and form/sign output in isolated browser, including fill -> sign chain.
+- [x] Preserve explicit handoff through upstream navigation with stale-session guards.
+- [x] Add direct purpose-labelled tool choice in JETT Reader and preserve it on Resume.
+- [x] Review, focused tests, build and output fidelity; update SSOT with exact revisions.
+
+Plan: retain original-copy semantics. Allow only verified upstream tool routes through one service mapping; persist the selected tool with pending session for recovery. Keep old pending sessions compatible with Organize default. Expose tool choice only for PDF sources.
+
+Review: frontend391tests/build pass; Bento5tests/tsc pass; independent review clean. Poppler/pdf-lib verified4actual browser journeys including fill-to-sign continuity. Sourcef2cde76/Bento4c5c3c3. Added text is not existing-text replacement. Next verify actual existing-text engine, then OCR through the same durable return.
