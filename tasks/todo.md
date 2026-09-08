@@ -41,3 +41,22 @@ Plan: expose actual upstream existing-text editor and OCR routes with explicit l
 - [x] Independent review, focused/full checks, SSOT and scoped commits.
 
 Review: text replacement changes original content (not overlays); form geometry preserved, font substitution remains. OCR fresh engine and searchable JETT reopen passed; partial recognition cannot omit source pages. Frontend391/full build, OCR51, bridge6 and tsc pass. Next local OCR asset packaging/offline acceptance, then broader fidelity corpus.
+
+## Local OCR assets
+
+Previous goal turn: progress; existing-text replacement and searchable OCR journeys verified with source preserved.
+
+Plan: pin worker/core variants, English/Hindi data and fonts; reproducible installer validates hashes and keeps binaries outside tracked application data. Preserve explicit host overrides. Local launcher prepares complete assets before serving. Verify fresh browser OCR with every nonloopback request blocked, including workers, then durable return/search. This proves independence from external services while local servers run, not server-free offline PWA behavior.
+
+- [x] Pinned manifest, complete installation and runtime defaults with override tests.
+- [x] Launcher prepares/verifies required local assets (23 pinned files; bash syntax and asset check pass).
+- [x] Fresh external-network-blocked English and mixed Hindi/English OCR, full expected PDF text, durable return/reload/search; keyboard process/export.
+- [x] Independent review, 72 Vitest +4 Node tests, TypeScript, original/output checksums, Poppler readback and committed synthetic evidence. Bento130d4bb/harnessaffd81b.
+
+- [ ] Repair Bento handoff banner overlap with OCR process control after language-list scrolling; keyboard activation is used for current mixed-language acceptance and does not prove pointer reachability.
+
+## Founder EPUB direction — 9 September
+
+- [x] Record founder authority and seed documentation-backed inventory in `docs/quality/APPLE_BOOKS_EPUB_BASELINE.md` (draft 0.1, iPadOS 26 documentation; device walkthrough pending).
+
+- [ ] Versioned Apple Books EPUB reference walkthrough and complete acceptance inventory; minimum quality at least Apple Books, ambition to surpass it. Keep EPUB source custody and reading/annotation continuity in the shared product design. Current Bento/OCR work continues. Canonical direction recorded in SSOT section19.
