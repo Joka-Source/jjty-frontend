@@ -1,6 +1,11 @@
 /** Original-copy custody and retry-safe return from the local Bento adapter. */
 export const BENTO_PENDING_KEY = 'jett.bento.pending.v1';
 export const MAX_BENTO_BYTES = 64 * 1024 * 1024;
+export const BENTO_TOOLS = Object.freeze({ organize: 'pdf-multi-tool', edit: 'edit-pdf', forms: 'form-filler', sign: 'sign-pdf' });
+function toolRoute(tool = 'organize') {
+  if (!Object.hasOwn(BENTO_TOOLS, tool)) throw new Error('Choose a supported Bento tool.');
+  return BENTO_TOOLS[tool];
+}
 export function bentoBase(configured, hostname) {
   const value = configured || (['localhost', '127.0.0.1'].includes(hostname) ? 'http://127.0.0.1:5181' : '');
   if (!value) return null;
@@ -35,15 +40,16 @@ export function createBentoHandoff({ base, storage, fetch: request = globalThis.
   const api = {
     pending,
     hasPending() { return !!storage.getItem(BENTO_PENDING_KEY); },
-    url(job, full = false) { return `${base}/${full ? 'tools' : 'pdf-multi-tool'}.html${job ? `#jett=${job.token}` : ''}`; },
-    async start(doc) {
+    url(job, full = false) { return `${base}/${full ? 'tools' : toolRoute(job?.tool)}.html${job ? `#jett=${job.token}` : ''}`; },
+    async start(doc, tool = 'organize') {
+      toolRoute(tool);
       if (pending()) throw new Error('Save or dismiss the current Bento session before opening another.');
       if (doc?.provenance?.sourceKind !== 'pdf') throw new Error('Open a PDF first.');
       const bytes = pdfBytes(doc.sourceBytes);
       const response = await call('', { method: 'POST', headers: { 'Content-Type': 'application/pdf', 'X-JETT-Filename': encodeURIComponent(doc.provenance.name || `${doc.title}.pdf`) }, body: bytes });
       const { token } = await response.json();
       if (!/^[a-zA-Z0-9_-]{16,128}$/.test(token)) throw new Error('Bento returned an invalid session.');
-      const job = { base, token, id: `doc_bento_${token}`, parentId: doc.id, parentDigest: doc.provenance.contentDigest, name: doc.title, createdAt: new Date().toISOString() };
+      const job = { base, token, tool, id: `doc_bento_${token}`, parentId: doc.id, parentDigest: doc.provenance.contentDigest, name: doc.title, createdAt: new Date().toISOString() };
       // Persist before opening the tool, so reload never loses the return address.
       storage.setItem(BENTO_PENDING_KEY, JSON.stringify(job));
       return job;

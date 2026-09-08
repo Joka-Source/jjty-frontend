@@ -1,6 +1,7 @@
-import { bentoBase, createBentoHandoff } from './bento-handoff.js';
+import { bentoBase, createBentoHandoff, BENTO_TOOLS } from './bento-handoff.js';
 export function initBentoPanel({ getCurrentDocument, getDocument, importDocument }) {
   const source = document.getElementById('bento-original');
+  const tool = document.getElementById('bento-tool');
   const tools = document.getElementById('bento-tools');
   const panel = document.getElementById('bento-return');
   const status = document.getElementById('bento-status');
@@ -20,6 +21,8 @@ export function initBentoPanel({ getCurrentDocument, getDocument, importDocument
     dismiss.textContent = hasPending ? 'Dismiss session' : 'Close';
     save.disabled = resume.disabled = dismiss.disabled = busy;
     source.disabled = busy || !!job;
+    tool.disabled = busy || !!job;
+    if (job) tool.value = Object.hasOwn(BENTO_TOOLS, job.tool) ? job.tool : 'organize';
   }
   async function run(action) {
     if (busy) return;
@@ -40,7 +43,7 @@ export function initBentoPanel({ getCurrentDocument, getDocument, importDocument
     if (!popup) return refresh('Allow a new tab for Bento, then try again.');
     popup.opener = null;
     void run(async () => {
-      try { const job = await bridge.start(getCurrentDocument()); popup.location = bridge.url(job); }
+      try { const job = await bridge.start(getCurrentDocument(), tool.value); popup.location = bridge.url(job); }
       catch (error) { popup.close(); throw error; }
       return 'Original copy opened in Bento. JETT annotations and saved form changes stay here. Export a PDF in Bento, then save its result below.';
     });
@@ -56,5 +59,5 @@ export function initBentoPanel({ getCurrentDocument, getDocument, importDocument
   });
   window.addEventListener('storage', event => { if (event.key === 'jett.bento.pending.v1') refresh(); });
   refresh(initializationError);
-  return { update(doc) { source.hidden = doc?.provenance?.sourceKind !== 'pdf' || !doc.sourceBytes; } };
+  return { update(doc) { tool.hidden = source.hidden = doc?.provenance?.sourceKind !== 'pdf' || !doc.sourceBytes; } };
 }

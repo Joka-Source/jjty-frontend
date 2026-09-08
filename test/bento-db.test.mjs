@@ -22,7 +22,7 @@ test('concurrent Bento imports use one durable document and retries preserve lat
     return {ids:imports.map(doc=>doc.id),count:(await db.getDocs()).filter(doc=>doc.id===source.id).length,title:retry.title,draft:retry.formDraft};
   });
   const denied = await page.evaluate(async()=>{
-    document.body.innerHTML='<button id="bento-original"></button><button id="bento-tools"></button><aside id="bento-return"><p id="bento-status"></p><button id="bento-save"></button><button id="bento-resume"></button><button id="bento-dismiss"></button></aside>';
+    document.body.innerHTML='<select id="bento-tool"><option value="organize">Organize pages</option></select><button id="bento-original"></button><button id="bento-tools"></button><aside id="bento-return"><p id="bento-status"></p><button id="bento-save"></button><button id="bento-resume"></button><button id="bento-dismiss"></button></aside>';
     Object.defineProperty(window,'localStorage',{configurable:true,get(){throw new Error('Storage denied');}});
     let opened; window.open=url=>{opened=url;};
     const {initBentoPanel}=await import('/src/bento-panel.js');
