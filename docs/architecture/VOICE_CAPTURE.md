@@ -177,7 +177,41 @@ word. A successful recovery clears the old engine proximity hint. It does not
 lower the action policy or create an edit: the user must still issue an action.
 
 This is conservative English-oriented pointing recovery, not free-form semantic
-reasoning, multilingual command parity or staged selection. The founder's
-conversational “start highlighting … till …” requirement still needs explicit
-selection state, source-bound start retention, cancellation and atomic commit.
-The existing complete “highlight from … to …” command remains the range path.
+reasoning or multilingual command parity. Staged selection is implemented in
+the application layer described below; the complete “highlight from … to …”
+command remains available.
+
+
+## Selection across utterances
+
+“Start highlighting from the deposit” retains an exact starting phrase without
+editing. “Start highlighting here” uses the visible cursor's current confident
+span. A unique explicit start moves the visible cursor there. Subsequent reading
+can move the cursor without replacing the retained start. “Until a sound roof”
+(or “till”, “up to”, “end highlighting at” plus an exact endpoint) commits through
+the existing atomic range path. Repeated endpoint occurrences require explicit
+choices; unknown or reversed endpoints cannot create a mark and may be retried.
+
+A selection serial binds pending choices to the start and document text.
+An independent cancellation generation invalidates queued speech on Escape,
+the Cancel selection button, microphone pause/error and document replacement.
+Normal ordered start/end processing does not invalidate a later command received
+in the same browser recognition event. Same-ID source replacement cancels too.
+Completed selection is one persisted act and one undo, including multiple blocks.
+Bare “until” or “up to” prose remains ordinary reading when no start is pending;
+it updates both the visible cursor and the next action's reading evidence.
+
+The reading surface shows the latest partial/final recognition text (bounded to
+160 characters), a retained-start prompt and cancellation control. Feedback stays
+visible when scrolled, fits narrow screens, and clears on pause or source change.
+It reports what the recognizer supplied rather than inventing a corrected command.
+
+`test/staged-range.e2e.test.mjs` reproduces the formerly ignored start command
+and covers the complete controlled-transcript journey, batched final segments,
+ambiguity choices, source changes, cancellation, mobile bounds, reload and undo.
+The separate physical trial used the Mac speaker and real microphone with local
+English recognition. Start → until → persisted range → spoken undo passed on the
+bundled lease. “End highlighting” was once transcribed as “And highlighting”, and
+one “till” delivery failed. Those are recognition limitations, not successes.
+See parent `runtime/live-voice-diagnosis/staged-physical-receipt.json`. No accent,
+noise, multilingual or long-session reliability is established by this trial.

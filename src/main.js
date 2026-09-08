@@ -222,9 +222,105 @@ const positionMemory = createPositionMemory({ save: putPosition, load: getPositi
 const intentStream = new IntentStream();
 let shell = null; // the surface router (initShell) — set during boot
 
+let stagedRange = null;
+let rangeGeneration = 0;
+let selectionSerial = 0;
+const rangeCancel = document.createElement('button');
+rangeCancel.id = 'cancel-voice-selection';
+rangeCancel.type = 'button';
+rangeCancel.textContent = 'Cancel selection';
+rangeCancel.hidden = true;
+rangeCancel.className = 'voice-toggle';
+const voiceFeedback = document.createElement('section');
+voiceFeedback.id = 'voice-feedback';
+voiceFeedback.setAttribute('aria-label', 'Voice feedback');
+voiceFeedback.hidden = true;
+const selectionStatus = document.createElement('p');
+selectionStatus.setAttribute('role', 'status');
+const heardText = document.createElement('p');
+heardText.id = 'voice-heard';
+voiceFeedback.append(selectionStatus, heardText, rangeCancel);
+article.before(voiceFeedback);
+function showHeard(text, final = false) {
+  const words = String(text).trim();
+  heardText.textContent = words ? `${final ? 'Heard' : 'Hearing'}: ${words.slice(-160)}` : '';
+  heardText.hidden = !words;
+  voiceFeedback.hidden = !words && !stagedRange;
+}
+rangeCancel.addEventListener('click', () => cancelStagedRange(true));
+addEventListener('keydown', event => {
+  if (event.key === 'Escape' && stagedRange) cancelStagedRange(true);
+});
+function cancelStagedRange(announce = false, invalidateQueue = true) {
+  const hadRange = !!stagedRange;
+  stagedRange = null;
+  if (invalidateQueue) rangeGeneration++;
+  rangeCancel.hidden = true;
+  selectionStatus.textContent = '';
+  selectionStatus.hidden = true;
+  voiceFeedback.hidden = !heardText.textContent;
+  if (state.pendingAsk?.args?.stagedGeneration != null) hideAsk();
+  if (announce && hadRange) setStatus(true, 'Selection cancelled — nothing highlighted.');
+}
+function parseStagedRange(text) {
+  const clean = String(text).trim().replace(/[.!?]+$/, '');
+  if (/^(?:cancel|stop) (?:selection|highlighting|highlight|range)$/i.test(clean)) return {type:'cancel'};
+  const start = /^(?:start|begin) highlighting(?: (?:from|at))?(?: (.+))?$/i.exec(clean);
+  if (start) return {type:'start', phrase:start[1]?.trim()};
+  const end = /^(?:till|until|up to|end highlighting at) (.+)$/i.exec(clean);
+  return end ? {type:'end', phrase:end[1].trim(), explicit:/^end highlighting at /i.test(clean)} : null;
+}
+function rangeSource() { return state.blockTexts.join('\n\n'); }
+async function handleStagedRange(command, snapshot, evidence) {
+  if (command.type === 'cancel') { cancelStagedRange(true, false); return; }
+  if (snapshot.rangeGeneration !== rangeGeneration || snapshot.docId !== state.doc?.id || snapshot.rangeSource !== rangeSource()) return;
+  if (command.type === 'start') {
+    cancelStagedRange(false, false);
+    hideAsk();
+    let phrase = command.phrase;
+    let target = null;
+    if (!phrase || /^(?:here|this|this term)$/i.test(phrase)) {
+      target = snapshot.match?.target;
+      if (!target || snapshot.match.score < 0.78) {
+        setStatus(true, 'Read the starting words first, or say “start highlighting from” followed by the exact words.'); return;
+      }
+      phrase = target.quotedText;
+    }
+    const candidates = findRangeTargets(state.blockTexts, phrase);
+    if (!candidates.length) { setStatus(true, 'The starting words were not found — say the exact words in the document.'); return; }
+    if (target && !candidates.some(c => c.blockIndex === target.blockIndex && c.tokenStart === target.tokenStart && c.tokenEnd === target.tokenEnd)) return;
+    stagedRange = {docId:state.doc.id, source:rangeSource(), fromAnchor:phrase, rangeStart:target, generation:++selectionSerial};
+    const visibleStart = target ?? (candidates.length === 1 ? candidates[0] : null);
+    if (visibleStart) {
+      state.currentBlock = visibleStart.blockIndex;
+      const start = state.tokenMeta.findIndex(t => t.blockIndex === visibleStart.blockIndex && t.tokenIndex === visibleStart.tokenStart);
+      const end = state.tokenMeta.findIndex(t => t.blockIndex === visibleStart.blockIndex && t.tokenIndex === visibleStart.tokenEnd);
+      state.lastMatch = {score:1, blockIndex:visibleStart.blockIndex, start, end, target:visibleStart, candidates:[{...visibleStart,score:1}]};
+      state.lastReadingMatch = state.lastMatch;
+      moveMarker(visibleStart.blockIndex, visibleStart);
+      state.blocks[visibleStart.blockIndex]?.scrollIntoView({behavior:'smooth',block:'center'});
+      rememberPosition(visibleStart.blockIndex);
+    }
+    rangeCancel.hidden = false;
+    setStatus(true, 'Start saved');
+    return;
+  }
+  if (!stagedRange) { setStatus(true, 'Choose a start first — say “start highlighting from” and the starting words.'); return; }
+  const selection = stagedRange;
+  if (selection.docId !== state.doc?.id || selection.source !== rangeSource()) { cancelStagedRange(true); return; }
+  await executeVerb('highlight-range', {
+    fromAnchor:selection.fromAnchor, toAnchor:command.phrase, rangeStart:selection.rangeStart,
+    rangeDocumentId:selection.docId, stagedSource:selection.source, stagedGeneration:selection.generation,
+    modality:'voice', evidence,
+  });
+}
+
 function setStatus(on, text) {
   statusDot.classList.toggle("on", on);
   statusText.textContent = text;
+  selectionStatus.textContent = stagedRange ? `Start saved: “${stagedRange.fromAnchor}”. Say “until” and the ending words.` : '';
+  selectionStatus.hidden = !stagedRange;
+  voiceFeedback.hidden = !stagedRange && !heardText.textContent;
 }
 
 function blockCountOf(doc) {
@@ -338,6 +434,8 @@ const pdfFormPanel = initPdfFormPanel({ saveDocument: putDoc, getRecords, review
 const pdfAnnotationPanel = initPdfAnnotationPanel({ getRecords, review: pdfReview });
 let unmountImage = null;
 async function renderDoc(doc) {
+  cancelStagedRange();
+  showHeard('');
   documentRename.setDocument(null);
   hideAsk();
   serverPanel.setDocument(null);
@@ -956,6 +1054,7 @@ async function performTargeted(verbId, args) {
 
 async function performRange(verbId, args) {
   const doc=state.doc;if(!doc)return null;
+  if (args.stagedGeneration != null && (args.stagedGeneration !== stagedRange?.generation || args.stagedSource !== rangeSource())) return null;
   const rangeArgs={...args,rangeDocumentId:args.rangeDocumentId ?? doc.id};
   if(rangeArgs.rangeDocumentId!==doc.id)return null;
   const allCandidates={rangeStart:findRangeTargets(state.blockTexts,args.fromAnchor),rangeEnd:findRangeTargets(state.blockTexts,args.toAnchor)};
@@ -982,7 +1081,7 @@ async function performRange(verbId, args) {
         button.textContent=labels[i];
         button.addEventListener('click',()=>resolveAsk(i));askOptions.append(button);
       }
-      const cancel=document.createElement('button');cancel.className='ask-option ask-dismiss';cancel.textContent='Cancel range';cancel.addEventListener('click',hideAsk);askOptions.append(cancel);
+      const cancel=document.createElement('button');cancel.className='ask-option ask-dismiss';cancel.textContent='Cancel range';cancel.addEventListener('click',()=>{if(args.stagedGeneration != null)cancelStagedRange(true);else hideAsk();});askOptions.append(cancel);
       askBox.hidden=false;setStatus(true,`Choose where the range ${endpoint==='rangeStart'?'starts':'ends'}.`);
       emitCommandResult(verbId,'ask','The complete endpoint phrase occurs more than once.');return null;
     }
@@ -999,6 +1098,7 @@ async function performRange(verbId, args) {
   }
   const blockTexts=[...state.blockTexts],docDigest=doc.provenance?.contentDigest ?? await contentDigest(doc.text ?? blockTexts.join('\n\n'));
   if(state.doc?.id!==doc.id)return null;
+  if (args.stagedGeneration != null && (args.stagedGeneration !== stagedRange?.generation || args.stagedSource !== rangeSource())) return null;
   const rangeAnchor={version:1,start:createAnchor({...from,blockTexts,docDigest}),end:createAnchor({...to,blockTexts,docDigest})};
   const ranged = await engine.perform(verbId, from.blockIndex, {
     rangeAnchor,
@@ -1009,6 +1109,7 @@ async function performRange(verbId, args) {
     matchedText: `${from.quotedText} … ${to.quotedText}`,
     targetChoice:args.rangeChoices?.length?{asked:true,reason:'Repeated range endpoint',candidates:args.rangeAlternatives || [],chosen:args.rangeChoices.join(' → ')}:null,
   });
+  if (ranged && args.stagedGeneration != null && args.stagedGeneration === stagedRange?.generation) { cancelStagedRange(false, false); setStatus(true, "Passage highlighted — say undo to remove the whole selection."); }
   emitCommandResult(verbId, ranged ? "act" : "none", ranged ? "The requested passage range was highlighted." : "The passage range could not be highlighted.", { confidence: args.confidence });
   return ranged;
 }
@@ -1165,6 +1266,7 @@ function renderMathPreview(expression, { syncWords = true } = {}) {
 }
 
 function setMathMode(active, { announce = true } = {}) {
+  if (active) cancelStagedRange();
   mathState.active = active;
   mathWorkbench.hidden = !active;
   mathModeToggle.setAttribute("aria-pressed", String(active));
@@ -1291,7 +1393,9 @@ mathSpoken.addEventListener("input", () => {
 // Transcript pipeline (shared by mic and sim)
 
 function onInterim(fullText, latestSegment = fullText) {
-  if (mathState.active) return;
+  showHeard(latestSegment);
+  const rangePreview = parseStagedRange(latestSegment);
+  if (mathState.active || (rangePreview && (rangePreview.type !== 'end' || rangePreview.explicit || stagedRange))) return;
   // Recognition results include earlier finalized reading. A fresh command
   // must not replay that old text into the cursor after a pointer selection.
   const preview = new IntentStream().push({ text: latestSegment, final: true });
@@ -1362,17 +1466,21 @@ function onInterim(fullText, latestSegment = fullText) {
 
 let speechQueue = Promise.resolve();
 function onFinalSegment(segment) {
+  showHeard(segment, true);
+  emitGlass({ kind: "transcriptEvent", text: segment, final: true, source: SIM ? "sim" : "speech" });
   const intentStarted = performance.now();
+  const stagedCommand = mathState.active ? null : parseStagedRange(segment);
   const events = intentStream.push({ text: segment, final: true });
   // Freeze reading evidence at recognition arrival, before a later interim
   // transcript can move the cursor while an earlier action is being saved.
-  if (!mathState.active && events.some(event => toCommand(event).type === "reading") && state.lastMatch) {
+  if (!mathState.active && (!stagedCommand || (stagedCommand.type === 'end' && !stagedCommand.explicit && !stagedRange)) && events.some(event => toCommand(event).type === "reading") && state.lastMatch) {
     state.lastReadingMatch = state.lastMatch;
   }
   const snapshot = {
+    rangeGeneration, rangeSource:rangeSource(),
     intentDuration: performance.now() - intentStarted,
     docId: state.doc?.id,
-    match: state.lastReadingMatch ?? state.lastMatch,
+    match: stagedCommand?.type === 'start' ? state.lastMatch ?? state.lastReadingMatch : state.lastReadingMatch ?? state.lastMatch,
     blockIndex: state.currentBlock,
   };
   const run = speechQueue.then(() => {
@@ -1381,6 +1489,7 @@ function onFinalSegment(segment) {
       setStatus(false, "The document changed before that instruction ran. Read the passage and try again.");
       return null;
     }
+    if (stagedCommand && (stagedCommand.type !== 'end' || stagedCommand.explicit || stagedRange)) return handleStagedRange(stagedCommand, snapshot, segment);
     return processFinalSegment(segment, events, snapshot);
   });
   // One failed command must not poison the following commands.
@@ -1389,7 +1498,6 @@ function onFinalSegment(segment) {
 }
 
 async function processFinalSegment(segment, events, snapshot) {
-  emitGlass({ kind: "transcriptEvent", text: segment, final: true, source: SIM ? "sim" : "speech" });
   const mathResult = await onMathFinalSegment(segment);
   if (mathResult) return;
   emitGlass({ kind: "latencyMark", stage: "intent", durationMs: snapshot.intentDuration, budgetMs: 5 });
@@ -1886,6 +1994,7 @@ const capture = createVoiceCapture({
   onFinal: onFinalSegment,
   onState: (state, reason, { audioHeld = false } = {}) => {
     mic.audioHeld = audioHeld;
+    if (['paused','off','denied','error','unavailable','local-unavailable'].includes(state)) { cancelStagedRange(); showHeard(''); }
     if (state === 'error' && reason?.startsWith('local-')) state = 'local-unavailable';
     const messages = {
       starting: "starting voice — waiting for the browser microphone",

@@ -7,7 +7,7 @@
 - Focused test: npm run build && node --test test/shell.e2e.test.mjs.
 - Full local gate: npm test.
 - Stop: terminate only the owned Vite process.
-- Test data: synthetic text and bundled sample; no private uploads or microphone activation.
+- Test data: synthetic text and bundled sample; no private uploads; separately authorized physical microphone trials use the bundled sample.
 - Authority: IndexedDB documents/positions/records plus rendered UI.
 - Evidence: local test logs and screenshots. No production proof implied.
 
@@ -16,7 +16,7 @@
 | First-run text intake | PASS_LOCAL | Independent paste composer; real click with installation hint present, save and reopen. test/shell.e2e.test.mjs. |
 | Find saved work | PASS_LOCAL | Title/content search, empty result, reload and open; synthetic persisted content inspected. |
 | Desktop and phone shell | PASS_LOCAL | Desktop/mobile shell gate, 390px rendered phone with no horizontal overflow; current JETT style. |
-| Voice cursor and downstream actions | PASS_LOCAL | Controlled transcript journey covers in-paragraph movement, exact highlight/restart/undo and pointer precedence. Physical microphone and remote application remain unverified. |
+| Voice cursor and downstream actions | PASS_LOCAL | Controlled transcript journey covers in-paragraph movement, exact highlight/restart/undo and pointer precedence. A bounded on-device physical-microphone sample now covers staged range, reload and spoken undo; accent/noise reliability and remote application remain unverified. |
 | PDF import and output parity | PARTIAL_LOCAL | Native review; source-preserving filled, annotated and combined copies; exact multi-page ranges and independent output checks. See checkpoint entries and ../architecture/PDF_COMBINED.md. Full parity remains open. |
 | Markdown structure/source | PASS_LOCAL | Heading, quote and fenced code render; CRLF/BOM reading normalization; downloaded source bytes exactly match after reload. |
 | Images | PASS_LOCAL | PNG/JPEG/GIF/WebP intake, decoding, display, exact original download and reload verified; see image checkpoint below. |
@@ -743,3 +743,30 @@ jumps-after.log and test/voice-jumps.e2e.test.mjs.
 Full local gate: build and 241 tests passed, zero failures or skips;
 ../runtime/live-voice-diagnosis/jumps-full.log. The focused browser test covers
 both actual engine selections; no silent JS fallback is accepted for WASM proof.
+
+
+## Conversational selection and visible recognition — 8 September
+
+The formerly ignored staged start command now retains exact source-bound state.
+Controlled browser proof covers start/read/end, current-cursor start, repeated
+endpoint choices, unknown endpoint retry, batched recognizer finals, ordinary
+“until” prose followed by a correct highlight, cancel by voice/button/Escape,
+document and same-ID source replacement, desktop/mobile feedback visibility,
+atomic save, reopening and one-step undo. The UI now displays what was actually
+recognized and keeps the retained-start/cancel controls visible while reading.
+
+Physical local-English trial on the bundled sample: start at “the deposit”, end
+at “a sound roof”, reopen the two-block highlight, spoken undo, reopen the undone
+record, and spoken cancellation all verified. Sample record
+`evt-mtshgrov-9-nm8i4` remains undone; the earlier rent mark was preserved. Capture
+was paused and released after testing. Recognition mistakes were observed and
+reported: this is bounded functional proof, not a claim of fluent general voice.
+Parent receipt: `runtime/live-voice-diagnosis/staged-physical-receipt.json`.
+
+Independent review caught and helped resolve queue-generation and ordinary-prose
+reading-evidence bugs. A separate print test race was corrected by checking its
+initial disabled state in the same browser turn that starts rendering, then
+checking enabled after rendering; product printing code was unchanged.
+
+Final gate: Vite production build and **242 tests passed**, zero failures or skips.
+Focused staged journey and independent review passed. Changes are local only.
