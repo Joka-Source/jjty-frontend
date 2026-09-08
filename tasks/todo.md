@@ -71,3 +71,15 @@ Previous turn: progress, committed local OCR runtime and exact English/Hindi bro
 - [x] Independent review,938 upstream tests +6 adapter/API tests, scoped commits and SSOT evidence.
 
 Review: banner occupies layout space before the direct page footer; blocked navigation reveals the explanation. Local JETT server was confirmed stopped and restored before final acceptance. Next: broaden OCR fidelity to multi-page/rotated mixed-language documents and visible partial-output warnings. Apple Books inventory/device observation and the full three-platform product goal remain open.
+
+
+## Multi-page OCR fidelity — 9 September
+
+Previous turn: progress, verified pointer recovery committed. Plan: reproduce actual PDF /Rotate90/270 and nonzero CropBox effects with a four-page image-only English/Hindi corpus; correct viewport-to-source mapping while preserving page geometry and visible original; verify real local engine, pointer export, durable return/search, independent per-page PDF text and raster equality. Keep injected failure tests distinct from real recognition.
+
+- [x] Four-page source corpus: upright mixed English/Hindi, Rotate90, Rotate270 and nonzero CropBox. Baseline22misplacedwords and Poppler page3 reading-order failure reproduced.
+- [x] Inverse viewport transform preserves original rotation/crop/UserUnit; eight real-PDFjs geometry regressions and independent review. Bento f0c0a3f.
+- [x] Real corpus39word geometry checks; reopened page2/page4 highlights; independent Poppler expectedphrases, unchanged boxes/rotation and identical72dpi pixels. Separate injected-page2 failure verifies visible warning and preserved image-only page.
+- [x] Scoped code/evidence committed: Bento f0c0a3f, frontend0b51d3a;946fulltests pass.
+
+Review: rotation/crop mismatch fixed; source pixels remain identical in four-page corpus. Fault injection is separate evidence, not a claim of natural OCR failure or broad accuracy. Next: implement the intended web Library/tabbed Reader, reusing durable custody/operations/Bento integration, with per-document position/zoom/tool state restored through switches and reload. PDF Expert and Apple Books full inventories, native journeys and production remain open.
