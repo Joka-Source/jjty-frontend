@@ -87,6 +87,27 @@ test("spoken mathematics document is created once and appends expression blocks"
   assert.equal(second.provenance.updatedAt, "2026-08-12T09:31:00.000Z");
 });
 
+test("appending to a renamed math notebook preserves its name and title revision", async () => {
+  const first = await makeSpokenMathDocument(null, {
+    speech: "one half", latex: "\\frac{1}{2}", unparsed: [],
+  }, { id: "renamed-math", at: "2026-09-08T09:00:00.000Z" });
+  const renamed = { ...first, title: "My algebra notebook", titleRevision: 3 };
+  const before = structuredClone(renamed);
+  const appended = await makeSpokenMathDocument(renamed, {
+    speech: "x squared", latex: "x^{2}", unparsed: [],
+  }, { at: "2026-09-08T09:01:00.000Z" });
+  assert.equal(appended.id, renamed.id);
+  assert.equal(appended.title, renamed.title);
+  assert.equal(appended.titleRevision, 3);
+  assert.equal(appended.revision, renamed.revision + 1, "only new content advances source revision");
+  assert.deepEqual(appended.blocks[0], renamed.blocks[0]);
+  assert.equal(appended.blocks.length, 2);
+  assert.equal(appended.blocks[1].text, "x squared");
+  assert.equal(appended.provenance.sourceKind, "spoken");
+  assert.notEqual(appended.provenance.contentDigest, renamed.provenance.contentDigest);
+  assert.deepEqual(renamed, before, "the existing document is not mutated");
+});
+
 test("a sent math moment carries the expression rather than only surrounding prose", async () => {
   const entry = makeActEntry({
     docId: "doc-reading",

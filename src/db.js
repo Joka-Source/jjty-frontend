@@ -61,9 +61,59 @@ function tx(db, store, mode, fn) {
   });
 }
 
-export async function putDoc(doc) {
+// Read/patch/write in one transaction so queued whole-document saves cannot
+// revert a title chosen through renameDocument.
+async function updateDocument(id, patch) {
   const db = await openDb();
-  return tx(db, "docs", "readwrite", (s) => s.put(doc));
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction('docs', 'readwrite');
+    const store = transaction.objectStore('docs');
+    let saved, failure;
+    transaction.oncomplete = () => resolve(saved);
+    transaction.onerror = event => { failure ??= event.target.error; };
+    transaction.onabort = () => reject(failure ?? transaction.error ?? new Error('DOCUMENT_SAVE_FAILED'));
+    try {
+      const request = store.get(id);
+      request.onsuccess = () => {
+        try { saved = patch(request.result); store.put(saved); }
+        catch (error) { failure = error; transaction.abort(); }
+      };
+    } catch (error) { failure = error; transaction.abort(); }
+  });
+}
+
+export async function putDoc(doc) {
+  const incoming = structuredClone(doc);
+  await updateDocument(incoming.id, existing => {
+    if (Number.isSafeInteger(existing?.titleRevision) && existing.titleRevision > 0) {
+      incoming.title = existing.title;
+      incoming.titleRevision = existing.titleRevision;
+    } else {
+      // The revision marker is minted only by renameDocument (or a validated
+      // add-only backup restore); generic writes cannot claim rename authority.
+      delete incoming.titleRevision;
+    }
+    return incoming;
+  });
+  return incoming.id;
+}
+
+export async function renameDocument(id, title) {
+  if (typeof title !== 'string' || !title.trim() || title.trim().length > 200) {
+    const error = new Error('DOCUMENT_TITLE_INVALID'); error.code = error.message; throw error;
+  }
+  const nextTitle = title.trim();
+  if (typeof id !== 'string' || !id) {
+    const error = new Error('DOCUMENT_NOT_FOUND'); error.code = error.message; throw error;
+  }
+  return updateDocument(id, existing => {
+    if (!existing) { const error = new Error('DOCUMENT_NOT_FOUND'); error.code = error.message; throw error; }
+    const revision = existing.titleRevision ?? 0;
+    if (!Number.isSafeInteger(revision) || revision < 0 || revision >= Number.MAX_SAFE_INTEGER) {
+      const error = new Error('DOCUMENT_TITLE_REVISION_INVALID'); error.code = error.message; throw error;
+    }
+    return { ...existing, title: nextTitle, titleRevision: revision + 1 };
+  });
 }
 
 export async function getDocs() {

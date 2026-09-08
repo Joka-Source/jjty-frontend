@@ -5,7 +5,7 @@ import { deriveRangeSegments, resolveAnchor } from './anchors.js';
 
 export const LIBRARY_BACKUP_MAX_BYTES = 100 * 1024 * 1024;
 const MAX_ITEMS = 100000, MAX_BLOCKS = 100000;
-const DOC_KEYS = 'id title text blocks provenance warnings pdfEngine sourceBytes sourceMime imageSource refusal createdAt revision formDraft'.split(' ');
+const DOC_KEYS = 'id title titleRevision text blocks provenance warnings pdfEngine sourceBytes sourceMime imageSource refusal createdAt revision formDraft'.split(' ');
 const RECORD_KEYS = 'id docId kind act verbId blockIndex blockEnd modality evidence confidence matchedText anchor rangeAnchor arrival targetChoice noteText undone undoes createdAt cursor receipt mathSpeech mathLatex mathUnparsed migration'.split(' ');
 const forbidden = new Set(['__proto__','prototype','constructor','serverLink','settings','runtime','connection','connections','accessToken','refreshToken','token','tokens','credentials']);
 const fail = code => { const error = new Error(code); error.code = code; throw error; };
@@ -57,6 +57,8 @@ export async function validateLibrarySnapshot(snapshot) {
   for(const raw of snapshot.docs){
     const {sourceBytes,formDraft,...rest}=raw??{};const doc=pick(rest,DOC_KEYS);
     if(!id(doc.id)||!str(doc.title)||!str(doc.text)||!date(doc.createdAt)||!integer(doc.revision,1,Number.MAX_SAFE_INTEGER))fail('BACKUP_INVALID_DOCUMENT');
+    if(doc.titleRevision!==undefined&&!integer(doc.titleRevision,0,Number.MAX_SAFE_INTEGER))fail('BACKUP_INVALID_DOCUMENT');
+    if(doc.titleRevision>0&&(!doc.title.trim()||doc.title!==doc.title.trim()||doc.title.length>200))fail('BACKUP_INVALID_DOCUMENT');
     if(docMap.has(doc.id))fail('BACKUP_DUPLICATE_DOCUMENT');
     if(doc.blocks!==undefined && (!Array.isArray(doc.blocks)||doc.blocks.length>MAX_BLOCKS||doc.blocks.some((b,i)=>!plain(b)||!str(b.text)||b.index!==i||!str(b.kind)||(b.locator!==undefined&&!str(b.locator)))))fail('BACKUP_INVALID_BLOCKS');
     if(doc.provenance!==undefined && (!plain(doc.provenance)||!digest(doc.provenance.contentDigest)||!integer(doc.provenance.byteSize,0,LIBRARY_BACKUP_MAX_BYTES)||!str(doc.provenance.sourceKind)||!date(doc.provenance.capturedAt)))fail('BACKUP_INVALID_PROVENANCE');

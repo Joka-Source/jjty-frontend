@@ -643,3 +643,23 @@ annotations/contents/quads. Both Poppler pages were independently inspected;
 root also viewed the first rotated page. This is local fixture evidence, not
 physical printing, editing arbitrary PDFs or full page-operation parity.
 See ../architecture/PDF_ROTATION.md.
+
+## Document names — 8 September
+
+The reader now offers Rename with a focused, responsive dialog. An atomic
+IndexedDB update changes only title and titleRevision. Ordinary stale document
+saves preserve the renamed title, and queued opens refresh newer name metadata.
+Source bytes, form answers, records and reading positions remain intact. Backup
+roundtrips retain naming revisions. Math notebooks use stable source identity
+and keep their chosen name when another expression is appended.
+
+Full gate: 231 tests passed, no failures/skips, with build;
+../jett-document-rename-full-test.log. After final CSS polish, build and the
+actual browser journey passed again (../jett-document-rename-final-build.log and
+../jett-document-rename-final-browser.log). Real IndexedDB tests exercise both
+stale-write orderings. Browser checks cover cancel/invalid input, search/reload,
+exact original PDF download, saved work, stale opens, continued math and switching
+documents during a pending save. Root visually inspected the final 390px dialog
+at ../runtime/document-rename-proof/phone-rename.png. This changes a local library
+name; it does not rename an external file or implement cloud synchronization.
+See ../architecture/DOCUMENT_NAMES.md.

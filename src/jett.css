@@ -111,6 +111,15 @@ article.image-source { padding-bottom: 24px; }
 .pdf-review-actions {display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;}
 .pdf-review-page-actions {display:flex;justify-content:center;gap:.5rem;flex-wrap:wrap;}
 .pdf-review-page-actions button {min-height:44px;}
+.document-rename-dialog {width:min(400px,calc(100vw - 32px));box-sizing:border-box;padding:20px;border:1px solid var(--line);border-radius:16px;background:var(--panel);color:var(--ink);font:14px/1.5 system-ui,sans-serif;}
+.document-rename-dialog::backdrop {background:rgb(0 0 0 / .65);}
+.document-rename-dialog h2 {margin-top:0;font-size:1.2rem;}
+.document-rename-dialog label {display:block;margin-bottom:.5rem;}
+.document-rename-dialog input {box-sizing:border-box;width:100%;min-height:44px;}
+.document-rename-dialog input, .document-rename-actions button {background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:.65rem .9rem;font:inherit;}
+.document-rename-actions button:disabled {opacity:.55;}
+.document-rename-actions {display:flex;gap:.5rem;justify-content:flex-end;}
+.document-rename-actions button {min-height:44px;}
 #pdf-review-download {align-self:flex-start;}
 #pdf-review-pages {min-height:0;overflow:auto;overscroll-behavior:contain;}
 .pdf-review-notes {text-align:left;border:1px solid var(--line);border-radius:8px;margin:.75rem 0;padding:0 1rem;}

@@ -50,7 +50,8 @@ export async function makeSpokenMathDocument(existing, expression, { id, at = no
   const capturedAt = existing?.provenance?.capturedAt ?? at;
   return {
     id: existing?.id ?? id ?? rid("doc"),
-    title: "spoken mathematics",
+    title: existing?.title ?? "spoken mathematics",
+    ...(existing?.titleRevision !== undefined ? { titleRevision: existing.titleRevision } : {}),
     text,
     blocks,
     provenance: {
@@ -67,4 +68,3 @@ export async function makeSpokenMathDocument(existing, expression, { id, at = no
     revision: existing ? existing.revision + 1 : 1,
   };
 }
-

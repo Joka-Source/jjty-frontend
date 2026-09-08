@@ -26,6 +26,7 @@ import { initServerPanel } from "./server-panel.js";
 import { initPdfFormPanel } from "./pdf-form-panel.js";
 import { initPdfReview } from "./pdf-review.js";
 import { initLibraryBackupPanel } from "./library-backup-panel.js";
+import { initDocumentRename } from "./document-rename.js";
 import { initPdfAnnotationPanel } from "./pdf-annotation-panel.js";
 import { ingestImage, mountImage } from "./images.js";
 import "../vendor/katex/katex.min.css";
@@ -327,10 +328,17 @@ function resetPdfTools() {
 const serverPanel = initServerPanel({ saveDocument: putDoc });
 const pdfReview = initPdfReview();
 initLibraryBackupPanel({refresh: refreshLibrary});
+const documentRename=initDocumentRename({onRenamed:async doc=>{
+  if(state.doc?.id===doc.id && (state.doc.titleRevision??0)<=(doc.titleRevision??0)){
+    state.doc.title=doc.title;state.doc.titleRevision=doc.titleRevision;renderDocHead(state.doc);
+  }
+  await refreshLibrary();
+}});
 const pdfFormPanel = initPdfFormPanel({ saveDocument: putDoc, getRecords, review: pdfReview });
 const pdfAnnotationPanel = initPdfAnnotationPanel({ getRecords, review: pdfReview });
 let unmountImage = null;
 async function renderDoc(doc) {
+  documentRename.setDocument(null);
   hideAsk();
   serverPanel.setDocument(null);
   void pdfFormPanel.setDocument(null);
@@ -1193,7 +1201,7 @@ function renderMathSession() {
 }
 
 function isSpokenMathDocument(doc) {
-  return doc?.title === "spoken mathematics" && doc.provenance?.sourceKind === "spoken";
+  return doc?.provenance?.sourceKind === "spoken";
 }
 
 async function openSpokenMathExpression(expression) {
@@ -1445,6 +1453,7 @@ async function refreshLibrary() {
 
 /** The reading surface's header: title + a tap-to-open provenance line. */
 function renderDocHead(doc) {
+  documentRename.setDocument(doc);
   if (!doc) {
     docHead.hidden = true;
     readEmpty.hidden = false;
@@ -1525,6 +1534,12 @@ async function openDocumentNow(
   } = {}
 ) {
   await renderDoc(doc);
+  // A queued open or source edit may carry a pre-rename document object.
+  // Refresh only naming metadata; preserve that operation's content snapshot.
+  const stored=await getDoc(doc.id);
+  if((stored?.titleRevision??0)>(doc.titleRevision??0)){
+    doc.title=stored.title;doc.titleRevision=stored.titleRevision;
+  }
   await engine.load(doc.id);
   renderDocHead(doc);
   serverPanel.setDocument(doc, state.pdf);

@@ -59,3 +59,9 @@ test('exact ranges on old text documents use their text digest fallback',async()
  source.records[0].rangeAnchor={version:1,start:source.records[0].anchor,end:source.records[0].anchor};
  const restored=await decodeLibraryBackup(await encodeLibraryBackup(source));assert.equal(restored.records[0].arrival,'exact');assert.equal(restored.records[0].resolvedSegments.length,1);
 });
+
+test('rename revision metadata preserves protection and rejects invalid markers',async()=>{
+ const source=fixture();source.docs[0].titleRevision=7;
+ const restored=await decodeLibraryBackup(await encodeLibraryBackup(source));assert.equal(restored.docs[0].titleRevision,7);
+ for(const value of [-1,1.5,Number.MAX_SAFE_INTEGER+1,'7']){source.docs[0].titleRevision=value;await assert.rejects(validateLibrarySnapshot(source),/BACKUP_INVALID_DOCUMENT/);}
+});

@@ -305,6 +305,7 @@
         </div>
         <div class="doc-head" id="doc-head" hidden>
           <span id="doc-title" class="doc-title"></span>
+          <button id="rename-document" class="doc-prov-btn" hidden>Rename</button>
           <button id="doc-prov-btn" class="doc-prov-btn" hidden>where this came from</button>
           <button id="download-original" class="doc-prov-btn" hidden>Download original</button>
           <button id="review-original" class="doc-prov-btn" hidden>Review original</button>
@@ -374,6 +375,16 @@
           <button id="pdf-annotation-preview">Review annotated copy</button>
           <p id="pdf-annotation-status" class="hint" role="status"></p>
         </details>
+        <dialog id="rename-document-dialog" class="document-rename-dialog" aria-labelledby="rename-document-title">
+          <form id="rename-document-form">
+            <h2 id="rename-document-title">Rename document</h2>
+            <label for="rename-document-name">Name in your library</label>
+            <input id="rename-document-name" type="text" maxlength="200" required autocomplete="off">
+            <p class="hint">Your original file and saved work stay unchanged.</p>
+            <p id="rename-document-status" role="status"></p>
+            <div class="document-rename-actions"><button id="rename-document-cancel" type="button">Cancel</button><button id="rename-document-save" type="submit">Save name</button></div>
+          </form>
+        </dialog>
         <dialog id="pdf-review-dialog" class="pdf-review-dialog" aria-labelledby="pdf-review-title">
           <header class="pdf-review-header"><h2 id="pdf-review-title">Review filled copy</h2><button id="pdf-review-close" aria-label="Close PDF preview">Close</button></header>
           <p id="pdf-review-status" role="status"></p>

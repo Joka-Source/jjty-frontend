@@ -1,0 +1,54 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {spawn} from 'node:child_process';import {mkdtemp,mkdir,readFile,readdir,rm} from 'node:fs/promises';import {tmpdir} from 'node:os';import path from 'node:path';import puppeteer from 'puppeteer-core';import {root} from './validate.mjs';
+
+test('renaming a saved PDF changes its library title without changing source or reading work', {timeout:90000},async t=>{
+ const directory=await mkdtemp(path.join(tmpdir(),'jett-rename-'));t.after(()=>rm(directory,{recursive:true,force:true}));
+ const server=spawn(process.execPath,[path.join(root,'node_modules/vite/bin/vite.js'),'--host','127.0.0.1','--port','4976','--strictPort'],{cwd:root,stdio:'ignore'});t.after(()=>server.kill('SIGTERM'));
+ const url='http://127.0.0.1:4976/';let ready=false;for(let i=0;i<100;i++){try{if((await fetch(url)).ok){ready=true;break;}}catch{}await new Promise(r=>setTimeout(r,100));}assert.ok(ready);
+ const browser=await puppeteer.launch({executablePath:process.env.CHROME_PATH??'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true,args:['--no-first-run']});t.after(()=>browser.close());
+ const page=await browser.newPage();await page.setViewport({width:1280,height:900});await page.evaluateOnNewDocument(()=>{localStorage.setItem('jt.welcomed','1');localStorage.setItem('jt.mic','off');});await page.goto(url);await page.waitForFunction(()=>window.__jtApp?.booted);
+ const fixture=path.join(root,'test/fixtures/jett-fillable.pdf'),original=await readFile(fixture);await (await page.$('#home-file-input')).uploadFile(fixture);await page.waitForSelector('#pdf-form-panel:not([hidden])');await page.locator('#pdf-form-panel summary').click();
+ await page.$eval('[data-field-name="full_name"]',n=>{n.value='Rename Example';n.dispatchEvent(new Event('input',{bubbles:true}));});await page.waitForFunction(()=>!document.getElementById('pdf-form-download').disabled);
+ await page.evaluate(()=>window.__jtApp.perform('highlight',0,{tokenStart:0,tokenEnd:2}));
+ await page.evaluate(()=>window.__jtApp.follow('Notes and the shared reference field'));
+ await page.waitForFunction(async()=>{const {getPosition}=await import('/src/db.js');return (await getPosition(window.__jtApp.currentDoc().id))?.blockIndex===1;});
+ const before=await page.evaluate(async()=>{const {getDoc,getRecords,getPosition}=await import('/src/db.js');const id=window.__jtApp.currentDoc().id;return {doc:await getDoc(id),records:await getRecords(id),position:await getPosition(id)};});
+ const openRename=()=>page.locator('#rename-document').click();const enter=async value=>page.$eval('#rename-document-name',(n,value)=>{n.value=value;n.dispatchEvent(new Event('input',{bubbles:true}));},value);
+ await openRename();await enter('Canceled title');await page.locator('#rename-document-cancel').click();assert.equal(await page.$eval('#doc-title',n=>n.textContent),before.doc.title);
+ await openRename();await enter('   ');await page.$eval('#rename-document-form',n=>n.requestSubmit());assert.equal(await page.$eval('#doc-title',n=>n.textContent),before.doc.title);assert.equal(await page.$eval('#rename-document-dialog',n=>n.open),true);await page.locator('#rename-document-cancel').click();
+ await openRename();await enter('Orchard review — renamed');
+ await page.setViewport({width:390,height:844});
+ assert.equal(await page.$eval('#rename-document-dialog',n=>{const r=n.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.bottom<=innerHeight&&n.scrollWidth<=n.clientWidth;}),true,'rename dialog fits phone viewport');
+ if(process.env.JETT_RENAME_PROOF_DIR){await mkdir(process.env.JETT_RENAME_PROOF_DIR,{recursive:true});await page.screenshot({path:path.join(process.env.JETT_RENAME_PROOF_DIR,'phone-rename.png')});}
+ await page.setViewport({width:1280,height:900});
+ await page.locator('#rename-document-save').click();await page.waitForFunction(()=>document.getElementById('doc-title').textContent==='Orchard review — renamed');
+ assert.deepEqual(await page.evaluate(async id=>{const {getRecords}=await import('/src/db.js');return getRecords(id);},before.doc.id),before.records,'rename itself does not rewrite records or emit return actions');
+ await page.evaluate(doc=>window.__jtApp.openDocument(doc),before.doc);
+ assert.equal(await page.$eval('#doc-title',n=>n.textContent),'Orchard review — renamed','opening a pre-rename document object retains the newest saved title');
+ assert.equal(await page.evaluate(()=>window.__jtApp.currentDoc().provenance.name),'jett-fillable.pdf');assert.deepEqual(await page.evaluate(()=>Object.values(window.__jtApp.currentDoc().sourceBytes)),[...original]);
+ await page.evaluate(()=>window.__jtApp.showView('home'));await page.$eval('#home-search',n=>{n.value='Orchard review';n.dispatchEvent(new Event('input',{bubbles:true}));});await page.waitForFunction(()=>document.querySelector('.home-doc .doc-btn')?.textContent.includes('Orchard review — renamed'));assert.equal(await page.$$eval('.home-doc .doc-btn',n=>n.length),1);
+ await page.reload();await page.waitForFunction(()=>window.__jtApp?.booted);await page.evaluate(async id=>{const {getDoc}=await import('/src/db.js');await window.__jtApp.openDocument(await getDoc(id));window.__jtApp.showView('read');},before.doc.id);
+ assert.equal(await page.$eval('#doc-title',n=>n.textContent),'Orchard review — renamed');assert.equal(await page.$eval('[data-field-name="full_name"]',n=>n.value),'Rename Example');
+ const after=await page.evaluate(async id=>{const {getDoc,getRecords,getPosition}=await import('/src/db.js');return {doc:await getDoc(id),records:await getRecords(id),position:await getPosition(id)};},before.doc.id);
+ assert.deepEqual(after.doc.formDraft,before.doc.formDraft);assert.deepEqual(after.doc.provenance,before.doc.provenance);for(const record of before.records){const restored=after.records.find(e=>e.id===record.id);assert.ok(restored);for(const key of ['anchor','receipt','cursor','act','undone'])assert.deepEqual(restored[key],record[key],`preserved ${key}`);}assert.equal(after.position.blockIndex,before.position.blockIndex);assert.equal(after.position.docId,before.position.docId);
+ const cdp=await page.createCDPSession();await cdp.send('Page.setDownloadBehavior',{behavior:'allow',downloadPath:directory});await page.locator('#download-original').click();let downloaded;for(let i=0;i<100;i++){downloaded=(await readdir(directory)).find(n=>n.endsWith('.pdf'));if(downloaded)break;await new Promise(r=>setTimeout(r,100));}assert.equal(downloaded,'jett-fillable.pdf');assert.deepEqual(await readFile(path.join(directory,downloaded)),original);assert.deepEqual(await readFile(fixture),original);
+ const mathContext=await browser.createBrowserContext(),mathPage=await mathContext.newPage();
+ await mathPage.setViewport({width:1280,height:900});await mathPage.evaluateOnNewDocument(()=>{localStorage.setItem('jt.welcomed','1');localStorage.setItem('jt.mic','off');});await mathPage.goto(url);await mathPage.waitForFunction(()=>window.__jtApp?.booted);
+ const mathBefore=await mathPage.evaluate(async()=>{await window.__jtApp.math.segment('math mode');await window.__jtApp.math.segment('one half plus x squared');await window.__jtApp.math.keep();window.__jtApp.showView('read');return structuredClone(window.__jtApp.currentDoc());});
+ assert.equal(mathBefore.provenance.sourceKind,'spoken');await mathPage.locator('#rename-document').click();await mathPage.$eval('#rename-document-name',n=>{n.value='My named equations';n.dispatchEvent(new Event('input',{bubbles:true}));});await mathPage.locator('#rename-document-save').click();await mathPage.waitForFunction(()=>document.getElementById('doc-title').textContent==='My named equations');
+ const mathAfter=await mathPage.evaluate(async()=>{await window.__jtApp.math.segment('x plus two');await window.__jtApp.math.keep();const {getDocs}=await import('/src/db.js');return {doc:window.__jtApp.currentDoc(),spokenCount:(await getDocs()).filter(d=>d.provenance?.sourceKind==='spoken').length};});
+ assert.equal(mathAfter.doc.id,mathBefore.id);assert.equal(mathAfter.doc.title,'My named equations');assert.equal(mathAfter.doc.blocks.length,mathBefore.blocks.length+1,'keeping another expression appends to the renamed spoken-math document');assert.equal(mathAfter.spokenCount,1);
+ const isolated=await browser.newPage();await isolated.goto(url);
+ await isolated.evaluate(async()=>{
+  document.body.innerHTML='<button id="rename-document">Rename</button><dialog id="rename-document-dialog"><form id="rename-document-form"><input id="rename-document-name"><button id="rename-document-save" type="submit">Save</button><button id="rename-document-cancel" type="button">Cancel</button><p id="rename-document-status"></p></form></dialog>';
+  const {initDocumentRename}=await import('/src/document-rename.js');window.renameProbe={updates:[]};
+  window.renameProbe.panel=initDocumentRename({save:(...args)=>new Promise(resolve=>{window.renameProbe.args=args;window.renameProbe.resolve=resolve;}),onRenamed:doc=>window.renameProbe.updates.push(doc)});
+  window.renameProbe.panel.setDocument({id:'first',title:'First'});document.getElementById('rename-document').click();document.getElementById('rename-document-name').value='Late renamed first';document.getElementById('rename-document-form').requestSubmit();
+ });
+ await isolated.waitForFunction(()=>!!window.renameProbe.resolve);
+ await isolated.evaluate(()=>{window.renameProbe.panel.setDocument({id:'second',title:'Second'});window.renameProbe.resolve({id:'first',title:'Late renamed first',titleRevision:1});});
+ await isolated.waitForFunction(()=>!document.getElementById('rename-document-dialog').open);
+ await isolated.evaluate(()=>document.getElementById('rename-document').click());
+ assert.equal(await isolated.$eval('#rename-document-name',n=>n.value),'Second','late save must not replace the newly selected document');
+ assert.deepEqual(await isolated.evaluate(()=>window.renameProbe.updates.map(doc=>doc.id)),['first'],'completion refreshes only the document actually renamed');
+});
