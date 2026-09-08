@@ -8,7 +8,15 @@ export function initPdfReview() {
   organizer.innerHTML='<label for="pdf-review-order">Page order</label><input id="pdf-review-order" aria-describedby="pdf-review-order-help" maxlength="100000" autocomplete="off"><button type="submit" disabled>Reorder this copy</button><button type="button" data-review-undo disabled>Undo page change</button><small id="pdf-review-order-help">Include every page once, for example 3,1-2. Numbers refer to the current preview.</small>';
   const extractor=document.createElement('form');extractor.className='pdf-review-extract';
   extractor.innerHTML='<label for="pdf-review-extract">Pages to extract</label><input id="pdf-review-extract" aria-describedby="pdf-review-extract-help" maxlength="100000" autocomplete="off"><button type="submit" disabled>Extract selected pages</button><small id="pdf-review-extract-help">Choose the pages to keep in a new copy, for example 3,1-2. Numbers refer to the current preview.</small>';
-  pages.before(organizer,extractor);
+  const merger=document.createElement('form');merger.className='pdf-review-merge';
+  merger.innerHTML='<label for="pdf-review-merge">Add PDF files</label><input id="pdf-review-merge" type="file" accept="application/pdf,.pdf" multiple aria-describedby="pdf-review-merge-help" disabled><button type="submit" disabled>Add PDFs to this copy</button><small id="pdf-review-merge-help">This copy comes first, followed by selected files in selection order. The first copy supplies document metadata. Original files stay unchanged.</small>';
+  const mergeOptions=document.createElement('details');mergeOptions.className='pdf-review-merge-options';
+  const mergeSummary=document.createElement('summary');mergeSummary.textContent='Add PDFs to this copy';
+  mergeOptions.append(mergeSummary,merger);
+  const reviewTools=document.createElement('div');reviewTools.className='pdf-review-tools';
+  reviewTools.append(organizer,extractor,mergeOptions);pages.before(reviewTools);
+  const mergeInput=merger.querySelector('input'),mergeButton=merger.querySelector('button');
+  mergeInput.addEventListener('change',()=>{mergeButton.disabled=download.disabled || !snapshot || !mergeInput.files.length;});
   const extractInput=extractor.querySelector('input'),extractButton=extractor.querySelector('button'),extractHelp=extractor.querySelector('small'),extractInstructions=extractHelp.textContent;
   let extractAvailability={allowed:false,reason:null};
   function setExtractAvailability(value){extractAvailability=value;const reasons={EXTRACT_DOCUMENT_RESTRICTED:'This PDF is protected or uses an unsupported form type.',EXTRACT_PERMISSION_DENIED:'This PDF does not allow page changes.',EXTRACT_STRUCTURE_UNSUPPORTED:'This PDF has forms, navigation or structures that cannot yet be safely extracted here.'};extractHelp.textContent=value.allowed?extractInstructions:`Page extraction is unavailable. ${reasons[value.reason] || 'This PDF could not be verified for extraction.'}`;}
@@ -21,8 +29,8 @@ export function initPdfReview() {
   function setReorderAvailability(value){reorderAvailability=value;orderHelp.textContent=value.allowed?orderInstructions:`Page reordering is unavailable. ${reorderReasons[value.reason] || 'This PDF could not be verified for page changes.'}`;}
   let previousEdit=null;
   let generation=0, snapshot=null, filename='filled.pdf', reviewKind='filled', pendingCloseEvents=0;
-  function ready(value){extractInput.disabled=!value || !extractAvailability.allowed;extractButton.disabled=!value || !extractAvailability.allowed;undoButton.disabled=!value || !previousEdit;orderInput.disabled=!value || !reorderAvailability.allowed;orderButton.disabled=!value || !reorderAvailability.allowed;download.disabled=!value;if(print)print.disabled=!value;for(const button of pages.querySelectorAll('[data-pdf-rotate]'))button.disabled=!value;}
-  function clear(){generation++;extractAvailability={allowed:false,reason:null};extractHelp.textContent='Checking page extraction availability…';extractInput.disabled=true;extractButton.disabled=true;reorderAvailability={allowed:false,reason:null};orderHelp.textContent='Checking page reordering availability…';undoButton.disabled=true;snapshot=null;orderInput.disabled=true;orderButton.disabled=true;download.disabled=true;if(print)print.disabled=true;pages.replaceChildren();}
+  function ready(value){mergeInput.disabled=!value;mergeButton.disabled=!value || !mergeInput.files.length;extractInput.disabled=!value || !extractAvailability.allowed;extractButton.disabled=!value || !extractAvailability.allowed;undoButton.disabled=!value || !previousEdit;orderInput.disabled=!value || !reorderAvailability.allowed;orderButton.disabled=!value || !reorderAvailability.allowed;download.disabled=!value;if(print)print.disabled=!value;for(const button of pages.querySelectorAll('[data-pdf-rotate]'))button.disabled=!value;}
+  function clear(){generation++;mergeInput.value="";mergeInput.disabled=true;mergeButton.disabled=true;extractAvailability={allowed:false,reason:null};extractHelp.textContent='Checking page extraction availability…';extractInput.disabled=true;extractButton.disabled=true;reorderAvailability={allowed:false,reason:null};orderHelp.textContent='Checking page reordering availability…';undoButton.disabled=true;snapshot=null;orderInput.disabled=true;orderButton.disabled=true;download.disabled=true;if(print)print.disabled=true;pages.replaceChildren();}
   function close(){previousEdit=null;clear();if(dialog.open){pendingCloseEvents++;dialog.close();}}
   dialog.addEventListener('close',()=>{
     // close() already cleared synchronously. Its queued event must not cancel
@@ -130,6 +138,36 @@ export function initPdfReview() {
     }catch(error){
       if(version!==generation || !dialog.open)return;
       ready(true);status.textContent='Could not extract these pages. The change could not be verified. The reviewed copy is unchanged.';
+    }
+  });
+  merger.addEventListener('submit',async event=>{
+    event.preventDefault();
+    if(mergeButton.disabled || !snapshot || !dialog.open || !mergeInput.files.length)return;
+    const selected=[...mergeInput.files],version=generation,source=snapshot.slice(),previousPages=[...pages.childNodes],previousName=filename,previousKind=reviewKind,previousOrder=orderInput.value,previousAvailability=captureAvailability();
+    ready(false);status.textContent='Preparing and verifying the merged copy…';
+    try{
+      const {mergePdfDocuments}=await import('./pdf-merge.js');
+      if(version!==generation || !dialog.open)return;
+      const additions=await Promise.all(selected.map(async file=>new Uint8Array(await file.arrayBuffer())));
+      if(version!==generation || !dialog.open)return;
+      const bytes=await mergePdfDocuments([source,...additions]);
+      if(version!==generation || !dialog.open)return;
+      const nextVersion=generation+1,priorUndo=previousEdit;
+      let rendered=false;
+      try{rendered=await api.open(bytes,previousName.replace(/(?:-merged)?\.pdf$/i,'')+'-merged.pdf',{kind:previousKind.startsWith('merged ')?previousKind:`merged ${previousKind}`,retainUndo:true});}catch{/* Restore the last usable review below. */}
+      if(generation!==nextVersion || !dialog.open)return;
+      if(rendered){previousEdit={bytes:source,name:previousName,kind:previousKind};ready(true);}
+      else{
+        previousEdit=priorUndo;clear();snapshot=source;filename=previousName;reviewKind=previousKind;
+        pages.replaceChildren(...previousPages);orderInput.value=previousOrder;restoreAvailability(previousAvailability);ready(true);
+        document.getElementById('pdf-review-title').textContent=`Review ${previousKind} copy`;
+        status.textContent='The merged copy could not be displayed. The previous reviewed copy is unchanged. Select the files again to retry.';
+      }
+      mergeInput.focus({preventScroll:true});
+    }catch(error){
+      if(version!==generation || !dialog.open)return;
+      const reasons={MERGE_DOCUMENT_RESTRICTED:'A PDF is protected or signed.',MERGE_PERMISSION_DENIED:'A PDF does not allow page assembly.',MERGE_CATALOG_UNSUPPORTED:'A PDF has forms, attachments, tags or other document structures that cannot yet be merged here.',MERGE_ACTION_UNSUPPORTED:'A PDF has an unsupported action.',MERGE_NAMED_DESTINATION_UNSUPPORTED:'A PDF uses named destinations that cannot yet be remapped.',MERGE_PAGE_LIMIT:'The selection exceeds the supported page count.',MERGE_INVALID_INPUTS:'Select between 1 and 99 additional PDF files.'};
+      ready(true);status.textContent=`Could not merge these PDFs. ${reasons[error.code] || 'The merged document could not be verified.'} The reviewed copy is unchanged.`;
     }
   });
   pages.addEventListener('click',async event=>{

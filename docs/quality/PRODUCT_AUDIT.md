@@ -1025,3 +1025,38 @@ Final gate: build and **344/344** tests pass, zero failures/skips/cancellations
 (`capture-journal-full.log`). Status: PASS_LOCAL for the diagnostic addition.
 Application microphone acquisition, recognition algorithms and retry policy are
 unchanged; the physical-user quality boundary remains open.
+
+
+## Default-on feedback and PDF merge — 8 September 2026
+
+Build plus **380/380 tests pass**, zero failures, cancellations or skips.
+Final gate: `../runtime/live-voice-diagnosis/default-on-release-gate.log`.
+Earlier failed/aborted logs are retained separately. The full suite exposed an
+HTTP-origin startup UUID failure and a narrow-review layout regression; both have
+focused reproduction and the final combined gate now passes.
+
+Product analytics enrolls new command/capture/feedback metadata by default in all
+builds, with persistent opt-out. Stable event UUIDs, append-only feedback and a
+bounded outbox support correlated retries. A real-browser loopback HTTP receiver
+verifies automatic sending, failed-request/reload retry identity, separate feedback,
+two-tab opt-out and exclusion of off-window/history replay. Raw text/audio is
+excluded. No real PostHog configuration or hosted receipt is available. See
+[analytics architecture](../architecture/PRODUCT_ANALYTICS.md).
+
+Controlled speech “a lead charge” offers exact source “a late charge” for explicit
+confirmation. It does not auto-save a corrected guess or mutate the previous
+passage. Exact unique phrases retain direct behavior; physical speech reliability
+remains open.
+
+PDF review now combines the current copy with multiple selected PDFs, preserves
+original bytes, renders the output and supports exact one-step undo. Native and
+independent PDF.js checks cover order, blank/rotated pages, ordinary annotations,
+local links, supported bookmarks and first-source metadata. Operation/render
+failure restores the previous usable copy; stale work cannot replace a newer one.
+The merge control is expandable and the mobile tool area scrolls within a bounded
+height, preserving visible preview space. Forms/signatures and advanced catalog
+reconciliation remain explicit missing merge capabilities.
+
+The current increment is local source and browser/native-library evidence only.
+No engineering push, application deployment, new Android/iPad build or complete
+Bento/PDF Expert parity is claimed. The founder's full parity target is unchanged.

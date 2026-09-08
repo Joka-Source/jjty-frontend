@@ -1,6 +1,7 @@
 import { createCaptureJournal } from './capture-journal.js';
 import { createCommandJournal } from './command-journal.js';
 import { mountCommandJournal } from './command-journal-panel.js';
+import { createProductAnalytics } from './product-analytics.js';
 import { createVoiceCapture } from './voice-capture.js';
 import { initVoiceSettings } from './voice-settings.js';
 // jt — you open your document, you speak, and the thing you meant happens,
@@ -96,7 +97,8 @@ import { mountGlassDevRoute } from "./glass-route.js";
 
 const commandJournal = createCommandJournal();
 const captureJournal = createCaptureJournal(commandJournal);
-mountCommandJournal(commandJournal);
+const productAnalytics = createProductAnalytics(commandJournal);
+mountCommandJournal(commandJournal, productAnalytics);
 
 const article = document.getElementById("doc");
 const marker = document.getElementById("marker");
@@ -910,7 +912,9 @@ function showTargetAsk(cmd, modality, decision) {
   dismiss.addEventListener("click", hideAsk);
   askOptions.appendChild(dismiss);
   askBox.hidden = false;
-  setStatus(true, "I found more than one possible passage — pick the words you mean");
+  setStatus(true, decision.matchType === 'suggestion'
+    ? "Did you mean these words? Choose a passage to highlight."
+    : "I found more than one possible passage — pick the words you mean");
   if (window.__jt) {
     window.__jt.ambiguities.push({
       reason: decision.reason,
@@ -2280,6 +2284,7 @@ async function startSim() {
 
 window.__jtApp = {
   commandJournal,
+  productAnalytics,
   entries: () => engine.entries,
   ask: () => state.pendingAsk,
   resolveAsk,

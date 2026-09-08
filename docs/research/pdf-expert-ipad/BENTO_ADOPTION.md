@@ -98,3 +98,20 @@ Named destinations, external bookmark actions, malformed/oversized trees and
 unremapped numeric links/page actions remain refused. Tagged structures, attachment
 name trees and page labels remain excluded. Build and 279 tests pass. Reader
 bookmark navigation is a separate, still unimplemented interaction.
+
+
+## Merge expansion — 8 September 2026
+
+JETT now has a native merge adapter and a prepared-copy UI with multiple PDF
+selection, preview, download and exact one-step undo. It studies Bento's
+`public/workers/merge.worker.js` at the pinned SHA (CoherentPDF merge worker),
+but uses JETT's existing MuPDF page-graph graft and verification implementation.
+No additional Bento source was copied for this merge; existing attributed
+page-selection/order helpers remain the actual Bento-derived code.
+
+Independent PDF.js fixtures cover ordered text, blank/rotated pages, annotations,
+local links, bookmarks and unchanged original bytes. First-source metadata is
+retained. Browser checks cover failed operation/render, retry, superseded review,
+download, undo and375px layout. Forms, signatures, named destinations and tagged
+or attachment catalog reconciliation are remaining merge work. Full organizer,
+OCR and content-text editing remain adoption priorities, not excluded goals.

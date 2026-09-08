@@ -18,13 +18,14 @@ records have their own evidence and are unaffected. The legacy developer Glass
 trace also remains separate; this feature does not erase it or claim that no other
 local store contains text.
 
-Export analytics events downloads metadata-only JSON. No SDK or network sender
-is installed. This array follows the event shape of the PostHog batch API:
-https://posthog.com/docs/api/capture . It is not a complete ingestion request:
-the authorized project, host, token, identity policy and ingestion verification
-are still needed. No hosted PostHog dashboard or end-to-end analytics is claimed.
+Product analytics is now enabled by default in all builds, with persistent opt-out.
+New metadata events enter a bounded durable outbox automatically; manual Export
+remains available for inspection. See [delivery architecture](../architecture/PRODUCT_ANALYTICS.md)
+for configuration, anonymous session identity, retries, cross-tab behavior and
+limits. No real PostHog project configuration or production receipt exists yet.
 Raw transcripts, corrections, document content, titles and account identifiers
-are excluded from this export. Local trace IDs join stages within the export.
+are excluded from delivery/export. Local trace IDs join stages; each stage has an
+immutable UUID. Feedback appends an event rather than rewriting prior evidence.
 
 ## Evidence semantics
 
@@ -70,8 +71,10 @@ remains the durable action authority.
 Current screenshot regression: both “Highlight a lead charge” and “Highlight a
 late charge” previously became bare-highlight ambiguity plus reading. The new
 adapter recognizes an explicit phrase. Exact unique “a late charge” is selected;
-missing “a lead charge” does not mutate the previous passage; repeated occurrences
-require choice. No fuzzy ASR repair is claimed. This is controlled-transcript
+“a lead charge” now offers exact source “a late charge” for confirmation without
+mutating the prior passage. The confirmed choice saves that exact span; unrelated
+wording remains unmatched and repeated occurrences require choice. The correction
+is a bounded targeting suggestion, not a repaired microphone transcript. This is controlled-transcript
 behavior, not a microphone accuracy measurement.
 
 Focused gate:

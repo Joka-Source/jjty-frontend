@@ -28,7 +28,11 @@ test('actual command journal distinguishes saved action, reading and failed pers
  const before=await page.evaluate(()=>window.__jtApp.entries().length);
  await page.evaluate(()=>window.__jtApp.voiceSegment('Highlight a lead charge'));
  assert.equal(await page.evaluate(()=>window.__jtApp.entries().length),before,'wrong recognized words must not highlight the previous passage');
- assert.ok((await page.evaluate(()=>window.__jtApp.commandJournal.list())).at(-1).events.some(e=>e.stage==='target'&&e.status==='missing'));
+ assert.ok((await page.evaluate(()=>window.__jtApp.commandJournal.list())).at(-1).events.some(e=>e.stage==='target'&&e.status==='ambiguous'));
+ assert.equal(await page.evaluate(()=>window.__jtApp.ask()?.kind),'target');
+ await page.click('.target-ask');
+ await page.waitForFunction(count=>window.__jtApp.entries().length>count,{},before);
+ assert.equal(await page.evaluate(()=>window.__jtApp.entries().at(-1).anchor.quotedText),'a late charge','confirmation uses the exact source quote');
  await page.evaluate(()=>window.__jtApp.voiceSegment('Highlight a late charge'));
  const exact=await page.evaluate(()=>window.__jtApp.entries().at(-1));assert.equal(exact.anchor.quotedText,'a late charge');
  await page.evaluate(()=>window.__jtApp.showView('settings'));await page.click('#command-journal-raw');
