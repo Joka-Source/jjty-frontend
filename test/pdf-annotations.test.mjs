@@ -154,3 +154,16 @@ test('range rejects skipped nontext drawing pages rather than treating them as b
  assert.deepEqual(doc.blocks.map(block=>block.locator),['page:1','page:3','page:4']);
  await assert.rejects(exportAnnotatedPdf(doc,[rangeMark(doc)]),/RANGE_PAGE_GAP/);
 });
+test('note margins reserve empty form widgets before answers are filled',async()=>{
+ const raw=new Uint8Array(readFileSync(new URL('./fixtures/jett-fillable.pdf',import.meta.url))),pdf=new mupdf.PDFDocument(raw),page=pdf.loadPage(0),widgets=page.getWidgets();let input,widgetBounds;
+ try {
+  widgets[0].setRect([0,0,40,800]);widgets[0].update();page.update();widgetBounds=widgets[0].getBounds();
+  const buffer=pdf.saveToBuffer();try{input=new Uint8Array(buffer.asUint8Array());}finally{buffer.destroy();}
+ }finally{widgets.forEach(widget=>widget.destroy());page.destroy();pdf.destroy();}
+ const doc={id:'widget-note',...await ingestPdfBrowser(createMuPdfProvider(mupdf),input,{name:'widget-note.pdf'})};
+ const before=hash(input),record=mark(doc,{start:0,end:2,id:'beside-form',act:'note',noteText:'Review these answers.'});
+ const output=await exportAnnotatedPdf(doc,[record]),note=readAnnotations(output).find(annotation=>annotation.name==='jett:beside-form');
+ assert.ok(note,'note remains exportable');const a=note.rect,b=widgetBounds;
+ assert.ok(a[2]<=b[0]||b[2]<=a[0]||a[3]<=b[1]||b[3]<=a[1],'note does not cover the empty form widget');
+ assert.ok(a[0]>=40,'blocked left margin causes another placement');assert.equal(hash(input),before);
+});

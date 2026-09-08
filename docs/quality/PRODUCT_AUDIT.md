@@ -496,3 +496,41 @@ Final full gate: **189 tests pass**, parent
 `jett-exact-ranges-final-verified-test.log`. This includes desktop and phone
 grammar recovery, exact endpoint choices, clipped rendering, failed-save rollback,
 source mismatch on replay, three-page PDF export, reload and durable one-step undo.
+
+## Combined saved answers and local marks
+
+The form panel now offers an explicit, initially unchecked **Include saved local
+highlights and notes** option for reviewed or direct downloads. It snapshots the
+latest successfully saved draft and committed marks, annotates original bytes
+first, then fills the derived PDF. Field schema/group membership and original
+values are checked across the intermediate save; final values and annotation
+metadata/geometry/style are reopened and verified. Existing annotations must
+survive too. Undone marks stay excluded, including when all marks are undone.
+
+Note placement now avoids form widgets. Changed fields overlapping annotations,
+stale drafts, conflicting shared values, dropped annotations and changed field
+schemas fail visibly. The inclusion option and exports stay disabled while a save
+is pending or failed. Reopening a stale document uses the latest durable draft;
+document switches and newer review ownership fence delayed record reads/exports.
+
+Independent browser readback found a stale scalar-choice `/I` selection index:
+`/V` and appearance held Research while PDF.js reported General. The form exporter
+now synchronizes both widget and canonical-field indexes, including separate
+display/export option values. The pypdf inspector also checks index/value agreement.
+The regression retained its original failing artifact rather than weakening the
+independent reader assertion.
+
+Actual reviewed and direct combined downloads, form-only default and post-undo
+download all passed PDF.js field/annotation checks. Independent pypdf and Poppler
+verification of the reviewed copy is retained in parent
+`runtime/combined-proof/1788829563697/INDEPENDENT-REVIEW.md`. All six canonical
+answers, shared reference widgets, multiline text and both local marks are correct.
+Output SHA256 `acfbec1cc5cd7e5276f8474e7e9eec31b345dd7255af09c0767aee9430e4016e`;
+original form fixture hash remains unchanged. Root also inspected the rendered form.
+Scope remains local browser/PDF verification, not production, physical printing,
+universal editor interoperability or signing. Server work remains separate.
+
+Final full gate: **200 tests pass**, parent `jett-combined-pdf-final-full-test.log`.
+This includes the stale-document/delayed-review lifecycle test and independent
+dropdown selection readback. The earlier full run passed 199 before the new
+lifecycle regression was added.

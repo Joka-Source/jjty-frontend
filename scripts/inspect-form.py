@@ -74,6 +74,18 @@ for page_index,page in enumerate(reader.pages):
             ancestor=ancestor.get('/Parent')
             if ancestor is not None:ancestor=ancestor.get_object()
         if not linked:errors.append(f'Page {page_index+1}: widget {name} is detached from its canonical field')
+        if inheritance(widget,'/FT')=='/Ch':
+            indices=inheritance(widget,'/I');options=inheritance(widget,'/Opt') or []
+            if indices is not None:
+                selected=[]
+                for index in indices:
+                    if not isinstance(index,int) or index<0 or index>=len(options):
+                        errors.append(f'Page {page_index+1}: invalid choice index for {name}')
+                        continue
+                    option=options[index]
+                    selected.append(str(option[0] if isinstance(option,list) else option))
+                wanted=effective if isinstance(effective,list) else [effective]
+                if selected!=wanted:errors.append(f'Page {page_index+1}: stale choice indices for {name}: {selected} vs {wanted}')
         normal=widget.get('/AP',{}).get('/N')
         if normal is not None:normal=normal.get_object()
         appearance_bytes=0;states=[]

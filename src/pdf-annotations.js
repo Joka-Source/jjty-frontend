@@ -125,6 +125,9 @@ export async function exportAnnotatedPdf(source, records) {
       if(!pages.has(pageIndex)) {
         const page=keep(doc.loadPage(pageIndex));pages.set(pageIndex,page);texts.set(pageIndex,nativeText(page));obstacles.set(pageIndex,[]);
         for(const a of page.getAnnotations()){keep(a);obstacles.get(pageIndex).push(a.getBounds());if(annotationNames.has(a.getName())) fail('ANNOTATION_ID_ALREADY_EXISTS');}
+        // Form widgets are separate from getAnnotations(). Reserve their native
+        // bounds even when currently empty, so a later filled answer stays clear.
+        for(const widget of page.getWidgets()){keep(widget);obstacles.get(pageIndex).push(widget.getBounds());}
       }
       const native=texts.get(pageIndex);
       if(tokens.length!==native.tokens.length || tokens.some((token,i)=>token.text!==native.tokens[i].text)) fail('ANNOTATION_PAGE_TEXT_MISMATCH');

@@ -2,6 +2,21 @@
 // dynamic forms and signatures remain outside this editable subset.
 function fail(code) { const error = new Error(code); error.code = code; throw error; }
 function copy(bytes) { return bytes instanceof Uint8Array ? new Uint8Array(bytes) : new Uint8Array(bytes).slice(); }
+function syncChoiceIndex(widget, index) {
+  // MuPDF's scalar setter updates /V but can leave a pre-existing /I index.
+  // Readers such as PDF.js prefer /I, so synchronize the single selection on
+  // the widget and its canonical field rather than exporting contradictory data.
+  const owned=[],seen=new Set();let object=widget.getObject();owned.push(object);
+  try {
+    for(let depth=0;depth<64;depth++) {
+      if(object.isIndirect()){const id=object.asIndirect();if(seen.has(id))fail('FORM_PARENT_CYCLE');seen.add(id);}
+      object.put('I',[index]);
+      const name=object.get('T');owned.push(name);if(!name.isNull())return;
+      const parent=object.get('Parent');owned.push(parent);if(parent.isNull())return;object=parent;
+    }
+    fail('FORM_TREE_TOO_DEEP');
+  }finally{owned.reverse().forEach(item=>item.destroy());}
+}
 async function withForm(bytes, action) {
   const mupdf = await import('mupdf');
   const doc = new mupdf.PDFDocument(copy(bytes)), owned = [];
@@ -113,7 +128,12 @@ export async function fillPdfForm(bytes, values) {
       if(group.some(({field})=>field.type!==group[0].field.type)) fail('INCONSISTENT_SHARED_FORM_TYPE');
       for(const {field,widget} of group) {
         if(field.type==='text') { if(!widget.setTextValue(value)) fail('FORM_VALUE_REJECTED'); }
-        else if(field.type==='choice') { if(!widget.setChoiceValue(value)) fail('FORM_VALUE_REJECTED'); }
+        else if(field.type==='choice') {
+          const selected=field.options.findIndex(option=>option.value===value);
+          if(selected<0)fail('INVALID_FORM_CHOICE');
+          if(!widget.setChoiceValue(value)) fail('FORM_VALUE_REJECTED');
+          syncChoiceIndex(widget,selected);
+        }
         else if(field.type==='checkbox') { if((widget.getValue()!=='Off' && widget.getValue()!=='')!==value && !widget.toggle()) fail('FORM_VALUE_REJECTED'); }
         else if(field.type==='radio' && field.exportValue===value && widget.getValue()!==value) { if(!widget.toggle()) fail('FORM_VALUE_REJECTED'); }
       }

@@ -127,3 +127,19 @@ test('shared checkboxes with different on-states are refused instead of treated 
  const out=await fillPdfForm(bytes,{[await fieldKey('full_name',bytes)]:'Reader'});
  assert.equal((await inspectPdfForm(out)).fields.find(field=>field.name==='full_name').value,'Reader');
 });
+test('choice value and selection index agree in independent PDF.js readback',async()=>{
+ const {getDocument}=await import('pdfjs-dist/legacy/build/pdf.mjs');
+ const read=async bytes=>{const task=getDocument({data:bytes.slice(),useSystemFonts:true});try{return (await (await task.promise).getFieldObjects()).category[0].value;}finally{await task.destroy();}};
+ const out=await fillPdfForm(original,{[await fieldKey('category')]:'Research'});
+ assert.equal(await read(out),'Research');
+ const paired=altered((doc,form,get)=>{
+  const field=get(form,'Fields',2),options=doc.newArray(),initial=doc.newString('G');
+  try{for(const values of [['G','General display'],['R','Research display']]){const pair=doc.newArray(),strings=values.map(value=>doc.newString(value));try{strings.forEach(value=>pair.push(value));options.push(pair);}finally{strings.forEach(value=>value.destroy());pair.destroy();}}field.put('Opt',options);field.put('V',initial);field.put('I',[0]);}
+  finally{options.destroy();initial.destroy();}
+ });
+ const changed=await fillPdfForm(paired,{[await fieldKey('category',paired)]:'R'});
+ assert.equal(await read(changed),'R');
+ const pdf=new mupdf.PDFDocument(changed),page=pdf.loadPage(0),widgets=page.getWidgets();
+ try{const widget=widgets.find(widget=>widget.getName()==='category'),obj=widget.getObject(),indices=obj.getInheritable('I'),selected=indices.get(0);try{assert.equal(selected.asNumber(),1);assert.equal(widget.getValue(),'R');}finally{selected.destroy();indices.destroy();obj.destroy();}}
+ finally{widgets.forEach(widget=>widget.destroy());page.destroy();pdf.destroy();}
+});

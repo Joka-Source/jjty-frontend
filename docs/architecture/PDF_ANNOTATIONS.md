@@ -53,8 +53,9 @@ its replacement preparation.
 
 ## Current boundary
 
-This exports local annotations only. Filled form drafts and server-authoritative
-work remain separate, explicit export scopes. It does not create digital
+The standalone marks panel exports local annotations. The form panel can explicitly
+combine saved answers and local marks; see [Combined copies](PDF_COMBINED.md).
+Server-authoritative work remains separate. These exports do not create digital
 signatures, flatten notes, export local math/quotes as annotations, or establish
 PDF Expert/Acrobat parity. Complex scripts, unusual text extraction, large files
 and richer accessible review remain separate acceptance work. MuPDF's existing

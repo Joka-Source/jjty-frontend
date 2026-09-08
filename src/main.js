@@ -325,7 +325,7 @@ function resetPdfTools() {
 
 const serverPanel = initServerPanel({ saveDocument: putDoc });
 const pdfReview = initPdfReview();
-const pdfFormPanel = initPdfFormPanel({ saveDocument: putDoc, review: pdfReview });
+const pdfFormPanel = initPdfFormPanel({ saveDocument: putDoc, getRecords, review: pdfReview });
 const pdfAnnotationPanel = initPdfAnnotationPanel({ getRecords, review: pdfReview });
 let unmountImage = null;
 async function renderDoc(doc) {

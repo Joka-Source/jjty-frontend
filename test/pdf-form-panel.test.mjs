@@ -16,7 +16,7 @@ test('form answers survive delayed and failed saves while leaving and reopening 
   t.after(()=>browser.close());
   const page=await browser.newPage();await page.setRequestInterception(true);
   page.on('request',request=>{
-    if(request.isNavigationRequest()&&request.frame()===page.mainFrame())return request.respond({status:200,contentType:'text/html',body:'<!doctype html><section id="pdf-form-panel"><p id="pdf-form-status"></p><div id="pdf-form-fields"></div><button id="pdf-form-download">Download</button><button id="pdf-form-preview">Review</button><button id="pdf-form-retry" hidden>Retry save</button></section><dialog id="pdf-review-dialog"><button id="pdf-review-close">Close</button><p id="pdf-review-status"></p><button id="pdf-review-download">Download review</button><div id="pdf-review-pages"></div></dialog>'});
+    if(request.isNavigationRequest()&&request.frame()===page.mainFrame())return request.respond({status:200,contentType:'text/html',body:'<!doctype html><section id="pdf-form-panel"><p id="pdf-form-status"></p><div id="pdf-form-fields"></div><input type="checkbox" id="pdf-form-include-marks"><button id="pdf-form-download">Download</button><button id="pdf-form-preview">Review</button><button id="pdf-form-retry" hidden>Retry save</button></section><dialog id="pdf-review-dialog"><button id="pdf-review-close">Close</button><p id="pdf-review-status"></p><button id="pdf-review-download">Download review</button><div id="pdf-review-pages"></div></dialog>'});
     void request.continue();
   });
   await page.goto(url);
@@ -30,6 +30,7 @@ test('form answers survive delayed and failed saves while leaving and reopening 
   },source);
   const edit=async value=>page.$eval('[data-field-name="full_name"]',(n,value)=>{n.value=value;n.dispatchEvent(new Event('input',{bubbles:true}));},value);
   await edit('Retained while saving');await page.waitForFunction(()=>window.formProof.writes.length===1);
+  assert.equal(await page.$eval('#pdf-form-include-marks',n=>n.disabled),true,'combined export control waits for durable answers');
   await page.evaluate(()=>{
     void window.formProof.panel.setDocument(null);
     window.formProof.reopened=window.formProof.panel.setDocument(structuredClone(window.formProof.original));
@@ -45,6 +46,7 @@ test('form answers survive delayed and failed saves while leaving and reopening 
   await page.evaluate(async()=>{window.formProof.writes[1].reject(new Error('Synthetic storage failure'));await window.formProof.reopened;});
   assert.equal(await page.$eval('[data-field-name="full_name"]',n=>n.value),'Retained after save failure');
   assert.equal(await page.$eval('#pdf-form-download',n=>n.disabled),true,'unsaved answers must not be presented as durably saved');
+  assert.equal(await page.$eval('#pdf-form-include-marks',n=>n.disabled),true,'failed save disables combined export choice');
   assert.equal(await page.$eval('#pdf-form-retry',n=>n.hidden),false);
   await page.locator('#pdf-form-retry').click();await page.waitForFunction(()=>window.formProof.writes.length===3);
   await page.evaluate(()=>window.formProof.writes[2].resolve());

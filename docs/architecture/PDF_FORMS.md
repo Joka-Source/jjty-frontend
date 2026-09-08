@@ -70,4 +70,6 @@ inside this modal remains work alongside the existing editable field panel.
 The shared review now exposes persisted Text/FreeText note contents in expandable
 sections beneath their physical pages. These are read from the exact filled PDF
 bytes, including notes already present in the original; this does not merge
-JETT's separate local annotation records into the filled export.
+JETT's local annotation records into the filled export by default. The explicit
+**Include saved local highlights and notes** option now creates a verified
+[combined copy](PDF_COMBINED.md) with saved answers and committed marks.
