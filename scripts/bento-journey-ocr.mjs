@@ -234,7 +234,9 @@ try {
   const image = await pdf.embedPng(Buffer.from(png, "base64"));
   const pdfPage = pdf.addPage([800, 500]);
   pdfPage.drawImage(image, { x: 0, y: 0, width: 800, height: 500 });
-  const original = Buffer.from(await pdf.save());
+  const original = process.env.BENTO_OCR_FIXTURE
+    ? await readFile(process.env.BENTO_OCR_FIXTURE)
+    : Buffer.from(await pdf.save());
   const fixture = `${directory}/image-only-source.pdf`;
   await writeFile(fixture, original);
   assert.equal(textOf(original).trim(), "", "Source must be image only");
@@ -359,6 +361,33 @@ try {
       });
     });
   }
+  const injectedFailure = process.env.BENTO_OCR_INJECT_SECOND_PAGE === "1";
+  if (injectedFailure) {
+    await bento.evaluate(async () => {
+      const url = performance
+        .getEntriesByType("resource")
+        .map((entry) => entry.name)
+        .find((url) => /tesseract.*js\.js/.test(url));
+      if (!url)
+        throw new Error(
+          "Loaded Tesseract module URL missing for fault injection",
+        );
+      const module = await import(url),
+        library = module.default;
+      const original = library.createWorker;
+      let recognized = 0;
+      library.createWorker = async function (...args) {
+        const worker = await original.apply(this, args),
+          recognize = worker.recognize;
+        worker.recognize = async function (...args) {
+          if (++recognized === 2)
+            throw new Error("SYNTHETIC_TEST_SECOND_PAGE_RECOGNITION_FAILURE");
+          return recognize.apply(this, args);
+        };
+        return worker;
+      };
+    });
+  }
   const started = Date.now();
   await clickPointer("#process-btn", "process");
   await bento.waitForSelector("#ocr-progress:not(.hidden)", { timeout: 10000 });
@@ -411,6 +440,8 @@ try {
   const ui = await bento.evaluate(() => ({
     text: document.getElementById("ocr-text-output").value,
     progress: document.getElementById("progress-log").textContent,
+    heading: document.querySelector("#ocr-results h3")?.textContent,
+    description: document.querySelector("#ocr-results p")?.textContent,
     alert: document.getElementById("alert-message").textContent,
     resultsVisible: !document
       .getElementById("ocr-results")
@@ -437,6 +468,12 @@ try {
     ).replaceAll(token, "[redacted]"),
   );
   assert.ok(ui.resultsVisible, `OCR failed: ${ui.alert}`);
+  if (injectedFailure) {
+    assert.equal(ui.heading, "OCR finished with warnings");
+    assert.ok(ui.description.includes("incomplete on page 2"));
+    assert.ok(ui.description.includes("All original pages are preserved"));
+    assert.ok(!ui.text.includes("Ninety degree page"));
+  }
   const recognition = expected.map((line) => ({
     expected: line,
     exactMatch: ui.text.includes(line),
@@ -679,6 +716,38 @@ try {
       });
     }
   }
+  const corpusSearches = [];
+  for (const expected of JSON.parse(
+    process.env.BENTO_OCR_EXTRA_SEARCHES || "[]",
+  )) {
+    await page.click("#pdf-search-input");
+    for (let i = 0; i < 60; i++) await page.keyboard.press("ArrowRight");
+    for (let i = 0; i < 60; i++) await page.keyboard.press("Backspace");
+    await page.type("#pdf-search-input", expected.query);
+    await page.waitForFunction(
+      () =>
+        document.getElementById("pdf-search-count").textContent === "1 of 1",
+    );
+    const observation = await page.evaluate(() => {
+      const ranges = [...(CSS.highlights?.get("jt-pdf-search") || [])];
+      const range = ranges[0],
+        fallback = document.querySelector(".pdf-search-fallback");
+      const element = range?.startContainer?.parentElement || fallback;
+      return {
+        query: document.getElementById("pdf-search-input").value,
+        page: Number(element?.closest(".pdf-page")?.dataset.page),
+        painted: !!(range || fallback),
+        rect: (range || fallback)?.getBoundingClientRect().toJSON(),
+      };
+    });
+    assert.equal(observation.page, expected.page);
+    assert.ok(observation.painted);
+    corpusSearches.push(observation);
+    await page.screenshot({
+      path: `${directory}/ocr-search-page-${expected.page}.png`,
+      fullPage: true,
+    });
+  }
   if (blockExternal) {
     assert.ok(
       assets
@@ -699,9 +768,11 @@ try {
     `${directory}/ocr-proof.json`,
     JSON.stringify(
       {
-        result: mixed
-          ? "PASS_LOCAL_REAL_MIXED_OCR_UI"
-          : "PASS_LOCAL_REAL_OCR_UI",
+        result: injectedFailure
+          ? "PASS_SYNTHETIC_PAGE_FAILURE_PRESERVATION_UI"
+          : mixed
+            ? "PASS_LOCAL_REAL_MIXED_OCR_UI"
+            : "PASS_LOCAL_REAL_OCR_UI",
         sourceImageOnly: true,
         originalSHA256: sha(original),
         originalPreserved: true,
@@ -735,15 +806,25 @@ try {
         sourceReloadAndResultReopen: true,
         search,
         hindiSearch,
+        corpusSearches,
+        faultInjection: injectedFailure
+          ? {
+              kind: "synthetic second-page recognize rejection",
+              visibleHeading: ui.heading,
+              visibleDescription: ui.description,
+            }
+          : null,
       },
       null,
       2,
     ),
   );
   console.log(
-    mixed
-      ? `MEASURED mixed OCR: ${recognition.filter((item) => item.exactMatch).length}/${expected.length} exact recognized lines, ${searchableRecognition.filter((item) => item.exactMatch).length}/${expected.length} exact searchable lines; JETT return and word search verified.`
-      : "PASS actual English OCR, searchable PDF export, JETT durable return, independent text readback and unchanged original.",
+    injectedFailure
+      ? "PASS SYNTHETIC second-page recognition failure: warning visible, PDF exported and durably returned; original preserved."
+      : mixed
+        ? `MEASURED mixed OCR: ${recognition.filter((item) => item.exactMatch).length}/${expected.length} exact recognized lines, ${searchableRecognition.filter((item) => item.exactMatch).length}/${expected.length} exact searchable lines; JETT return and word search verified.`
+        : "PASS actual English OCR, searchable PDF export, JETT durable return, independent text readback and unchanged original.",
   );
 } catch (error) {
   await writeFile(
