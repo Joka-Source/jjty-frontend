@@ -1,4 +1,14 @@
 import { TARGET_POLICY } from "./match.js";
+import { findRangeTargets } from './range-targets.js';
+
+// Explicitly named words have stronger custody than the reading cursor: no
+// fuzzy correction, suffix clipping, proximity preference, or block fallback.
+export function decidePhraseTarget(blockTexts, phrase) {
+  const candidates = findRangeTargets(blockTexts, phrase).map(target => ({...target, score:1}));
+  if (!candidates.length) return {kind:'none'};
+  if (candidates.length > 1) return {kind:'ask', reason:'the named words occur more than once', candidates};
+  return {kind:'commit', target:candidates[0]};
+}
 
 function sameSpan(a, b) {
   return (

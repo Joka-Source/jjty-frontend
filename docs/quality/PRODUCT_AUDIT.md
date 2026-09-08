@@ -921,3 +921,84 @@ Evidence: parent `runtime/voice-ab/results.json`, timestamped earlier receipts,
 actual generated-script lifecycle tests pass. No application code changed; the
 earlier full application gate remains the latest full gate. Native Android voice
 and real conversational recognition quality remain open.
+
+## Selected PDF page extraction — PASS_LOCAL
+
+The review can now extract a nonempty, unique selection of pages into one new
+reviewed PDF, preserving the requested order. The Bento-derived parser shares
+strict range validation with reordering while keeping the existing complete-order
+invariant intact. The original reader document and its bytes remain unchanged.
+
+The native core verifies serialized page content, resources, geometry, simple
+Text/Highlight annotations and Popup/parent/page relationships against the source.
+Independent PDF.js readback covers selected rotated/blank pages and annotations.
+Protected PDFs, forms/widgets, navigation structures, links and page actions are
+currently refused before editing. Extraction is not redaction or sanitization:
+shared resources and incidental metadata may remain in an extracted copy.
+
+The actual app's 375px import → review original → extract → undo journey passes;
+the screenshot was inspected. Controls fit without horizontal overflow and retain
+44px button targets. Exact downloaded-byte tests cover extraction and undo, while
+injected preview failures cover restoration, close and newer-review ownership.
+Both reordering and extraction availability are restored with the correct snapshot.
+
+Focused evidence: seven extraction-core tests, six page parser tests, nineteen
+extraction/reorder/undo recovery checks and the actual-app narrow journey pass.
+The initial full gate passed 321/322 checks. An existing navigation test failed;
+a separate deterministic test proved that a delayed position read overwrote a
+newer selection. Selection versions now reject stale restoration, including a
+new blank-page selection. Return animation ownership also stops old RAF loops
+on user input, removed targets and newer returns. These verified defects are
+fixed; causal attribution to the original intermittent test is not asserted.
+The subsequent full integration gate passed 338/338 checks. Evidence remains in the parent
+`runtime/live-voice-diagnosis/` folder: `extract-recovery-final.log`,
+`extract-app-focused.log`, `extract-narrow.log`, `extract-narrow.png`, and
+`extract-full.log`. No application release or complete Bento integration is claimed.
+
+## GStack command feedback workbench and named highlights
+
+The five-minute continuation heartbeat is paused per the founder's latest request;
+this is independent of microphone ownership. GStack investigate activated in the
+frontend task, and the human workbench passes 41 metadata/reference checks. These
+checks are not product or production proof. Three bounded agent lanes handled the
+journal core, named-phrase regression and return-animation lifecycle, with lead
+integration and independent review.
+
+The screenshot's recognized “Highlight a lead charge” exposed an unsupported
+command shape as well as an ASR substitution. Even correct “Highlight a late
+charge” previously became bare-highlight ambiguity followed by reading text.
+The adapter now preserves the full named phrase. Exact unique source matches
+apply to that span; repeated occurrences ask; absent words cannot mutate the old
+cursor target. Four focused pre-fix failures now pass. The actual browser checks
+confirm exact `a late charge` custody, refusal of `a lead charge`, and correlation
+through duplicate-target confirmation. Automatic phonetic repair is not claimed.
+
+Settings now includes a bounded command journal, Worked/Missed feedback, expected
+command selection, optional local recognized-word retention, clear, and sanitized
+analytics export. Final utterances and registered pointer verbs receive trace IDs.
+A result is saved only after the durable engine returns a receipt. Real injected
+IndexedDB failure never records a saved result. Math keep retains its utterance
+trace; test-hook input is explicitly labeled sim. Raw words, corrections and
+source text are excluded from export. No PostHog host, project or sender is
+configured; no analytics transmission is claimed. Broader non-registry controls,
+pre-transcript capture failures and generic prompt lineage remain outside this
+first journal. See COMMAND_FEEDBACK_LOOP.md for fields and operating procedure.
+
+The 375px Settings journey was captured and visually inspected. The browser test
+covers feedback, expected intent, persistence/reload, raw-text removal, storage
+failure, exact named-phrase behavior and an unheld microphone. This is a controlled
+transcript test, not a new physical-mic accuracy claim. Original source custody
+and extraction/undo remain independently tested. Detailed local receipts are in
+`runtime/live-voice-diagnosis/` alongside the earlier failed runs; failed evidence
+has not been overwritten or promoted to success.
+
+Final verification: `npm test` built successfully and passed **339/339** tests,
+zero failures/skips/cancellations (`workbench-feedback-final-gate.log`). The earlier
+339-test run exposed a harness readiness race: contents existed before the reader
+was visible, so locator scrolling could stall on the whole transparent page layer.
+Named-step diagnostics reproduced that failure; the test now waits for the visible
+reader and clicks actual text. Ten consecutive focused runs passed without a
+longer timeout; all original selection/restore/source-preservation assertions
+remain. The final combined gate includes that correction and the actual metadata
+download/readback proof. Status: PASS_LOCAL. No deployment or general live-speech
+reliability claim.

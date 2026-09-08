@@ -164,9 +164,12 @@ export function createReturnMotion(from, to, m = MARKER_MEDIUM, now = () => perf
   };
 }
 
+let activeReturn = null;
+
 /** Return the viewport to a block and show a short-lived place label. There is
  * deliberately no `scrollIntoView({behavior:"smooth"})` or CSS transition. */
 export function returnToPlace(block, m = MARKER_MEDIUM) {
+  activeReturn?.();
   document.querySelector(".return-marker")?.remove();
   const label = document.createElement("span");
   label.className = "return-marker";
@@ -177,18 +180,44 @@ export function returnToPlace(block, m = MARKER_MEDIUM) {
   const rect = block.getBoundingClientRect();
   const target = Math.max(0, window.scrollY + rect.top - window.innerHeight * 0.36);
   const motion = createReturnMotion(window.scrollY, target, m);
+  let raf = 0;
+  let stopped = false;
+  const interruptions = ["wheel", "touchstart", "pointerdown", "keydown", "pagehide"];
+  function stop() {
+    if (stopped) return;
+    stopped = true;
+    if (raf) cancelAnimationFrame(raf);
+    raf = 0;
+    for (const type of interruptions) window.removeEventListener(type, stop, true);
+    document.removeEventListener("visibilitychange", visibilityChanged);
+    label.remove();
+    if (activeReturn === stop) activeReturn = null;
+  }
+  function visibilityChanged() {
+    if (document.hidden) stop();
+  }
+  activeReturn = stop;
+  for (const type of interruptions) window.addEventListener(type, stop, { capture: true, passive: true });
+  document.addEventListener("visibilitychange", visibilityChanged);
   function frame() {
+    // A removed label/target, newer return, or user interaction relinquishes
+    // the viewport. Check ownership even if an old callback was dispatched.
+    if (stopped || activeReturn !== stop || !label.isConnected || !block.isConnected) {
+      stop();
+      return;
+    }
+    raf = 0;
     const sample = motion.sample();
     window.scrollTo({ top: sample.scrollY, behavior: "auto" });
     label.style.opacity = sample.opacity.toFixed(3);
     if (sample.done) {
-      label.remove();
+      stop();
       return;
     }
-    requestAnimationFrame(frame);
+    raf = requestAnimationFrame(frame);
   }
   label.style.opacity = "1";
-  requestAnimationFrame(frame);
+  raf = requestAnimationFrame(frame);
   return label;
 }
 

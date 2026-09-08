@@ -1,3 +1,5 @@
+import { createCommandJournal } from './command-journal.js';
+import { mountCommandJournal } from './command-journal-panel.js';
 import { createVoiceCapture } from './voice-capture.js';
 import { initVoiceSettings } from './voice-settings.js';
 // jt — you open your document, you speak, and the thing you meant happens,
@@ -48,7 +50,7 @@ import {
   normalizePdfGeometry,
   renderPdfPages,
 } from "./pdf-reading.js";
-import { decideTarget } from "./targeting.js";
+import { decideTarget, decidePhraseTarget } from "./targeting.js";
 import { findRangeTargets } from "./range-targets.js";
 import { createAnchor } from "./anchors.js";
 import { contentDigest } from "./ingest.js";
@@ -90,6 +92,9 @@ import {
 } from "./registry/index.js";
 import { emitGlass } from "./glass-tap.js";
 import { mountGlassDevRoute } from "./glass-route.js";
+
+const commandJournal = createCommandJournal();
+mountCommandJournal(commandJournal);
 
 const article = document.getElementById("doc");
 const marker = document.getElementById("marker");
@@ -222,6 +227,7 @@ const mathState = {
 
 const markerDriver = createMarkerDriver(marker, markerMedium);
 const positionMemory = createPositionMemory({ save: putPosition, load: getPosition });
+const positionSelectionVersions = new Map();
 const intentStream = new IntentStream();
 let shell = null; // the surface router (initShell) — set during boot
 
@@ -316,7 +322,7 @@ async function handleStagedRange(command, snapshot, evidence) {
   await executeVerb('highlight-range', {
     fromAnchor:selection.fromAnchor, toAnchor:command.phrase, rangeStart:selection.rangeStart,
     rangeDocumentId:selection.docId, stagedSource:selection.source, stagedGeneration:selection.generation,
-    modality:'voice', evidence,
+    modality:'voice', evidence, traceId:snapshot.traceId,
   });
 }
 
@@ -334,6 +340,8 @@ function blockCountOf(doc) {
 
 function rememberPosition(blockIndex) {
   if (!state.doc) return;
+  // Even selecting a blank PDF page supersedes a pending saved-position restore.
+  positionSelectionVersions.set(state.doc.id, (positionSelectionVersions.get(state.doc.id) ?? 0) + 1);
   positionMemory.remember(state.doc, blockIndex, state.blocks.length);
   shell?.libraryChanged();
 }
@@ -1016,6 +1024,8 @@ async function resolveAsk(i) {
 }
 
 function performActAtTarget(verbId, args, target, targetChoice = null) {
+  const traceId = args.traceId ?? args.voiceTarget?.traceId;
+  if (traceId) commandJournal.record(traceId,{stage:'target',status:'matched',intent:verbId,blockIndex:target?.blockIndex ?? args.blockIndex ?? state.currentBlock,tokenStart:target?.tokenStart ?? args.tokenStart,tokenEnd:target?.tokenEnd ?? args.tokenEnd});
   const blockIndex = target?.blockIndex ?? args.blockIndex ?? state.currentBlock;
   const matchedText =
     target?.quotedText ?? args.matchedText ?? state.blockTexts[blockIndex]?.slice(0, 120) ?? "";
@@ -1050,6 +1060,20 @@ function emitCommandResult(intent, result, reason, { confidence, ambiguities = [
 }
 
 async function performTargeted(verbId, args) {
+  if (args.targetPhrase && !args.target && !Number.isInteger(args.blockIndex)) {
+    const decision = decidePhraseTarget(state.blockTexts,args.targetPhrase);
+    const traceId = args.traceId ?? args.voiceTarget?.traceId;
+    if (traceId) commandJournal.record(traceId,{stage:'target',status:decision.kind==='commit'?'matched':decision.kind==='ask'?'ambiguous':'missing',intent:verbId});
+    if (decision.kind === 'ask') {
+      showTargetAsk({...args,verbId},args.modality,decision);
+      return null;
+    }
+    if (decision.kind === 'none') {
+      setStatus(true,'Those named words were not found. Say the words shown in the document, or select them first.');
+      return null;
+    }
+    return performActAtTarget(verbId,args,decision.target);
+  }
   if (args.target || Number.isInteger(args.blockIndex)) {
     return performActAtTarget(verbId, args, args.target ?? null, args.targetChoice ?? null);
   }
@@ -1071,6 +1095,8 @@ async function performTargeted(verbId, args) {
     return performActAtTarget(verbId, args, null);
   }
   const decision = decideTarget(targetMatch);
+  const traceId = args.traceId ?? args.voiceTarget?.traceId;
+  if (traceId) commandJournal.record(traceId,{stage:'target',status:decision.kind === 'ask'?'ambiguous':decision.kind === 'none'?'missing':'matched',intent:verbId});
   if (decision.kind === "ask") {
     emitCommandResult(
       verbId,
@@ -1204,7 +1230,7 @@ function showHistory() {
   setTimeout(() => document.querySelector(".history")?.classList.remove("attention"), 1500);
   setStatus(true, `everything you have done is in the panel on the right (${engine.entries.length} so far)`);
   emitCommandResult("show-history", "handled", "The saved acts panel opened.");
-  return null;
+  return {kind:"history-opened"};
 }
 
 async function openDocumentVerb(args) {
@@ -1276,8 +1302,19 @@ const verbExecutionContext = {
 };
 
 async function executeVerb(id, args = {}) {
-  try { return await executeRegisteredVerb(id, verbExecutionContext, args); }
-  catch (error) {
+  const traceId = args.traceId ?? args.voiceTarget?.traceId ?? commandJournal.begin({source:args.modality ?? 'pointer',rawText:args.evidence});
+  const started = performance.now();
+  commandJournal.record(traceId,{stage:'intent',status:'parsed',intent:id,expected:['highlight','highlight-range','annotate','mark-important','math-keep'].includes(id)?'durable-entry':id==='undo'?'undo':'unknown'});
+  try {
+    const result = await executeRegisteredVerb(id, verbExecutionContext, {...args,traceId});
+    // These entries are returned only after the act engine's IndexedDB write.
+    // A pre-save intentResult("act") is a targeting decision, never this receipt.
+    const saved = !!(result?.id && result?.receipt && result?.cursor);
+    const noEffect = result == null || result === false;
+    commandJournal.record(traceId,{stage:'result',status:saved?'saved':noEffect?'no-op':'handled',intent:id,actual:saved?'durable-entry':noEffect?'none':result.kind==='history-opened'?'history':'unknown',durationMs:performance.now()-started});
+    return result;
+  } catch (error) {
+    commandJournal.record(traceId,{stage:'result',status:'failed',intent:id,actual:'error',durationMs:performance.now()-started});
     if (error?.name !== "RecordSaveError") throw error;
     setStatus(false, "Could not save that change. Your saved work is unchanged. Try again.");
     return null;
@@ -1410,7 +1447,7 @@ async function keepMath(modality) {
   return entry;
 }
 
-async function onMathFinalSegment(segment) {
+async function onMathFinalSegment(segment, traceId) {
   const control = mathControl(segment, mathState.active);
   if (control === "enter") {
     setMathMode(true);
@@ -1421,7 +1458,7 @@ async function onMathFinalSegment(segment) {
     return "exit";
   }
   if (control === "keep") {
-    await executeVerb("math-keep", { modality: "voice" });
+    await executeVerb("math-keep", { modality: "voice", traceId });
     return "keep";
   }
   if (!mathState.active) return null;
@@ -1532,7 +1569,8 @@ function onInterim(fullText, latestSegment = fullText) {
 }
 
 let speechQueue = Promise.resolve();
-function onFinalSegment(segment) {
+function onFinalSegment(segment, {source = SIM?'sim':'voice'} = {}) {
+  const traceId = commandJournal.begin({source,rawText:segment});
   showHeard(segment, true);
   emitGlass({ kind: "transcriptEvent", text: segment, final: true, source: SIM ? "sim" : "speech" });
   const intentStarted = performance.now();
@@ -1552,7 +1590,7 @@ function onFinalSegment(segment) {
     state.lastReadingMatch = state.lastMatch;
   }
   const snapshot = {
-    rangeGeneration, rangeSource:rangeSource(), rejectedReading:state.rejectedReading,
+    traceId, rangeGeneration, rangeSource:rangeSource(), rejectedReading:state.rejectedReading,
     intentDuration: performance.now() - intentStarted,
     docId: state.doc?.id,
     match: stagedCommand?.type === 'start' ? state.lastMatch ?? state.lastReadingMatch : state.lastReadingMatch ?? state.lastMatch,
@@ -1561,23 +1599,34 @@ function onFinalSegment(segment) {
   const run = speechQueue.then(() => {
     const documentAction = mathState.active || events.some(event => ["act", "range", "undo"].includes(toCommand(event).type));
     if (documentAction && snapshot.docId !== state.doc?.id) {
+      commandJournal.record(traceId,{stage:'result',status:'rejected',actual:'none'});
       setStatus(false, "The document changed before that instruction ran. Read the passage and try again.");
       return null;
     }
-    if (stagedCommand && (stagedCommand.type !== 'end' || stagedCommand.explicit || stagedRange)) return handleStagedRange(stagedCommand, snapshot, segment);
+    if (stagedCommand && (stagedCommand.type !== 'end' || stagedCommand.explicit || stagedRange)) {
+      commandJournal.record(traceId,{stage:'intent',status:'parsed',intent:stagedCommand.type === 'start'?'start-highlighting':stagedCommand.type === 'end'?'end-highlighting':'stop-highlighting'});
+      return handleStagedRange(stagedCommand, snapshot, segment).then(result=>{
+        if(!commandJournal.list().find(row=>row.id===traceId)?.events.some(event=>event.stage==='result')) commandJournal.record(traceId,{stage:'result',status:stagedCommand.type==='cancel'?'cancelled':stagedRange?'pending':'no-op',actual:stagedCommand.type==='start'&&stagedRange?'range-start':'none'});
+        return result;
+      });
+    }
     return processFinalSegment(segment, events, snapshot);
   });
   // One failed command must not poison the following commands.
-  speechQueue = run.catch(() => {});
+  speechQueue = run.catch(() => { commandJournal.record(traceId,{stage:'result',status:'failed',actual:'error'}); });
   return run;
 }
 
 async function processFinalSegment(segment, events, snapshot) {
-  const mathResult = await onMathFinalSegment(segment);
-  if (mathResult) return;
+  const mathResult = await onMathFinalSegment(segment,snapshot.traceId);
+  if (mathResult) {
+    if(mathResult !== 'keep') commandJournal.record(snapshot.traceId,{stage:'result',status:'handled',actual:'unknown'});
+    return;
+  }
   emitGlass({ kind: "latencyMark", stage: "intent", durationMs: snapshot.intentDuration, budgetMs: 5 });
   for (const ev of events) {
     const cmd = toCommand(ev);
+    commandJournal.record(snapshot.traceId,{stage:'intent',status:cmd.type === 'ask'?'ambiguous':'parsed',intent:cmd.verbId ?? (cmd.type === 'reading'?'reading':'unknown'),durationMs:snapshot.intentDuration});
     const classification = cmd.type === "reading" ? "reading" : cmd.type === "ask" ? "unresolved" : "command";
     emitGlass({
       kind: "segmentationDecision",
@@ -1587,10 +1636,12 @@ async function processFinalSegment(segment, events, snapshot) {
       reason: cmd.reason ?? (classification === "reading" ? "This sounds like document text." : "This matches a known instruction."),
     });
     if (cmd.type === "reading") {
+      commandJournal.record(snapshot.traceId,{stage:'result',status:'no-op',actual:'none',intent:'reading'});
       emitCommandResult(null, "reading", "No instruction was found.", { confidence: ev.confidence });
       continue;
     }
     if (cmd.type === "ask") {
+      commandJournal.record(snapshot.traceId,{stage:'result',status:'pending',actual:'none'});
       emitCommandResult(null, "ask", cmd.reason, {
         confidence: ev.confidence,
         ambiguities: (cmd.candidates ?? []).map((candidate) => ({
@@ -1716,6 +1767,7 @@ async function openDocumentNow(
     requirePosition = false,
   } = {}
 ) {
+  const selectionVersion = positionSelectionVersions.get(doc.id) ?? 0;
   await renderDoc(doc);
   // A queued open or source edit may carry a pre-rename document object.
   // Refresh only naming metadata; preserve that operation's content snapshot.
@@ -1732,6 +1784,7 @@ async function openDocumentNow(
   if (narrowScreen.matches) setSheet(null); // picking a document closes the sheet
   if (navigate) shell?.show("read");
   const position = await positionForDoc(doc);
+  if ((positionSelectionVersions.get(doc.id) ?? 0) !== selectionVersion) return null;
   if (!position) {
     setStatus(
       true,
@@ -2223,6 +2276,7 @@ async function startSim() {
 // Test hooks (stable surface for headless drivers)
 
 window.__jtApp = {
+  commandJournal,
   entries: () => engine.entries,
   ask: () => state.pendingAsk,
   resolveAsk,
@@ -2245,7 +2299,7 @@ window.__jtApp = {
   micState: () => mic.state,
   micAudioHeld: () => mic.audioHeld,
   exportData: () => shell?.exportData(),
-  voiceSegment: (text) => onFinalSegment(text),
+  voiceSegment: (text) => onFinalSegment(text,{source:'sim'}),
   follow: (text, latestSegment) => onInterim(text, latestSegment),
   perform: (act, blockIndex, opts) => {
     const verb = verbRegistry.resolve(act);
@@ -2266,13 +2320,13 @@ window.__jtApp = {
     active: () => mathState.active,
     expression: () => mathState.expression,
     kept: () => mathState.kept,
-    segment: (text) => onFinalSegment(text),
+    segment: (text) => onFinalSegment(text,{source:'sim'}),
     keep: (modality = "pointer") => executeVerb("math-keep", { modality }),
   },
   currentBlock: () => state.currentBlock,
   addDocument,
   openDocument: (doc) => executeVerb("open-document", { document: doc, options: { navigate: false } }),
-  segment: (text) => onFinalSegment(text),
+  segment: (text) => onFinalSegment(text,{source:'sim'}),
   position: {
     read: () => (state.doc ? positionForDoc(state.doc) : null),
     flush: () => positionMemory.flushAll(),

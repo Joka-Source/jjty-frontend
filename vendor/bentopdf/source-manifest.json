@@ -37,7 +37,8 @@
     "Combined comma/range expansion with complete-permutation validation.",
     "Reject invalid groups rather than skipping them; reject duplicate or missing pages.",
     "Strict decimal integer grammar replaces permissive Number/parseInt input.",
-    "Bounded page count, input length and range expansion; throws without returning partial results."
+    "Bounded page count, input length and range expansion; throws without returning partial results.",
+    "Added parsePageSelection using the same strict bounded range expansion, permitting a nonempty unique subset in requested order; parsePageOrder still requires a complete permutation."
   ],
   "scope": "Local source adaptation only; not evidence of distribution, deployment, whole-product license review or commercial permission."
 }

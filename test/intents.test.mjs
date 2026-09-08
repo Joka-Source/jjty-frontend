@@ -81,3 +81,26 @@ test("courtesy beside a command is not reading, while actual prose remains readi
   assert.deepEqual(events('Please read this passage').map(toCommand).map(c=>c.type), ['reading']);
   assert.deepEqual(events('Purple elephants highlight this').map(toCommand).map(c=>c.type), ['reading','act']);
 });
+
+test('named highlight preserves the entire heard phrase instead of current-passage ambiguity', () => {
+  for (const phrase of ['a lead charge', 'a late charge']) {
+    const text = `Highlight ${phrase}`;
+    const commands = events(text).map(toCommand);
+    assert.equal(commands.length, 1);
+    assert.equal(commands[0].type, 'act');
+    assert.equal(commands[0].verbId, 'highlight');
+    assert.equal(commands[0].targetPhrase, phrase);
+    assert.equal(commands[0].evidence, text);
+  }
+});
+
+test('named highlight does not reinterpret prose, partial commands, ranges or compound instructions', () => {
+  assert.equal(events('the report will highlight the risks').map(toCommand).some(c => c.targetPhrase), false);
+  for (const text of ['highlight', 'highlight from rent', 'highlight this', 'highlight a late charge undo that']) {
+    assert.equal(events(text).map(toCommand).some(c => c.targetPhrase), false, text);
+  }
+  assert.equal(first('highlight from rent is due to the deposit').type, 'range');
+  const stream = new IntentStream();
+  assert.deepEqual(stream.push({text:'Highlight a late charge',final:false}), []);
+  assert.equal(stream.push({text:'Highlight a late charge',final:true}).map(toCommand)[0].targetPhrase, 'a late charge');
+});

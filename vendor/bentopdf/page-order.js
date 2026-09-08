@@ -20,14 +20,24 @@ export function allPagesIndices(totalPages) {
 /**
  * Adapted from parseRangeGroups and applyCustomOrder. Unlike upstream's
  * permissive split helper, every group must be valid; this operation requires
- * every page exactly once. Work and allocation are bounded by the page count
+ * every supplied page once; order mode also requires every page. Work and
+ * allocation are bounded by the page count
  * and input-length caps before any range is expanded.
  */
 export function parsePageOrder(input, totalPages) {
+  return parsePages(input, totalPages, true);
+}
+
+/** A nonempty subset in requested order; never sorts or silently deduplicates. */
+export function parsePageSelection(input, totalPages) {
+  return parsePages(input, totalPages, false);
+}
+
+function parsePages(input, totalPages, complete) {
   validateTotal(totalPages);
-  if (typeof input !== 'string') throw new TypeError('Page order must be text.');
-  if (!input.trim() || input.length > MAX_ORDER_INPUT_LENGTH) {
-    throw new RangeError('Enter a complete page order within the input limit.');
+  if (typeof input !== 'string') throw new TypeError('Page selection must be text.');
+  if (input.length > MAX_ORDER_INPUT_LENGTH || !input.trim()) {
+    throw new RangeError(complete ? 'Enter a complete page order within the input limit.' : 'Select at least one page within the input limit.');
   }
   const indices = [];
   const seen = new Set();
@@ -42,7 +52,7 @@ export function parsePageOrder(input, totalPages) {
       throw new RangeError('Page numbers must be within this document, with ranges in ascending order.');
     }
     if (indices.length + end - start + 1 > totalPages) {
-      throw new RangeError('Include each page exactly once.');
+      throw new RangeError('A page cannot appear more than once.');
     }
     for (let i = start; i <= end; i++) {
       const index = i - 1;
@@ -51,6 +61,6 @@ export function parsePageOrder(input, totalPages) {
       indices.push(index);
     }
   }
-  if (indices.length !== totalPages) throw new RangeError('Include every page exactly once.');
+  if (complete && indices.length !== totalPages) throw new RangeError('Include every page exactly once.');
   return indices;
 }

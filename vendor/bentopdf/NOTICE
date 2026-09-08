@@ -8,3 +8,5 @@ The complete upstream LICENSE is preserved byte-for-byte here. No commercial lic
 page-order.js adapts parseRangeGroups/allPagesIndices from src/js/utils/split-pdf-helpers.ts and the complete-order/uniqueness checks in applyCustomOrder from src/js/logic/organize-pdf-page.ts. TypeScript, QPDF and DOM work were removed; validation is strict and bounded, returns a full zero-based permutation, and rejects malformed, duplicate or omitted pages. See source-manifest.json for exact source links and checksums.
 
 Changes made for the JETT local workbench on 2026-09-08. This notice does not alter the product root license or certify distribution readiness.
+
+The parsePageSelection adaptation now exposes a nonempty unique subset in requested order through the same validated range expansion. parsePageOrder continues to require every page. Both reject malformed input and repeated pages; neither silently sorts or deduplicates.

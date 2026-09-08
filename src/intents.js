@@ -14,6 +14,17 @@ import { verbRegistry } from "./registry/index.js";
 export class IntentStream extends SourceIntentStream {
   push(input) {
     const events = super.push(input);
+    // Only reinterpret the incomplete, leading imperative. Existing complete
+    // deictic/range commands and compound commands retain the source grammar.
+    const phrase = /^\s*highlight\s+(.+?)\s*$/i.exec(input.text ?? '');
+    if (phrase && !/^(?:from|this|that|these|those)\b/i.test(phrase[1]) &&
+        events.length === 2 && events[0].type === 'ambiguous' &&
+        events[0].sourceSpan.text.toLowerCase() === 'highlight' &&
+        events[1].type === 'reading') {
+      return [{type:'intent', intent:'highlight.phrase', args:{targetPhrase:phrase[1]},
+        confidence:1, sourceSpan:{...events[0].sourceSpan,
+          text:input.text, endToken:events[1].sourceSpan.endToken}}];
+    }
     if (!events.some(event => toCommand(event).type !== 'reading')) return events;
     return events.filter(event => {
       const command = toCommand(event);
@@ -36,6 +47,12 @@ export class IntentStream extends SourceIntentStream {
  *   {type:"reading", text}
  */
 export function toCommand(ev) {
+  if (ev.type === 'intent' && ev.intent === 'highlight.phrase') {
+    // Syntax certainty is not target certainty: the app must resolve the entire
+    // named phrase exactly, independently of the previous reading cursor.
+    return {type:'act', act:'highlight', verbId:'highlight',
+      targetPhrase:ev.args.targetPhrase, evidence:ev.sourceSpan.text, confidence:ev.confidence};
+  }
   if (ev.type === "reading") {
     return { type: "reading", text: ev.sourceSpan.text };
   }

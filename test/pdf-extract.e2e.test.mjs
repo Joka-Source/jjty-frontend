@@ -1,0 +1,39 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {spawn} from 'node:child_process';
+import {readFile} from 'node:fs/promises';
+import path from 'node:path';
+import puppeteer from 'puppeteer-core';
+import {root} from './validate.mjs';
+
+test('actual app extracts a reviewed subset while preserving the reader source and undo',{timeout:90000},async t=>{
+ const url='http://127.0.0.1:4987',fixture=path.join(root,'test/fixtures/jett-annotations.pdf');
+ const source=await readFile(fixture);
+ const server=spawn(process.execPath,[path.join(root,'node_modules/vite/bin/vite.js'),'--host','127.0.0.1','--port','4987','--strictPort'],{cwd:root,stdio:'ignore'});
+ t.after(()=>server.kill('SIGTERM'));
+ for(let i=0;i<100;i++){try{if((await fetch(url)).ok)break;}catch{}if(i===99)throw Error('Vite startup failed');await new Promise(r=>setTimeout(r,100));}
+ const browser=await puppeteer.launch({executablePath:process.env.CHROME_PATH??'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true});t.after(()=>browser.close());
+ const page=await browser.newPage();await page.setViewport({width:375,height:900});
+ await page.evaluateOnNewDocument(()=>{localStorage.setItem('jt.welcomed','1');localStorage.setItem('jt.mic','off');});
+ await page.goto(url);await page.waitForFunction(()=>window.__jtApp?.booted);
+ await(await page.$('#home-file-input')).uploadFile(fixture);
+ await page.waitForFunction(()=>document.body.dataset.view==='read'&&!document.getElementById('review-original').hidden);
+ await page.locator('#review-original').click();
+ await page.waitForFunction(()=>!document.getElementById('pdf-review-extract').disabled);
+ await page.$eval('#pdf-review-extract',n=>{n.value='3,1';});
+ await page.click('.pdf-review-extract button');
+ await page.waitForFunction(()=>document.getElementById('pdf-review-title').textContent==='Review extracted original copy'&&!document.getElementById('pdf-review-download').disabled);
+ assert.equal(await page.$$eval('#pdf-review-pages canvas',n=>n.length),2);
+ assert.deepEqual(await page.evaluate(()=>Object.values(window.__jtApp.currentDoc().sourceBytes)),[...source]);
+ const metrics=await page.$eval('.pdf-review-extract',n=>({width:n.clientWidth,scroll:n.scrollWidth,buttonHeight:n.querySelector('button').getBoundingClientRect().height}));
+ assert.ok(metrics.scroll<=metrics.width+1,JSON.stringify(metrics));assert.ok(metrics.buttonHeight>=44);
+ if(process.env.JETT_EXTRACT_SCREENSHOT)await page.screenshot({path:process.env.JETT_EXTRACT_SCREENSHOT});
+ assert.equal(await page.$eval('#pdf-review-extract',n=>n.value),'1-2');
+ await page.click('[data-review-undo]');
+ await page.waitForFunction(()=>document.getElementById('pdf-review-title').textContent==='Review original copy'&&!document.getElementById('pdf-review-download').disabled);
+ assert.equal(await page.$$eval('#pdf-review-pages canvas',n=>n.length),3);
+ assert.equal(await page.$eval('[data-review-undo]',n=>n.disabled),true);
+ await page.click('#pdf-review-close');
+ assert.deepEqual(await page.evaluate(()=>Object.values(window.__jtApp.currentDoc().sourceBytes)),[...source]);
+ assert.equal(await page.evaluate(()=>window.__jtApp.micAudioHeld()),false);
+});

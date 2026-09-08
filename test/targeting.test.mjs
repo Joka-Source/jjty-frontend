@@ -47,3 +47,22 @@ test("a strong unique target commits its exact span", async () => {
     { kind: "commit", target: { ...first, score: 0.93 } },
   );
 });
+
+test('named phrase refuses ASR substitutions and clipping, while exact words target their complete span', async () => {
+  const {decidePhraseTarget} = await targetingApi();
+  assert.equal(typeof decidePhraseTarget, 'function');
+  const blocks = ['The tenant shall pay a late charge on overdue rent.'];
+  for (const phrase of ['a lead charge', 'pay a late charge tomorrow', '', '!!!']) {
+    assert.deepEqual(decidePhraseTarget(blocks, phrase), {kind:'none'}, phrase);
+  }
+  assert.deepEqual(decidePhraseTarget(blocks, 'a late charge'), {
+    kind:'commit',target:{blockIndex:0,tokenStart:4,tokenEnd:6,quotedText:'a late charge',score:1}
+  });
+});
+
+test('named phrase retains every exact occurrence, including repeated words within one block', async () => {
+  const {decidePhraseTarget} = await targetingApi();
+  const decision = decidePhraseTarget(['A late charge; a late charge.', 'A late charge.'], 'a late charge');
+  assert.equal(decision.kind, 'ask');
+  assert.deepEqual(decision.candidates.map(c=>[c.blockIndex,c.tokenStart,c.tokenEnd]), [[0,0,2],[0,3,5],[1,0,2]]);
+});
