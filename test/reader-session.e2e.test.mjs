@@ -228,3 +228,11 @@ test('JETT toolbar creates and undoes a cross-page range and drops selections on
   assert.equal(await page.$eval('[data-annotation="highlight"]',n=>n.disabled),true,'selection from the previous PDF cannot target the new document');
   assert.deepEqual(errors,[]);
 });
+
+test('numbered page navigation clears old selections and keeps blank pages untargeted',{timeout:60000},async t=>{
+ const {page,errors}=await environment(t);await importPdf(page,'jett-annotations.pdf');await page.locator('[data-workspace="annotate"]').click();
+ const {selectPdfQuote}=await import('./pdf-selection-helpers.mjs');await selectPdfQuote(page,'The northern orchard',0,2);
+ await page.locator('#reader-page-number').fill('1');await page.keyboard.press('Enter');await page.waitForFunction(()=>document.getElementById('reader-page-number').value==='1'&&!document.getElementById('reader-page-return').disabled);
+ assert.equal(await page.$eval('[data-annotation="highlight"]',n=>n.disabled),true);assert.equal(await page.evaluate(()=>getSelection().toString()),'');
+ assert.equal(await page.$eval('#marker',n=>n.classList.contains('on')),false);assert.equal(await page.evaluate(()=>document.activeElement.dataset.page),'1');assert.deepEqual(errors,[]);
+});

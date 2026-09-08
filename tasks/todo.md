@@ -144,3 +144,16 @@ Plan: [organize-saved-work-plan.md](organize-saved-work-plan.md).
 - [x] Build and all 405 tests pass; exact PDF/readback/rendered evidence checkpointed.
 
 Next: direct Reader page navigation and thumbnail access, then richer annotation and Edit/Fill & Sign interactions against the PDF Expert inventory. Preserve Apple Books EPUB and all cross-platform gates.
+
+## Direct Reader page navigation — 9 September
+
+Plan: [reader-navigation-plan.md](reader-navigation-plan.md).
+
+- [x] Physical page/total, validated Go, previous/next and durable return point per document.
+- [x] Blank-page marker safety, stale selection clearing, queue ownership and destination keyboard focus.
+- [x] 200-page small-page PDF jump/invalid input/reload/Return journey using mouse and keyboard.
+- [x] Injected post-render history-load failure rolls back page surfaces/zoom and retains Return for retry.
+- [x] Correct sticky-control scroll insets; inspected desktop/phone layout with 44px page buttons.
+- [x] Build and all 407 tests pass; final navigation/render check and build also pass after control styling/state cleanup. Local evidence checkpointed.
+
+Next: unify numbered-page, contents and search return state, then add collapsible thumbnails. The 200-page fixture uses 200×240pt pages with no text layer; it is navigation evidence, not a large-file performance benchmark or native-device parity proof.

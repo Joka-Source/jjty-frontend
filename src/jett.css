@@ -353,3 +353,17 @@ body:not([data-view="read"]) #annotation-toolbar,body:not([data-reader-workspace
 #pdf-review-pages.is-overview .pdf-review-notes {order:4;}
 @media(max-width:480px){.pdf-review-tools{max-height:23vh;}.pdf-page-overview-toolbar{flex-shrink:0;}}
 #pdf-review-pages.is-overview canvas {width:min(100%,calc(260px * var(--review-aspect,1)))!important;align-self:center;flex-shrink:0;}
+#reader-page-navigation {display:flex;align-items:center;gap:.35rem;flex-wrap:wrap;margin:0;}
+#reader-page-navigation[hidden] {display:none;}
+#reader-page-navigation label {display:flex;align-items:center;gap:.35rem;}
+#reader-page-navigation input {width:4ch;min-height:44px;text-align:center;font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;}
+#reader-page-navigation button {min-height:44px;}
+#reader-page-status {font-size:.85rem;color:var(--ink-dim);}
+#reader-page-navigation {position:relative;}
+#reader-page-status:not(:empty) {position:absolute;top:100%;left:0;z-index:2;padding:.4rem .6rem;background:var(--panel);border:1px solid var(--line);border-radius:6px;right:0;box-sizing:border-box;white-space:normal;}
+/* Sticky chrome is already visible; document focus insets must not move it. */
+#reader-chrome :is(button,input,summary) {scroll-margin:0;}
+html:has(#reader-chrome:focus-within) {scroll-padding:0;}
+#reader-page-navigation button {min-width:44px;font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px;}
+#reader-page-navigation button:disabled {opacity:.45;cursor:default;}
+#reader-page-navigation button[hidden] {display:none;}

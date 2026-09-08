@@ -59,5 +59,5 @@ export function initAnnotationToolbar({currentDoc,root,run,review,canUndo}) {
     }
     controls();
   }).observe(root,{childList:true,subtree:true});
-  controls();return {toolbar,refresh:controls,beforeLeave(){if(!form.hidden&&input.value.trim())throw new Error("Save or cancel your note in Annotate before changing the document view.");}};
+  controls();return {toolbar,refresh:controls,clearSelection(){held=null;form.hidden=true;feedback='';status.textContent='Select words in the PDF to highlight or add a note.';controls();},beforeLeave(){if(!form.hidden&&input.value.trim())throw new Error("Save or cancel your note in Annotate before changing the document view.");}};
 }

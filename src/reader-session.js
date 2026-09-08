@@ -14,6 +14,9 @@ export function normalizeReaderView(value = {}) {
       typeof value.fingerprint === "string"
         ? value.fingerprint.slice(0, 300)
         : "",
+    returnPlace: value.returnPlace && typeof value.returnPlace==='object' ? {
+      pageNumber:Math.floor(number(value.returnPlace.pageNumber,1,1,100000)),pageOffset:number(value.returnPlace.pageOffset,0,-1,1),blockIndex:Math.floor(number(value.returnPlace.blockIndex,-1,-1,1000000)),zoom:number(value.returnPlace.zoom,1,0.05,2.5),zoomMode:value.returnPlace.zoomMode==='custom'?'custom':'fit-width'
+    }:null,
     pageNumber: Math.floor(number(value.pageNumber, 1, 1, 100000)),
     pageOffset: number(value.pageOffset, 0, -1, 1),
     blockIndex: Math.floor(number(value.blockIndex, -1, -1, 1000000)),
@@ -63,6 +66,7 @@ export function createReaderSession({ storage, onError = () => {} } = {}) {
     const held = Object.hasOwn(data.views, doc.id) ? data.views[doc.id] : null;
     const view = normalizeReaderView(held ?? {});
     if (view.fingerprint && view.fingerprint !== fingerprint(doc)) {
+      view.returnPlace=null;
       view.pageNumber = 1;
       view.pageOffset = 0;
       view.blockIndex = -1;
