@@ -24,9 +24,16 @@ test('printing handoff opens exact PDF bytes and preserves active viewers across
   window.print=()=>{window.printCalls++;throw new Error('Native printing must remain user controlled');};
   window.open=(...args)=>{const popup=window.realOpen(...args);window.handoffs.push({url:args[0],popup});return popup;};
  });
- await page.evaluate(async bytes=>{window.sourceSnapshot=new Uint8Array(bytes);window.reviewOpening=window.review.open(window.sourceSnapshot,'combined.pdf',{kind:'filled and annotated'});},[...bytes]);
- assert.equal(await page.$eval('#pdf-review-print',n=>n.disabled),true,'print handoff waits for exact review rendering');
+ const printDisabledAtStart=await page.evaluate(bytes=>{
+  window.sourceSnapshot=new Uint8Array(bytes);
+  window.reviewOpening=window.review.open(window.sourceSnapshot,'combined.pdf',{kind:'filled and annotated'});
+  // Observe the starting state in this task, before rendering can complete
+  // between separate browser protocol calls.
+  return document.getElementById('pdf-review-print').disabled;
+ },[...bytes]);
+ assert.equal(printDisabledAtStart,true,'print handoff waits for exact review rendering');
  await page.evaluate(()=>window.reviewOpening);
+ assert.equal(await page.$eval('#pdf-review-print',n=>n.disabled),false,'print handoff becomes available after exact review rendering');
  const priorTargets=new Set(browser.targets());const targetPromise=browser.waitForTarget(target=>!priorTargets.has(target)&&target.type()==='page',{timeout:5000});
  await page.bringToFront();await page.locator('#pdf-review-print').click();const target=await targetPromise;
  const first=await page.evaluate(async()=>{const h=window.handoffs[0];return {url:h.url,bytes:[...new Uint8Array(await(await fetch(h.url)).arrayBuffer())],openerDetached:h.popup.opener===null};});
