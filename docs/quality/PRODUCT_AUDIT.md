@@ -858,3 +858,34 @@ Production build and **279 tests passed**, zero failures/skips. Log: parent
 Next reader gap: existing PDF bookmarks are preserved in output but there is no
 reader contents/bookmark navigation surface in the current main/provider code.
 Engineering remains local and the general product goal remains unfinished.
+
+
+## Reader PDF contents navigation — PASS_LOCAL
+
+Both native MuPDF and PDF.js readers expose a bounded contents tree. Local direct,
+numeric and named destinations navigate to pages; external, remote, script and
+invalid targets retain their titles but cannot navigate. Native entries are read
+from their own raw nodes rather than associated by duplicate title or position.
+Depth, node and title limits apply; source destruction invalidates pending reads.
+
+The reader renders literal titles, nested expand/collapse controls and a one-step
+return to the prior reading place. Source changes discard old rows and return
+history. The actual app import/jump/return/reload journey passes for both engines;
+marks and original bytes persist. An empty page cannot authorize a stale voice
+highlight. This is page-level contents navigation, not exact destination-coordinate
+navigation. Blank-page navigation does not add a new persistent text-block anchor.
+
+A 32-level, 375px styled check reproduced horizontal overflow (305px viewport,
+552px scroll width). Bounded visual indentation fixes it without flattening the
+hierarchy: final viewport/scroll width both305px, deepest button remains visible,
+expand targets44x44px. Final themed screenshots were inspected in the parent
+`runtime/contents-depth-proof/` directory. These are synthetic browser checks,
+not a physical mobile or microphone test.
+
+Gate: production build and **293 tests passed**. A subsequent CSS-only theme
+alignment and browser-driver readiness correction received a fresh production
+build and **8/8 focused contents panel + actual-app tests**. No application JS
+changed after the full gate. Logs in parent `runtime/live-voice-diagnosis/`:
+`contents-full.log`, `contents-build.log`, `contents-styled.log`.
+Next voice measurement remains a same-audio, local recognition comparison with
+hints off versus boost2 and ordinary-speech controls; accuracy remains unproven.

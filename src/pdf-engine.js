@@ -1,3 +1,4 @@
+import { readMuPdfContents, readPdfJsContents } from './pdf-contents-data.js';
 const PDFJS_MIGRATION_REPORT = Object.freeze({
   contractVersion: 1,
   targetEngine: "mupdf",
@@ -232,7 +233,9 @@ export function createMuPdfProvider(mupdf) {
             nativeDocument.destroy();
           },
         });
-        return { loadingTask, document, report: MUPDF_REPORT };
+        return { loadingTask, document, report: MUPDF_REPORT,
+          readContents: () => readMuPdfContents(nativeDocument, () => { if (destroyed) throw new Error('PDF_DOCUMENT_CLOSED'); }),
+        };
       } catch (error) {
         nativeDocument?.destroy?.();
         throw error;
@@ -251,7 +254,12 @@ export function createPdfJsMigrationAdapter(pdfjs) {
       const loadingTask = pdfjs.getDocument({ data: ownedBytes(source) });
       try {
         const document = await loadingTask.promise;
-        return { loadingTask, document, report: PDFJS_MIGRATION_REPORT };
+        let destroyed = false;
+        const originalDestroy = loadingTask.destroy.bind(loadingTask);
+        loadingTask.destroy = async () => { if (destroyed) return; destroyed = true; await originalDestroy(); };
+        return { loadingTask, document, report: PDFJS_MIGRATION_REPORT,
+          readContents: () => readPdfJsContents(document, () => { if (destroyed) throw new Error('PDF_DOCUMENT_CLOSED'); }),
+        };
       } catch (error) {
         await loadingTask.destroy?.();
         throw error;

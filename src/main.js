@@ -24,6 +24,7 @@ import "./style.css";
 import "./jett.css";
 import { initServerPanel } from "./server-panel.js";
 import { initPdfFormPanel } from "./pdf-form-panel.js";
+import { initPdfContents } from "./pdf-contents.js";
 import { initPdfReview } from "./pdf-review.js";
 import { initLibraryBackupPanel } from "./library-backup-panel.js";
 import { initDocumentRename } from "./document-rename.js";
@@ -380,7 +381,7 @@ async function createPdfSurface(doc, pages, container = article, scale = 1) {
   const pdfEngine = doc.pdfEngine?.activeEngine === "mupdf"
     ? await selectAvailablePdfEngine({ pdfjs })
     : selectPdfEngine({ pdfjs });
-  const { loadingTask, document: pdfDocument, report } = await pdfEngine.open(
+  const { loadingTask, document: pdfDocument, report, readContents } = await pdfEngine.open(
     pdfSourceBytes(doc.sourceBytes),
   );
   const blocks = await renderPdfPages({
@@ -391,7 +392,7 @@ async function createPdfSurface(doc, pages, container = article, scale = 1) {
     scale: model.zoom,
     onBlockClick: selectPdfBlock,
   });
-  return { pdfjs, model, loadingTask, pdfDocument, blocks, report };
+  return { pdfjs, model, loadingTask, pdfDocument, blocks, report, readContents };
 }
 
 function appendTextBlocks(blockDefs) {
@@ -415,6 +416,7 @@ function appendTextBlocks(blockDefs) {
 }
 
 function resetPdfTools() {
+  void pdfContents.setSource(null);
   pdfTools.hidden = true;
   pdfSearchInput.value = "";
   pdfSearchCount.textContent = "";
@@ -428,6 +430,36 @@ function resetPdfTools() {
 }
 
 const serverPanel = initServerPanel({ saveDocument: putDoc });
+const pdfContents=initPdfContents({
+  getPlace(source){
+    if(source!==state.pdf)return null;
+    const visible=state.blocks.findIndex(block=>block && block.getBoundingClientRect().bottom>120);
+    const blockIndex=state.currentBlock>=0?state.currentBlock:visible;
+    const measured=state.blocks[blockIndex]?.getBoundingClientRect().top;
+    const top=Number.isFinite(measured)&&measured>=110&&measured<innerHeight-44?measured:110;
+    return {blockIndex,top,scrollY:window.scrollY};
+  },
+  onNavigate(pageNumber,source){
+    if(source!==state.pdf)return false;
+    const page=article.querySelector(`.pdf-page[data-page="${pageNumber}"]`);
+    if(!page)return false;
+    cancelStagedRange();
+    const blockIndex=state.blocks.findIndex(block=>block?.closest('.pdf-page')===page);
+    selectPdfBlock(blockIndex);
+    if(blockIndex<0){marker.classList.remove('on');state.rejectedReading=true;}
+    page.tabIndex=-1;page.focus({preventScroll:true});page.scrollIntoView({behavior:'auto',block:'start'});
+    return true;
+  },
+  onReturn(place,source){
+    if(source!==state.pdf)return false;
+    cancelStagedRange();selectPdfBlock(place.blockIndex);
+    const block=state.blocks[place.blockIndex];
+    if(block && Number.isFinite(place.top))window.scrollBy({top:block.getBoundingClientRect().top-place.top,behavior:'auto'});
+    else{marker.classList.remove('on');state.rejectedReading=true;window.scrollTo({top:place.scrollY,behavior:'auto'});}
+    if(block){block.tabIndex=-1;block.focus({preventScroll:true});}
+    return true;
+  },
+});
 const pdfReview = initPdfReview();
 initLibraryBackupPanel({refresh: refreshLibrary});
 const documentRename=initDocumentRename({onRenamed:async doc=>{
@@ -481,6 +513,7 @@ async function renderDoc(doc) {
   } else if (hasPdfSource) {
     try {
       state.pdf = await createPdfSurface(doc, blockDefs);
+      void pdfContents.setSource(state.pdf);
       state.blocks = state.pdf.blocks;
       state.blockTexts = [...state.pdf.model.blockTexts];
       article.classList.add("pdf-document");

@@ -129,9 +129,9 @@ article.image-source { padding-bottom: 24px; }
 .pdf-form-include {display:flex;align-items:center;gap:.65rem;min-height:44px;margin:.75rem 0;cursor:pointer;}
 .pdf-form-include input {width:20px;height:20px;flex-shrink:0;accent-color:var(--accent);}
 .pdf-review-page figcaption {color:var(--ink-dim);}
-.pdf-review-dialog button, #pdf-form-panel button, #pdf-annotation-panel button {font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 14px;min-height:44px;cursor:pointer;}
-.pdf-review-dialog button:hover:not(:disabled), #pdf-form-panel button:hover:not(:disabled), #pdf-annotation-panel button:hover:not(:disabled) {border-color:var(--accent);}
-.pdf-review-dialog button:disabled, #pdf-form-panel button:disabled, #pdf-annotation-panel button:disabled {opacity:.5;cursor:default;}
+.pdf-review-dialog button, #pdf-form-panel button, #pdf-annotation-panel button, #pdf-contents button {font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 14px;min-height:44px;cursor:pointer;}
+.pdf-review-dialog button:hover:not(:disabled), #pdf-form-panel button:hover:not(:disabled), #pdf-annotation-panel button:hover:not(:disabled), #pdf-contents button:hover:not(:disabled) {border-color:var(--accent);}
+.pdf-review-dialog button:disabled, #pdf-form-panel button:disabled, #pdf-annotation-panel button:disabled, #pdf-contents button:disabled {opacity:.5;cursor:default;}
 
 /* Speech remains inspectable without crowding the global microphone control. */
 #voice-feedback { position: fixed; z-index: 35; bottom: 24px; left: 50%; transform: translateX(-50%); width: min(760px, calc(100% - 570px)); max-height: 150px; overflow-y: auto; box-sizing: border-box; margin: 0; padding: 12px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); overflow-wrap: anywhere; }
@@ -145,3 +145,14 @@ article.image-source { padding-bottom: 24px; }
 .pdf-review-order input {box-sizing:border-box;flex:1;min-width:100px;max-width:100%;min-height:44px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:.65rem .9rem;font:inherit;}
 .pdf-review-order button {min-height:44px;}
 .pdf-review-order small {flex-basis:100%;}
+
+#pdf-contents nav {max-height:42vh;overflow:auto;overscroll-behavior:contain;}
+#pdf-contents ol {list-style:none;padding-left:clamp(2px,1vw,10px);}
+#pdf-contents-list {padding-left:0!important;}
+.pdf-contents-row {display:flex;align-items:start;gap:.25rem;}
+.pdf-contents-row button, #pdf-contents-back {min-height:44px;}
+.pdf-contents-toggle {flex-shrink:0;width:44px;min-width:44px;}
+.pdf-contents-target {flex:1;min-width:0;text-align:left;white-space:normal;overflow-wrap:anywhere;}
+.pdf-contents-page {display:block;font-size:.8rem;color:var(--ink-dim);}
+
+.pdf-page {scroll-margin-top:110px;}

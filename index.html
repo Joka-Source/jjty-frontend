@@ -358,6 +358,12 @@
           <output id="pdf-search-count" aria-live="polite"></output>
           <p id="pdf-message" class="pdf-message" aria-live="polite"></p>
         </section>
+        <details id="pdf-contents" class="server-panel" hidden>
+          <summary>Contents</summary>
+          <p id="pdf-contents-status" role="status"></p>
+          <button id="pdf-contents-back" type="button" disabled>Back to reading place</button>
+          <nav aria-label="PDF contents"><ol id="pdf-contents-list"></ol></nav>
+        </details>
         <details id="pdf-form-panel" class="server-panel" hidden>
           <summary>Fill this form</summary>
           <p class="hint">Answers are saved on this device. Download a filled copy when ready; your original stays unchanged.</p>
