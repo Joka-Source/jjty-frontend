@@ -376,3 +376,31 @@ unsupported field actions and required-value guards. The production-panel
 lifecycle browser test passes delayed save, failed save/retry and stale-object
 reopen. Frontend-local verification only; no account/server synchronization of
 form drafts or production release was performed.
+
+## Review the filled PDF before downloading
+
+Added a modal rendered from the exact filled export bytes, with a download that
+uses the same immutable snapshot. Original reader state remains intact. Download
+waits until every preview page renders; interrupted renders, Escape and document
+switching clear the snapshot. A late close event cannot invalidate a newer open.
+
+Browser proof checks the real two-page preview, latest answers in downloaded
+PDF.js-parsed output, close during rendering, Escape, source custody and return
+after document switching. The end-to-end form proof now downloads through this
+review; independent pypdf field-tree, widget and appearance checks pass. Visual
+preview inspected, with responsive layout and controls using the app theme.
+Evidence: parent jett-form-preview-proof.log, runtime/form-proof/preview-inspection.json
+and filled-review-ui.png. This is form review/export, not printing or signing.
+
+The first full run caught an Escape-close timing gap: native dialog closure
+became observable before its queued close handler cleared preview pages.
+Escape now invokes the same synchronous cleanup path as Close. The affected
+browser regression passes against the corrected build; the first failed run
+is retained in jett-form-preview-full-test.log and the focused correction in
+jett-form-preview-focused.log. Final output independent inspection is in
+runtime/form-proof/preview-final-inspection.json; both final rendered pages
+were visually inspected with correct field values and appearances.
+
+Final fresh gate:152 tests pass in jett-form-preview-final-full-test.log. Review
+and output checks are local evidence only; richer modal accessibility, large-PDF
+performance, annotation embedding and print workflows remain open.

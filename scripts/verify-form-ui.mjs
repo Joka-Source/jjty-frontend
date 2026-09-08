@@ -23,13 +23,17 @@ try{
  assert.deepEqual(saved,{full_name:'Taylor Example',reference:'JETT-042',category:'Research',delivery:'Post',consent:true,notes:'Please send the draft by email.\nKeep the original for reference.'});
  const custody=await page.evaluate(()=>Object.values(window.__jtApp.currentDoc().sourceBytes));assert.deepEqual(Buffer.from(custody),original);
  await page.screenshot({path:path.resolve('../runtime/form-proof/form-ui.png'),fullPage:true});
- await page.locator('#pdf-form-download').click();
+ await page.locator('#pdf-form-preview').click();
+ await page.waitForFunction(()=>!document.getElementById('pdf-review-download').disabled);
+ assert.equal(await page.$$eval('.pdf-review-page canvas',nodes=>nodes.length),2);
+ await page.screenshot({path:path.resolve('../runtime/form-proof/filled-review-ui.png')});
+ await page.locator('#pdf-review-download').click();
  let file;
  for(let i=0;i<100;i++){file=(await readdir(output)).find(n=>n.endsWith('.pdf'));if(file)break;await new Promise(r=>setTimeout(r,100));}
  assert.ok(file,await page.$eval('#pdf-form-status',n=>n.textContent));
  const exported=path.join(output,file);assert.ok((await readFile(exported)).length>1000);
  assert.deepEqual(await readFile(fixture),original);
- await page.setViewport({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
- const result={result:'PASS_LOCAL_UI',exported,saved,reload:true,sourceSHA256:createHash('sha256').update(original).digest('hex'),originalUnchanged:true};
+ await page.setViewport({width:390,height:844});assert.ok(await page.$eval('#pdf-review-dialog',n=>n.scrollWidth<=n.clientWidth+1));await page.locator('#pdf-review-close').click();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+ const result={result:'PASS_LOCAL_UI',exported,saved,reload:true,reviewedPages:2,sourceSHA256:createHash('sha256').update(original).digest('hex'),originalUnchanged:true};
  await writeFile(path.resolve('../runtime/form-proof/ui-result.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result));
 }finally{await browser.close();}

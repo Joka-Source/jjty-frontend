@@ -355,9 +355,16 @@
           <p id="pdf-form-status" class="hint" role="status"></p>
           <div id="pdf-form-fields" class="pdf-form-fields"></div>
           <button id="pdf-form-download">Download filled copy</button>
+          <button id="pdf-form-preview">Review filled copy</button>
           <button id="pdf-form-retry" hidden>Retry saving answers</button>
           <p class="hint">The page below shows the original. The downloaded copy includes form answers; local highlights and server notes remain separate.</p>
         </details>
+        <dialog id="pdf-review-dialog" class="pdf-review-dialog" aria-labelledby="pdf-review-title">
+          <header class="pdf-review-header"><h2 id="pdf-review-title">Review filled copy</h2><button id="pdf-review-close" aria-label="Close filled PDF preview">Close</button></header>
+          <p id="pdf-review-status" role="status"></p>
+          <button id="pdf-review-download" disabled>Download this copy</button>
+          <div id="pdf-review-pages"></div>
+        </dialog>
         <details id="server-panel" class="server-panel" hidden>
           <summary>Work with your server</summary>
           <form id="server-connect" class="server-connect">

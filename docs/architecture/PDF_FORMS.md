@@ -10,7 +10,10 @@ new edit cannot silently miss the exported snapshot.
 Download filled copy opens fresh owned original bytes in MuPDF, disables PDF
 JavaScript, applies permitted values, updates appearances and writes a separate
 interactive PDF. The original document bytes/digest remain unchanged. The page
-shown in the reader is explicitly the original, not a live filled preview.
+shown in the reader remains the original. Review filled copy opens a modal that
+renders the exact immutable export bytes; its Download this copy action reuses
+those bytes. The editable fields in the original panel remain available after
+closing the review.
 Local annotations and server work are not embedded by this form-only export.
 
 Encrypted/permission-restricted, signed or signature-protected, XFA and calculated
@@ -46,3 +49,20 @@ This is the first verified form-edit/export journey, not PDF Expert/Acrobat
 parity. Required field handling, unsupported behavior, calculation fidelity,
 accessibility, large corpora and signature workflows retain their own acceptance
 requirements. Existing MuPDF licensing/deployment review remains applicable.
+
+## Filled-copy review
+
+The review waits for every page to render before enabling its download. Close,
+Escape and document changes cancel pending render work and clear the snapshot.
+Page/document native resources are released in finally blocks; original reading
+state is not replaced by review pages. A delayed close event cannot clear a
+newly opened review. The preview scales to the viewport and keeps the PDF's own
+page proportions. Export remains interactive; the preview canvas is not used
+to reconstruct or flatten the downloaded PDF.
+
+The browser regression checks two real rendered pages, interruption after the
+first page, Escape cleanup, new-answer export parsed independently by PDF.js,
+source-byte preservation and document switching. The full form UI proof now
+downloads from review and retains independent pypdf structure/appearance checks.
+PDF page rendering here is visual; a richer accessible reading representation
+inside this modal remains work alongside the existing editable field panel.

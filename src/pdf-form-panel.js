@@ -1,13 +1,15 @@
 import {inspectPdfForm, fillPdfForm} from './pdf-forms.js';
+import {initPdfReview} from './pdf-review.js';
 
 export function initPdfFormPanel({saveDocument}) {
   const $=id=>document.getElementById(id), panel=$('pdf-form-panel'), status=$('pdf-form-status'), fields=$('pdf-form-fields'), download=$('pdf-form-download');
   let current=null, generation=0, schema=null, values={}, pending=0, exporting=false, failed=false, queue=Promise.resolve();
+  const review=initPdfReview();
   const drafts=new Map();
   const explanations={'encrypted':'This encrypted PDF cannot be filled here yet.','form-permission-denied':'This PDF does not permit form filling.','xfa-unsupported':'This dynamic XFA form needs a compatible form application.','calculated-form-unsupported':'This form has automatic calculations that are not supported here yet.','signature-protection':'This PDF has signature protection; export is disabled.','signed-document':'This PDF already has a digital signature; export is disabled.','field-type-unsupported':'This field type is not supported yet.','rich-text-unsupported':'Rich-text formatting is not supported yet.','multi-select-unsupported':'Multiple-choice selections are not supported yet.','field-actions-unsupported':'This field requires document scripts that are not run here.'};
   const explain=code=>explanations[code] || String(code).replaceAll('-', ' ');
   const bytes=doc=>new Uint8Array(Object.values(doc.sourceBytes));
-  function controls(){download.disabled=!schema?.canFill || pending>0 || exporting || failed;$('pdf-form-retry').hidden=!failed;$('pdf-form-retry').disabled=pending>0 || exporting;for(const input of fields.querySelectorAll('[data-editable]'))input.disabled=exporting || input.dataset.editable!=='true';}
+  function controls(){download.disabled=!schema?.canFill || pending>0 || exporting || failed;$('pdf-form-preview').disabled=download.disabled;$('pdf-form-retry').hidden=!failed;$('pdf-form-retry').disabled=pending>0 || exporting;for(const input of fields.querySelectorAll('[data-editable]'))input.disabled=exporting || input.dataset.editable!=='true';}
   function persist(){
     const doc=current, version=generation, snapshot=structuredClone(values);
     const draftState={sourceDigest:doc.provenance.contentDigest,values:snapshot,saved:false};drafts.set(doc.id,draftState);
@@ -43,19 +45,24 @@ export function initPdfFormPanel({saveDocument}) {
     controls();
   }
   $('pdf-form-retry').addEventListener('click',()=>{if(failed && !pending)persist();});
-  download.addEventListener('click',async()=>{
+  async function prepareCopy(preview=false){
     if(download.disabled || [...fields.querySelectorAll('input,select,textarea')].some(input=>!input.reportValidity()))return;
     const doc=current, version=generation, snapshot=Object.fromEntries(schema.fields.filter(f=>!f.readOnly && !f.unsupported.length && values[f.key]!==f.value).map(f=>[f.key,values[f.key]]));exporting=true;controls();status.textContent='Preparing and checking your filled copy…';
     try{
       const result=await fillPdfForm(bytes(doc),snapshot);
       if(version!==generation)return;
+      const filename=`${(doc.provenance.name || doc.title || 'document').replace(/\.pdf$/i,'')}-filled.pdf`;
+      if(preview){await review.open(result,filename);if(version===generation)status.textContent='Your saved answers are ready to review or download.';return;}
       const url=URL.createObjectURL(new Blob([result],{type:'application/pdf'})), link=document.createElement('a');
-      link.href=url;link.download=`${(doc.provenance.name || doc.title || 'document').replace(/\.pdf$/i,'')}-filled.pdf`;link.click();setTimeout(()=>URL.revokeObjectURL(url),30000);
+      link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),30000);
       status.textContent='Filled copy prepared. Your original and saved answers remain on this device.';
     }catch(error){if(version===generation)status.textContent=`The filled copy could not be created: ${error.message}`;}
     finally{if(version===generation){exporting=false;controls();}}
-  });
+  }
+  download.addEventListener('click',()=>void prepareCopy());
+  $('pdf-form-preview').addEventListener('click',()=>void prepareCopy(true));
   return {async setDocument(doc){
+    review.close();
     const version=++generation;current=doc;schema=null;values={};pending=0;exporting=false;failed=false;panel.hidden=true;fields.replaceChildren();controls();
     if(doc?.provenance?.sourceKind!=='pdf' || !doc.sourceBytes)return;
     try{

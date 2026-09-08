@@ -16,7 +16,7 @@ test('form answers survive delayed and failed saves while leaving and reopening 
   t.after(()=>browser.close());
   const page=await browser.newPage();await page.setRequestInterception(true);
   page.on('request',request=>{
-    if(request.isNavigationRequest()&&request.frame()===page.mainFrame())return request.respond({status:200,contentType:'text/html',body:'<!doctype html><section id="pdf-form-panel"><p id="pdf-form-status"></p><div id="pdf-form-fields"></div><button id="pdf-form-download">Download</button><button id="pdf-form-retry" hidden>Retry save</button></section>'});
+    if(request.isNavigationRequest()&&request.frame()===page.mainFrame())return request.respond({status:200,contentType:'text/html',body:'<!doctype html><section id="pdf-form-panel"><p id="pdf-form-status"></p><div id="pdf-form-fields"></div><button id="pdf-form-download">Download</button><button id="pdf-form-preview">Review</button><button id="pdf-form-retry" hidden>Retry save</button></section><dialog id="pdf-review-dialog"><button id="pdf-review-close">Close</button><p id="pdf-review-status"></p><button id="pdf-review-download">Download review</button><div id="pdf-review-pages"></div></dialog>'});
     void request.continue();
   });
   await page.goto(url);
