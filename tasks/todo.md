@@ -53,10 +53,21 @@ Plan: pin worker/core variants, English/Hindi data and fonts; reproducible insta
 - [x] Fresh external-network-blocked English and mixed Hindi/English OCR, full expected PDF text, durable return/reload/search; keyboard process/export.
 - [x] Independent review, 72 Vitest +4 Node tests, TypeScript, original/output checksums, Poppler readback and committed synthetic evidence. Bento130d4bb/harnessaffd81b.
 
-- [ ] Repair Bento handoff banner overlap with OCR process control after language-list scrolling; keyboard activation is used for current mixed-language acceptance and does not prove pointer reachability.
+- [x] Repair Bento handoff banner overlap; bottom-edge pointer processing/export and durable return now accepted (5f9a3b3; harness41a74ce).
 
 ## Founder EPUB direction — 9 September
 
 - [x] Record founder authority and seed documentation-backed inventory in `docs/quality/APPLE_BOOKS_EPUB_BASELINE.md` (draft 0.1, iPadOS 26 documentation; device walkthrough pending).
 
 - [ ] Versioned Apple Books EPUB reference walkthrough and complete acceptance inventory; minimum quality at least Apple Books, ambition to surpass it. Keep EPUB source custody and reading/annotation continuity in the shared product design. Current Bento/OCR work continues. Canonical direction recorded in SSOT section19.
+
+
+## Bento pointer recovery — 9 September
+
+Previous turn: progress, committed local OCR runtime and exact English/Hindi browser/PDF evidence. Plan: reproduce process-button hit interception at the original scroll position; reserve space for the actual handoff banner height without losing responsive controls; test pointer process/export, narrow viewport hit targets and complete durable OCR output. Keep background goal and Apple Books baseline intact.
+
+- [x] Reproduce exact pointer target: original130d4bb process center(720,960), scrollY278 hits banner SPAN; fixed layout hits Start OCR. Independent review clean.
+- [x] Verify desktop bottom-edge pointer process/export;390px Return boot;360px organizer reachability/actions; English/mixed durable journeys, source hashes and full PDF text.
+- [x] Independent review,938 upstream tests +6 adapter/API tests, scoped commits and SSOT evidence.
+
+Review: banner occupies layout space before the direct page footer; blocked navigation reveals the explanation. Local JETT server was confirmed stopped and restored before final acceptance. Next: broaden OCR fidelity to multi-page/rotated mixed-language documents and visible partial-output warnings. Apple Books inventory/device observation and the full three-platform product goal remain open.
