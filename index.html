@@ -16,15 +16,10 @@
   <body data-view="read">
     <header class="bar">
       <a class="brand" href="#/home" aria-label="JETT home">JETT<span class="jett-stream" aria-hidden="true"></span></a>
-      <nav class="topnav" id="topnav" aria-label="jt">
-        <a href="#/home" data-view-link="home">home</a>
-        <a href="#/read" data-view-link="read">reading</a>
-        <a href="#/history" data-view-link="history">what happened</a>
-        <a href="#/share" data-view-link="share">sharing</a>
-        <a href="#/spaces" data-view-link="spaces">spaces</a>
-        <a href="#/settings" data-view-link="settings">settings</a>
-        <a href="#/capabilities" data-view-link="capabilities">capabilities</a>
-        <a href="#/rooms" data-view-link="rooms">what&rsquo;s coming</a>
+      <nav class="topnav" id="topnav" aria-label="Main navigation">
+        <a href="#/home" data-view-link="home">Library</a>
+        <a href="#/read" data-view-link="read">Reader</a>
+        <a href="#/settings" data-view-link="settings">Settings</a>
       </nav>
       <span class="status">
         <span id="status-dot" class="dot"></span>
@@ -69,7 +64,7 @@
 
     <!-- home: the library as the front door -->
     <section class="view" id="view-home" hidden>
-      <div class="library-heading"><div><p class="eyebrow">Your space</p><h1>Pick up where you left off.</h1><p class="library-intro">A place for what you’re reading, thinking and keeping.</p></div><span class="local-label">Saved on this device</span></div>
+      <div class="library-heading"><div><h1>Library</h1><p class="library-intro">Your documents, ready to open.</p></div><span class="local-label">Saved on this device</span></div>
       <div class="library-tools"><label class="library-search"><span>Find in your library</span><input id="home-search" type="search" placeholder="Search documents…" autocomplete="off" /></label><p id="home-result-count" role="status"></p></div>
       <button id="bento-tools" class="quiet-btn">Full PDF tools · Bento</button>
       <p id="home-intake-state" class="intake-state" role="status" hidden></p>
@@ -91,7 +86,7 @@
           <input id="home-file-input-2" type="file" accept=".txt,.md,.pdf,.png,.jpg,.jpeg,.webp,.gif,text/plain,text/markdown,application/pdf,image/png,image/jpeg,image/webp,image/gif" hidden />
         </label>
       </div>
-      <details class="paste-composer" open><summary>Keep a thought or paste some text</summary><div class="home-add">
+      <details class="paste-composer"><summary>Keep a thought or paste some text</summary><div class="home-add">
         <label class="sr-only" for="home-paste-box">Text to keep in your library</label>
         <textarea id="home-paste-box" rows="3" placeholder="An idea, a passage, something worth keeping…"></textarea>
         <button id="home-paste-add">Keep this text</button>
@@ -293,6 +288,16 @@
       </div>
     </section>
 
+    <section id="reader-chrome" aria-label="Document workspace">
+      <div id="reader-tabs" role="tablist" aria-label="Open documents"></div>
+      <p id="reader-persistence-status" role="status" hidden></p>
+      <div id="reader-toolbar">
+        <label class="reader-workspace-label">Workspace<select id="reader-workspace"><option value="read">Read</option><option value="annotate">Annotate</option><option value="organize">Organize</option><option value="fill">Fill</option></select></label>
+        <div id="reader-document-slot"></div>
+        <details id="reader-more-tools" class="reader-menu"><summary>More tools</summary><div id="reader-more-tools-content" class="reader-menu-content"></div></details>
+        <div id="reader-pdf-slot"></div>
+      </div>
+    </section>
     <div class="layout">
       <aside class="panel library" id="library-panel">
         <h2>your documents</h2>
@@ -307,7 +312,7 @@
           <p class="hint">Drop a PDF, Markdown, text or image file anywhere on this page</p>
         </div>
       </aside>
-      <main>
+      <main id="reader-main" role="tabpanel" aria-label="Current document">
         <div id="ask" class="ask" hidden role="alertdialog" aria-live="assertive">
           <p id="ask-title">did you mean&hellip;</p>
           <div id="ask-options"></div>
@@ -358,6 +363,7 @@
         </section>
         <section class="pdf-tools" id="pdf-tools" aria-label="PDF reading tools" hidden>
           <div class="pdf-zoom" aria-label="PDF zoom">
+            <button id="pdf-fit-width" type="button" aria-pressed="true">Fit width</button>
             <button id="pdf-zoom-out" type="button" aria-label="zoom out">&minus;</button>
             <output id="pdf-zoom-value" aria-live="polite">100%</output>
             <button id="pdf-zoom-in" type="button" aria-label="zoom in">+</button>
@@ -436,6 +442,10 @@
           </div>
           <button id="server-disconnect" type="button">Disconnect</button>
         </details>
+        <section id="reader-workspace-panel" aria-label="Workspace controls" hidden>
+          <div id="reader-organize-panel"><p>Review the PDF to rotate, reorder, merge or extract pages.</p></div>
+          <p id="reader-workspace-hint" class="hint"></p>
+        </section>
         <article id="doc">
           <div id="marker" aria-hidden="true"></div>
           <div class="read-empty" id="read-empty" hidden>
@@ -449,14 +459,14 @@
         </p>
       </main>
       <aside class="panel history" id="history-panel">
-        <h2>what happened</h2>
+        <h2>Activity</h2>
         <p class="hint">every act leaves a record you can inspect and undo.</p>
         <ul id="history-list"></ul>
       </aside>
     </div>
     <div class="scrim" id="sheet-scrim"></div>
     <aside class="panel more-sheet" id="more-panel">
-      <h2>more of jt</h2>
+      <h2>More</h2>
       <nav class="more-nav" aria-label="more">
         <a href="#/share">sharing</a>
         <a href="#/spaces">spaces</a>
@@ -466,10 +476,10 @@
       </nav>
     </aside>
     <nav class="tabbar" id="tabbar" aria-label="panels">
-      <button id="tab-home">home</button>
-      <button id="tab-library" aria-expanded="false" aria-controls="library-panel">documents</button>
-      <button id="tab-history" aria-expanded="false" aria-controls="history-panel">what happened</button>
-      <button id="tab-more" aria-expanded="false" aria-controls="more-panel">more</button>
+      <button id="tab-home">Library</button>
+      <button id="tab-library" aria-expanded="false" aria-controls="library-panel">Documents</button>
+      <button id="tab-history" aria-expanded="false" aria-controls="history-panel">Activity</button>
+      <button id="tab-more" aria-expanded="false" aria-controls="more-panel">More</button>
     </nav>
     <aside class="install-hint" id="install-hint" hidden aria-live="polite">
       <span>install jt for offline reading.</span>

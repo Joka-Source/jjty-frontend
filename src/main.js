@@ -1,3 +1,5 @@
+import { createReaderSession } from './reader-session.js';
+import { initReaderChrome } from './reader-chrome.js';
 import { initBentoPanel } from "./bento-panel.js";
 import { createCaptureJournal } from './capture-journal.js';
 import { createCommandJournal } from './command-journal.js';
@@ -50,6 +52,7 @@ import { createActEngine } from "./acts.js";
 import { domRangeForCharacters, measureTokenRange } from "./highlight.js";
 import {
   createPdfReadingModel,
+  fitPdfScale,
   normalizePdfGeometry,
   renderPdfPages,
 } from "./pdf-reading.js";
@@ -222,8 +225,57 @@ const state = {
   matcher: null, // js or wasm engine
   engineKind: "",
   pendingAsk: null, // { candidates, reason, evidence }
+  readerView: null,
   pdf: null, // source document + stable text/search model + current visual scale
 };
+
+let readerChrome = null;
+let readerPersistence = '';
+let switchingReader = false;
+let readerTitles = new Map();
+const readerSession = createReaderSession({onError(message){
+  readerPersistence = message;
+  readerChrome?.showPersistenceError(message);
+}});
+function renderReaderChrome(){
+  const session = readerSession.snapshot();
+  readerChrome?.render({tabs:session.tabs.map(id=>({id,title:readerTitles.get(id) || 'Document'})),activeId:state.doc?.id===session.activeId?session.activeId:null,workspace:state.readerView?.workspace || 'read',zoomMode:state.readerView?.zoomMode || 'fit-width',isPdf:state.doc?.provenance?.sourceKind==='pdf' && !!state.doc.sourceBytes});
+  readerChrome?.showPersistenceError(readerPersistence);
+}
+function readerTop(){
+  const bottom=document.getElementById('reader-toolbar')?.getBoundingClientRect().bottom;
+  return Number.isFinite(bottom) && bottom>0 ? bottom+12 : 110;
+}
+function readerAvailableWidth(){
+  if(document.body.dataset.view!=='read')return 0;
+  const css=getComputedStyle(article);
+  return Math.max(0,article.clientWidth-parseFloat(css.paddingLeft||0)-parseFloat(css.paddingRight||0)-2);
+}
+function captureReaderView({force=false,persist=true}={}){
+  if((switchingReader && !force) || !state.doc || document.body.dataset.view!=='read')return;
+  const top=readerTop();
+  const pages=[...article.querySelectorAll(':scope > .pdf-page')];
+  const page=pages.find(node=>node.getBoundingClientRect().bottom>top) || pages.at(-1);
+  const rect=page?.getBoundingClientRect();
+  const view={...state.readerView,blockIndex:state.currentBlock,search:state.pdf?.model.searchState().query || '',zoom:state.pdf?.model.zoom || 1};
+  if(page && rect?.height){view.pageNumber=Number(page.dataset.page);view.pageOffset=(top-rect.top)/rect.height;}
+  const tool=document.getElementById('bento-tool');if(tool)view.bentoTool=tool.value;
+  state.readerView=view;if(persist)readerSession.update(state.doc,view);
+}
+function restoreReaderView(){
+  if(!state.doc || !state.readerView || document.body.dataset.view!=='read')return;
+  const view=state.readerView;
+  const pages=[...article.querySelectorAll(':scope > .pdf-page')];
+  const page=pages[Math.min(pages.length-1,Math.max(0,view.pageNumber-1))];
+  if(page){const rect=page.getBoundingClientRect();window.scrollBy({top:rect.top+view.pageOffset*rect.height-readerTop(),behavior:'auto'});}
+  else if(view.blockIndex>=0)state.blocks[view.blockIndex]?.scrollIntoView({block:'start',behavior:'auto'});
+  const tool=document.getElementById('bento-tool');
+  if(tool && [...tool.options].some(option=>option.value===view.bentoTool))tool.value=view.bentoTool;
+}
+let readerScrollTimer;
+addEventListener('scroll',()=>{clearTimeout(readerScrollTimer);readerScrollTimer=setTimeout(captureReaderView,400);},{passive:true});
+addEventListener('pagehide',captureReaderView);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')captureReaderView();});
 
 const mathState = {
   active: false,
@@ -391,13 +443,21 @@ function selectPdfBlock(blockIndex) {
 
 async function createPdfSurface(doc, pages, container = article, scale = 1) {
   const pdfjs = await loadPdfJs();
-  const model = createPdfReadingModel({ pages, zoom: scale });
+  const model = createPdfReadingModel({ pages, zoom: scale, minZoom: 0.05 });
   const pdfEngine = doc.pdfEngine?.activeEngine === "mupdf"
     ? await selectAvailablePdfEngine({ pdfjs })
     : selectPdfEngine({ pdfjs });
   const { loadingTask, document: pdfDocument, report, readContents } = await pdfEngine.open(
     pdfSourceBytes(doc.sourceBytes),
   );
+  try{
+  const pageWidths=[];
+  for(let number=1;number<=pdfDocument.numPages;number++){
+    const page=await pdfDocument.getPage(number);pageWidths.push(page.getViewport({scale:1}).width);
+  }
+  if(state.readerView?.zoomMode==='fit-width'){
+    const fit=fitPdfScale(readerAvailableWidth(),pageWidths);if(fit!==null)model.setZoom(fit);
+  }
   const blocks = await renderPdfPages({
     pdfjs,
     pdfDocument,
@@ -406,7 +466,8 @@ async function createPdfSurface(doc, pages, container = article, scale = 1) {
     scale: model.zoom,
     onBlockClick: selectPdfBlock,
   });
-  return { pdfjs, model, loadingTask, pdfDocument, blocks, report, readContents };
+  return { pdfjs, model, loadingTask, pdfDocument, blocks, report, readContents, pageWidths };
+  }catch(error){await loadingTask?.destroy?.();throw error;}
 }
 
 function appendTextBlocks(blockDefs) {
@@ -537,14 +598,14 @@ async function renderDoc(doc) {
     unmountImage = await mountImage(article, doc);
   } else if (hasPdfSource) {
     try {
-      state.pdf = await createPdfSurface(doc, blockDefs);
+      state.pdf = await createPdfSurface(doc, blockDefs, article, state.readerView?.zoom ?? 1);
       void pdfContents.setSource(state.pdf);
       state.blocks = state.pdf.blocks;
       state.blockTexts = [...state.pdf.model.blockTexts];
       article.classList.add("pdf-document");
       pdfTools.hidden = false;
       pdfZoomValue.textContent = `${Math.round(state.pdf.model.zoom * 100)}%`;
-      pdfZoomOut.disabled = state.pdf.model.zoom <= 0.75;
+      pdfZoomOut.disabled = state.pdf.model.zoom <= 0.05;
       pdfZoomIn.disabled = state.pdf.model.zoom >= 2.5;
       pdfMessage.textContent = doc.pdfEngine?.activeEngine
         && state.pdf.report.activeEngine !== doc.pdfEngine.activeEngine
@@ -664,11 +725,19 @@ function heldPdfBlockIndex() {
   return activeEntry?.blockIndex ?? state.pdf?.model.searchState().hit?.blockIndex ?? state.currentBlock;
 }
 
-async function setPdfZoom(nextZoom) {
+function setPdfZoom(nextZoom,mode='custom'){
+  const source=state.pdf;
+  return queueReader(()=>source===state.pdf ? setPdfZoomNow(nextZoom,mode) : undefined);
+}
+async function setPdfZoomNow(nextZoom,mode='custom',preserveView=false) {
   if (!state.pdf) return;
+  const source=state.pdf;
+  if(!preserveView)captureReaderView();
+  if(mode==='fit-width'){nextZoom=fitPdfScale(readerAvailableWidth(),source.pageWidths);if(nextZoom===null)return;}
+  state.readerView={...state.readerView,zoomMode:mode};
   const previousZoom = state.pdf.model.zoom;
   const zoom = state.pdf.model.setZoom(nextZoom);
-  if (zoom === previousZoom) return;
+  if (zoom === previousZoom) {if(!preserveView)captureReaderView();renderReaderChrome();return;}
   const heldIndex = heldPdfBlockIndex();
   const beforeTop = state.blocks[heldIndex]?.getBoundingClientRect().top ?? null;
   const staging = document.createElement("div");
@@ -687,7 +756,7 @@ async function setPdfZoom(nextZoom) {
     for (const page of article.querySelectorAll(":scope > .pdf-page")) page.remove();
     article.append(...staging.childNodes);
     state.blocks = blocks;
-    state.pdf.blocks = blocks;
+    source.blocks = blocks;
     await engine.load(state.doc.id);
     const afterTop = state.blocks[heldIndex]?.getBoundingClientRect().top ?? null;
     if (beforeTop !== null && afterTop !== null) {
@@ -701,7 +770,8 @@ async function setPdfZoom(nextZoom) {
     state.pdf.model.setZoom(previousZoom);
     setStatus(true, `PDF zoom failed: ${error?.message ?? error}`);
   } finally {
-    pdfZoomOut.disabled = state.pdf.model.zoom <= 0.75;
+    restoreReaderView();captureReaderView();renderReaderChrome();
+    pdfZoomOut.disabled = state.pdf.model.zoom <= 0.05;
     pdfZoomIn.disabled = state.pdf.model.zoom >= 2.5;
   }
 }
@@ -1687,6 +1757,7 @@ async function processFinalSegment(segment, events, snapshot) {
 
 async function refreshLibrary() {
   const docs = (await getDocs()).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  readerTitles=new Map(docs.map(doc=>[doc.id,doc.title]));renderReaderChrome();
   docList.textContent = "";
   for (const d of docs) {
     const li = document.createElement("li");
@@ -1780,13 +1851,72 @@ docProvBtn.addEventListener("click", () => {
 });
 
 let documentQueue = Promise.resolve();
-function openDocument(doc, options = {}) {
-  const run = documentQueue.then(() => openDocumentNow(doc, options));
-  documentQueue = run.catch(() => {});
-  return run;
+function queueReader(task){
+  const run=documentQueue.then(task);documentQueue=run.catch(()=>{});return run;
 }
+function openDocument(doc, options = {}) {return queueReader(()=>openDocumentNow(doc,options));}
+async function openDocumentNow(doc,options={}){
+  const session=readerSession.snapshot();
+  captureReaderView();
+  if(state.doc){await positionMemory.flush(state.doc.id);await pdfFormPanel.flush(state.doc.id);}
+  const held=Object.hasOwn(session.views,doc.id);
+  const selectionVersion=positionSelectionVersions.get(doc.id) ?? 0;
+  const view=readerSession.get(doc);
+  if(doc.provenance?.sourceKind!=='pdf' || !doc.sourceBytes)view.workspace='read';
+  switchingReader=true;
+  state.readerView=view;
+  try{
+    const result=await openDocumentContents(doc,options);
+    if(!held || options.savedAnchor || options.requirePosition || (positionSelectionVersions.get(doc.id) ?? 0)!==selectionVersion)captureReaderView({force:true,persist:false});
+    if(state.pdf){
+      if(view.zoomMode==='fit-width')await setPdfZoomNow(null,'fit-width');
+      pdfSearchInput.value=view.search;
+      showPdfSearchState(state.pdf.model.setSearchQuery(view.search),{scroll:false});
+    }
+    readerTitles.set(doc.id,doc.title);readerSession.open(doc);readerSession.update(doc,state.readerView);
+    renderReaderChrome();
+    if(held && !options.savedAnchor && !options.requirePosition)restoreReaderView();
+    return result;
+  }catch(error){
+    await releaseReader();shell?.show('home');renderReaderChrome();
+    setStatus(true,`Could not open this document. Reopen it from Library to retry: ${error.message}`);throw error;
+  }
+  finally{switchingReader=false;}
+}
+async function activateReaderTab(id){
+  return queueReader(async()=>{
+    if(state.doc?.id===id && readerSession.snapshot().activeId===id){shell?.show('read');return;}
+    const doc=await getDoc(id);
+    if(!doc){setStatus(true,'This document is no longer available.');return;}
+    return openDocumentNow(doc);
+  });
+}
+async function closeReaderTab(id){
+  return queueReader(async()=>{
+    const session=readerSession.snapshot();if(!session.tabs.includes(id))return;
+    if(session.activeId!==id){readerSession.close(id);renderReaderChrome();return;}
+    captureReaderView();await positionMemory.flush(id);await pdfFormPanel.flush(id);
+    const index=session.tabs.indexOf(id),remaining=session.tabs.filter(tab=>tab!==id);
+    const next=remaining[Math.min(index,remaining.length-1)];
+    if(next){const doc=await getDoc(next);if(!doc)throw new Error('The next document is unavailable.');await openDocumentNow(doc);}
+    else{
+      await releaseReader();
+      shell?.show('home');
+    }
+    readerSession.close(id);renderReaderChrome();
+  });
+}
+async function releaseReader(){
+      cancelStagedRange();hideAsk();markerDriver.stop();marker.classList.remove('on');
+      try{await state.pdf?.loadingTask?.destroy?.();}catch{/* A failed renderer must still release its UI. */}unmountImage?.();unmountImage=null;
+      for(const block of state.blocks)block.remove();for(const page of article.querySelectorAll(':scope > .pdf-page'))page.remove();
+      resetPdfTools();state.doc=null;state.pdf=null;state.blocks=[];state.blockTexts=[];state.currentBlock=-1;state.readerView=null;state.docTokens=[];state.tokenBlock=[];state.tokenMeta=[];state.lastMatch=null;state.lastReadingMatch=null;state.matcher=null;
+      documentRename.setDocument(null);serverPanel.setDocument(null);await pdfFormPanel.setDocument(null);pdfAnnotationPanel.setDocument(null);renderDocHead(null);
+}
+function reportReaderFailure(promise){return promise.catch(error=>setStatus(true,error?.message || 'Could not change document.'));}
 
-async function openDocumentNow(
+
+async function openDocumentContents(
   doc,
   {
     navigate = true,
@@ -2158,7 +2288,11 @@ function setMicState(state, statusMsg, on = state === "listening") {
     'local-unavailable': "retry voice",
   }[state];
   voiceToggle.hidden = !label;
-  if (label) voiceToggle.textContent = label;
+  if (label) {
+    voiceToggle.textContent = label;
+    voiceToggle.setAttribute('aria-label', label);
+    voiceToggle.dataset.compactLabel = ({off:'Voice',listening:'Pause',paused:'Resume',starting:'Cancel',reconnecting:'Pause'})[state] || 'Retry voice';
+  }
   shell?.micChanged(state);
 }
 
@@ -2374,6 +2508,7 @@ window.__jtApp = {
     segment: (text) => onFinalSegment(text,{source:'sim'}),
     keep: (modality = "pointer") => executeVerb("math-keep", { modality }),
   },
+  readerSession: () => readerSession.snapshot(),
   currentBlock: () => state.currentBlock,
   addDocument,
   openDocument: (doc) => executeVerb("open-document", { document: doc, options: { navigate: false } }),
@@ -2387,6 +2522,16 @@ window.__jtApp = {
 // ---------------------------------------------------------------------------
 // Boot
 
+readerChrome=initReaderChrome({
+  activate:id=>reportReaderFailure(activateReaderTab(id)),
+  close:id=>closeReaderTab(id).catch(error=>{setStatus(true,error?.message || 'Could not close document.');throw error;}),
+  setWorkspace:workspace=>{if(!state.doc)return;state.readerView={...state.readerView,workspace};readerSession.update(state.doc,state.readerView);renderReaderChrome();},
+  fitWidth:()=>reportReaderFailure(setPdfZoom(null,'fit-width')),
+});
+renderReaderChrome();
+let readerResizeTimer;
+addEventListener('resize',()=>{clearTimeout(readerResizeTimer);readerResizeTimer=setTimeout(()=>{if(state.readerView?.zoomMode==='fit-width')void reportReaderFailure(setPdfZoom(null,'fit-width'));},120);});
+
 async function boot() {
   if (await mountGlassDevRoute()) {
     window.__jtApp.booted = true;
@@ -2397,6 +2542,10 @@ async function boot() {
     SIM,
     engineState: () => ({ kind: state.engineKind, mode: ENGINE_MODE }),
     currentDoc: () => state.doc,
+    onViewChange(next,prev){if(prev==='read' && next!==prev)captureReaderView();},
+    afterViewChange(next,prev){if(next==='read' && prev!==next && !switchingReader)requestAnimationFrame(()=>{
+      void reportReaderFailure(queueReader(async()=>{if(document.body.dataset.view!=='read')return;if(state.readerView?.zoomMode==='fit-width')await setPdfZoomNow(null,'fit-width',true);restoreReaderView();}));
+    });},
     getDocs,
     getSpaceFeed,
     putSpaceFeed,
@@ -2453,17 +2602,11 @@ async function boot() {
   }
 
   const docs = await getDocs();
-  if (docs.length) {
-    const latest = docs.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
-    await openDocument(latest, {
-      navigate: false,
-      modality: "pointer",
-      returnReason: "page reopened",
-    });
-  } else {
-    renderDocHead(null); // designed empty reading surface
-    await refreshLibrary();
-  }
+  readerTitles=new Map(docs.map(doc=>[doc.id,doc.title]));
+  readerSession.reconcile(docs);renderReaderChrome();
+  const restored=docs.find(doc=>doc.id===readerSession.snapshot().activeId);
+  if(restored){await openDocument(restored,{navigate:false,modality:'pointer',returnReason:'page reopened'});}
+  else{renderDocHead(null);await refreshLibrary();}
 
   if (!settings.welcomed) {
     setMicState("off", null, false);

@@ -31,6 +31,8 @@ try {
   await (await page.$("#home-file-input")).uploadFile(fixture);
   await page.waitForSelector("#bento-original:not([hidden])");
   const source = await page.evaluate(() => window.__jtApp.currentDoc().id);
+  await page.waitForFunction(()=>document.querySelector('#reader-tabs [aria-selected="true"]')?.dataset.documentId===window.__jtApp.currentDoc()?.id);
+  await page.locator("#reader-more-tools > summary").click();
   await page.select("#bento-tool", initialTool);
   await page.click("#bento-original");
   const routes = { forms: "form-filler", sign: "sign-pdf", edit: "edit-pdf" };

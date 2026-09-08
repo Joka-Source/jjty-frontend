@@ -83,3 +83,15 @@ Previous turn: progress, verified pointer recovery committed. Plan: reproduce ac
 - [x] Scoped code/evidence committed: Bento f0c0a3f, frontend0b51d3a;946fulltests pass.
 
 Review: rotation/crop mismatch fixed; source pixels remain identical in four-page corpus. Fault injection is separate evidence, not a claim of natural OCR failure or broad accuracy. Next: implement the intended web Library/tabbed Reader, reusing durable custody/operations/Bento integration, with per-document position/zoom/tool state restored through switches and reload. PDF Expert and Apple Books full inventories, native journeys and production remain open.
+
+## Library and tabbed Reader — 9 September
+
+Plan: [reader-plan.md](reader-plan.md). Keep one renderer and durable per-document view metadata, compact document-first chrome, actual fit-width scaling and connected Bento workspaces. Preserve original sources and saved edits when closing tabs.
+
+- [x] Engineering/design plan and independent architectural review.
+- [x] Implement session state and compact Library/Reader chrome.
+- [x] Browser switch/reload/close preserves position, zoom, workspace and answers; phone fit-width and manual keyboard activation pass.
+- [x] Independent implementation review, broader recovery checks and existing workflow regression suite: build and all400tests pass.
+- [x] Desktop/tablet/phone rendered evidence and scoped local implementation commit; canonical SSOT update accompanies the evidence commit.
+
+Review: one active renderer, durable per-document view metadata, manual keyboard tabs and actual fit-width rendering. Real Bento duplicate/export/return preserves source bytes and distinct tabs through reload; Poppler confirms1,1,2. Injected form-save failure retains draft/tab/focus until Retry. Phone/desktop drawer access and reviewed annotation/extraction paths pass. Full npm test:400passed,0failed. Broader native, authenticated sync and PDF Expert/Apple Books parity remain open.

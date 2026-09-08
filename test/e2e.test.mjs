@@ -1,3 +1,4 @@
+import {openReaderMenu} from './reader-navigation.mjs';
 // Headless end-to-end proof: build output served by `vite preview`, loaded in
 // headless Chrome (driven by puppeteer-core) with ?sim=1&fast=1. The sim
 // replays a scripted transcript through the live pipeline (matcher, command
@@ -246,6 +247,7 @@ test("sim replay: records created, schema-valid, undo works", { timeout: 120000 
   // words also remain editable (spaces are not trimmed out from under the
   // person) and unknown words are surfaced before the required spoken case.
   await page.evaluate(() => window.__jtApp.math.segment("math mode"));
+  await openReaderMenu(page,'reader-more-tools');
   await page.type("#math-spoken", "x squared mystery");
   const typedMath = await page.evaluate(() => ({
     value: document.getElementById("math-spoken").value,

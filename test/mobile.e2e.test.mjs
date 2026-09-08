@@ -1,9 +1,9 @@
 // Headless proof that jt is genuinely phone-first. The same built app is
 // loaded at a phone viewport (375x812, touch) and at the desktop viewport
 // (1280x800). At phone size: the document is full width with no horizontal
-// overflow, the side panels are slide-over sheets opened from a bottom bar,
+// overflow, secondary panels are drawers reached through More,
 // touch targets are at least 44px, and the ambiguity prompt can be answered
-// with a tap. At desktop size the original three-column layout is untouched.
+// with a tap. Desktop also prioritizes the document and keeps drawers optional.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
@@ -154,7 +154,7 @@ test("phone viewport: full-width document, sheet panels, 44px targets, no sidewa
   assert.ok(rects.marker.left >= 0 && rects.marker.right <= rects.vw + 0.5, "marker sticks out of the viewport");
   assert.ok(rects.article.width >= rects.vw * 0.9, "document is not full width on a phone");
 
-  // 2. The bottom bar is visible, with thumb-sized buttons.
+  // 2. Compact navigation is visible, with thumb-sized entry points.
   const bar = await page.evaluate(() => {
     const visible = (el) => {
       const b = el.getBoundingClientRect();
@@ -163,13 +163,13 @@ test("phone viewport: full-width document, sheet panels, 44px targets, no sidewa
     const h = (el) => el.getBoundingClientRect().height;
     return {
       barVisible: visible(document.getElementById("tabbar")),
-      libH: h(document.getElementById("tab-library")),
-      histH: h(document.getElementById("tab-history")),
+      libraryH: h(document.querySelector('[data-view-link="home"]')),
+      moreH: h(document.getElementById("tab-more")),
     };
   });
-  assert.equal(bar.barVisible, true, "bottom bar not visible on phone");
-  assert.ok(bar.libH >= 44, `documents button too small to tap: ${bar.libH}px`);
-  assert.ok(bar.histH >= 44, `history button too small to tap: ${bar.histH}px`);
+  assert.equal(bar.barVisible, true, "compact navigation not visible on phone");
+  assert.ok(bar.libraryH >= 44, `Library link too small to tap: ${bar.libraryH}px`);
+  assert.ok(bar.moreH >= 44, `More button too small to tap: ${bar.moreH}px`);
 
   // 3. Panels start closed — nothing overlaps the document.
   const closed = await page.evaluate(() => {
@@ -188,20 +188,22 @@ test("phone viewport: full-width document, sheet panels, 44px targets, no sidewa
   assert.equal(closed.history, true, "history panel overlaps the document at load");
 
   // 4. Library sheet opens with a tap, sits inside the viewport, closes on the scrim.
-  await page.tap("#tab-library");
+  await page.locator("#tab-more").click();
+  await page.waitForFunction(() => window.__jtApp.sheet() === "more");
+  await page.locator("#tab-library").click();
   await page.waitForFunction(() => window.__jtApp.sheet() === "library", { timeout: 3000 });
   // the sheet slides in (0.28s of water-calm motion) — wait for it to arrive
   await page.waitForFunction(
     () => {
       const b = document.getElementById("library-panel").getBoundingClientRect();
-      return b.top >= 0 && b.top < window.innerHeight;
+      return b.top >= 0 && b.top < window.innerHeight && b.right <= innerWidth + 0.5;
     },
     { timeout: 3000 }
   );
   const lib = await page.evaluate(() => {
     const p = document.getElementById("library-panel");
     const b = p.getBoundingClientRect();
-    const doc = document.querySelector(".doc-btn");
+    const doc = p.querySelector(".doc-btn");
     return {
       visible: getComputedStyle(p).visibility === "visible",
       top: b.top,
@@ -219,12 +221,14 @@ test("phone viewport: full-width document, sheet panels, 44px targets, no sidewa
   assert.ok(lib.left >= 0 && lib.right <= lib.vw + 0.5, "library sheet overflows sideways");
   assert.ok(lib.docBtnH >= 44, `document row too small to tap: ${lib.docBtnH}px`);
   assert.equal(lib.expanded, "true");
-  await page.touchscreen.tap(195, 80); // the scrim, above the sheet
+  await page.touchscreen.tap(195, 20); // the scrim covers the inactive app bar
   await page.waitForFunction(() => window.__jtApp.sheet() === null, { timeout: 3000 });
 
   // 5. History sheet: opens, shows the sim's records, undo is tappable, closes.
-  await page.tap("#tab-history");
-  await page.waitForFunction(() => window.__jtApp.sheet() === "history", { timeout: 3000 });
+  await page.locator("#tab-more").click();
+  await page.waitForFunction(() => window.__jtApp.sheet() === "more");
+  await page.locator("#tab-history").click();
+  await page.waitForFunction(() => window.__jtApp.sheet() === "history" && getComputedStyle(document.getElementById("history-panel")).visibility === "visible", { timeout: 3000 });
   const hist = await page.evaluate(() => {
     const p = document.getElementById("history-panel");
     const undo = p.querySelector(".undo-btn");
@@ -237,10 +241,12 @@ test("phone viewport: full-width document, sheet panels, 44px targets, no sidewa
   assert.equal(hist.visible, true, "history sheet did not open");
   assert.ok(hist.entries >= 4, `expected the sim's 4 records, saw ${hist.entries}`);
   assert.ok(hist.undoH >= 44, `undo button too small to tap: ${hist.undoH}px`);
-  await page.tap("#tab-history"); // same button closes it
+  await page.locator("#history-panel .reader-drawer-close").click();
   await page.waitForFunction(() => window.__jtApp.sheet() === null, { timeout: 3000 });
 
   // 6. The ambiguity prompt is on screen and answerable with a thumb.
+  await page.$eval("#ask",node=>node.scrollIntoView({block:"center",behavior:"instant"}));
+  await page.waitForFunction(()=>{const option=document.querySelector('#ask .ask-option[data-candidate="0"]');const r=option.getBoundingClientRect();const hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return hit===option||option.contains(hit);});
   const ask = await page.evaluate(() => {
     const box = document.getElementById("ask");
     const b = box.getBoundingClientRect();
@@ -275,7 +281,7 @@ test("phone viewport: full-width document, sheet panels, 44px targets, no sidewa
   assert.equal(resolved.askGone, true, "ask should clear after a tap");
 });
 
-test("desktop viewport: three-column layout intact, no bottom bar, no sideways scroll", { timeout: 120000 }, async (t) => {
+test("desktop viewport: document-focused layout, optional drawers, no sideways scroll", { timeout: 120000 }, async (t) => {
   const page = await bootSim(t, 4934, { width: 1280, height: 800 });
 
   const desktopGeometry = await visibleTargetGeometry(page);
@@ -308,11 +314,18 @@ test("desktop viewport: three-column layout intact, no bottom bar, no sideways s
       histVisible: histBox.width > 0 && getComputedStyle(hist).visibility === "visible",
     };
   });
-  assert.equal(desk.barDisplay, "none", "bottom bar should not exist on desktop");
-  assert.equal(desk.scrimVisible, false, "scrim should not exist on desktop");
-  assert.equal(desk.libPosition, "sticky", "library panel should stay a sticky column");
-  assert.equal(desk.histPosition, "sticky", "history panel should stay a sticky column");
-  assert.equal(desk.columns, true, "panels should flank the document, not overlap it");
-  assert.equal(desk.libVisible, true);
-  assert.equal(desk.histVisible, true);
+  assert.notEqual(desk.barDisplay, "none", "compact app actions should be available on desktop");
+  assert.equal(desk.scrimVisible, false, "closed drawers must not cover the reader");
+  assert.equal(desk.libPosition, "fixed", "documents should be an optional drawer");
+  assert.equal(desk.histPosition, "fixed", "activity should be an optional drawer");
+  assert.equal(desk.libVisible, false, "documents must not consume a permanent column");
+  assert.equal(desk.histVisible, false, "activity must not consume a permanent column");
+  await page.locator("#tab-more").click();
+  await page.locator("#tab-history").click();
+  await page.waitForFunction(() => window.__jtApp.sheet() === "history");
+  await page.waitForFunction(()=>getComputedStyle(document.getElementById("history-panel")).visibility === "visible");
+  assert.equal(await page.$eval("#history-panel", el => getComputedStyle(el).visibility), "visible");
+  assert.ok(await page.$$eval("#history-panel .entry", entries => entries.length >= 4));
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(() => window.__jtApp.sheet() === null);
 });

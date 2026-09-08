@@ -1,3 +1,4 @@
+import {openReaderMenu,selectWorkspace} from './reader-navigation.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
@@ -61,7 +62,7 @@ test('exact ranges clip endpoints, persist atomically, export across pages and u
  await page.reload();await page.waitForFunction(()=>window.__jtApp?.booted);
  await page.evaluate(async id=>{const {getDoc}=await import('/src/db.js');await window.__jtApp.openDocument(await getDoc(id));window.__jtApp.showView('read');},sourceId);
  assert.equal(await page.evaluate(()=>window.__jtApp.entries().filter(e=>e.kind==='act'&&!e.undone).length),1,'range survives reload');
- await page.locator('#pdf-annotation-panel summary').click();await page.locator('#pdf-annotation-preview').click();
+ await selectWorkspace(page,'annotate');await openReaderMenu(page,'pdf-annotation-panel');await page.locator('#pdf-annotation-preview').click();
  await page.waitForFunction(()=>document.getElementById('pdf-review-dialog').open&&!document.getElementById('pdf-review-download').disabled);
  await page.locator('#pdf-review-download').click();let downloaded;
  for(let i=0;i<100;i++){downloaded=(await readdir(directory)).find(n=>n.endsWith('.pdf'));if(downloaded)break;await new Promise(r=>setTimeout(r,100));}assert.ok(downloaded);

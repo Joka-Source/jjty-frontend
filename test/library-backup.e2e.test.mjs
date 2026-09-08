@@ -1,3 +1,4 @@
+import {openReaderMenu,selectWorkspace} from './reader-navigation.mjs';
 import test from 'node:test';import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';import {mkdtemp,mkdir,readFile,readdir,rm,writeFile} from 'node:fs/promises';import {tmpdir} from 'node:os';import path from 'node:path';
 import puppeteer from 'puppeteer-core';import {root} from './validate.mjs';
@@ -9,7 +10,7 @@ test('downloaded library backup restores originals and saved work atomically in 
  const browser=await puppeteer.launch({executablePath:process.env.CHROME_PATH??'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true,args:['--no-first-run']});t.after(()=>browser.close());
  const boot=async()=>{const context=await browser.createBrowserContext(),page=await context.newPage();await page.setViewport({width:1280,height:900});await page.evaluateOnNewDocument(()=>{localStorage.setItem('jt.welcomed','1');localStorage.setItem('jt.mic','off');});await page.goto(url);await page.waitForFunction(()=>window.__jtApp?.booted);return page;};
  const source=await boot(),fixture=path.join(root,'test/fixtures/jett-fillable.pdf'),original=await readFile(fixture);
- await (await source.$('#home-file-input')).uploadFile(fixture);await source.waitForSelector('#pdf-form-panel:not([hidden])');await source.locator('#pdf-form-panel summary').click();
+ await (await source.$('#home-file-input')).uploadFile(fixture);await source.waitForSelector('#pdf-form-panel:not([hidden])');await selectWorkspace(source,'fill');await openReaderMenu(source,'pdf-form-panel');
  await source.$eval('[data-field-name="full_name"]',n=>{n.value='Backup Example';n.dispatchEvent(new Event('input',{bubbles:true}));});await source.waitForFunction(()=>!document.getElementById('pdf-form-download').disabled);
  const saved=await source.evaluate(async()=>{await window.__jtApp.perform('highlight',0,{tokenStart:0,tokenEnd:2});return {pdfId:window.__jtApp.currentDoc().id,mark:window.__jtApp.entries().find(e=>e.kind==='act')};});
  const textId=await source.evaluate(async()=>{await window.__jtApp.addDocument('Opening passage.\n\nRemember this second passage.\n\nClosing passage.','Backup reading position');return window.__jtApp.currentDoc().id;});

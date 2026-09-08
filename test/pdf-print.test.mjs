@@ -1,3 +1,4 @@
+import {selectWorkspace} from './reader-navigation.mjs';
 import test from 'node:test';import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';import {readFile,mkdir,writeFile} from 'node:fs/promises';import path from 'node:path';
 import puppeteer from 'puppeteer-core';import * as mupdf from 'mupdf';
@@ -64,7 +65,7 @@ test('printing handoff opens exact PDF bytes and preserves active viewers across
  const app=await browser.newPage();await app.setViewport({width:1280,height:900});
  await app.goto(url);await app.waitForFunction(()=>window.__jtApp?.booted);await app.locator('#welcome-next').click();await app.locator('#welcome-skip').click();
  await (await app.$('#home-file-input')).uploadFile(path.join(root,'test/fixtures/jett-fillable.pdf'));
- await app.waitForSelector('#review-original:not([hidden])');await app.locator('#review-original').click();
+ await app.waitForSelector('#review-original:not([hidden])');await selectWorkspace(app,'organize');await app.locator('#review-original').click();
  await app.waitForFunction(()=>document.getElementById('pdf-review-dialog').open&&!document.getElementById('pdf-review-print').disabled);
  assert.equal(await app.$eval('#pdf-review-title',n=>n.textContent),'Review original copy');
  await app.setViewport({width:390,height:844});

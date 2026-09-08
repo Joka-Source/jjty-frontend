@@ -1,3 +1,4 @@
+import {selectWorkspace} from './reader-navigation.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
@@ -27,7 +28,7 @@ test('actual review merges selected PDFs, preserves originals and undo, and reje
  const browser=await puppeteer.launch({executablePath:process.env.CHROME_PATH??'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true});t.after(()=>browser.close());
  async function app(t){const page=await browser.newPage();t.after(()=>page.close());await page.setViewport({width:1280,height:900});await page.setRequestInterception(true);page.on('request',r=>r.url()===url+'/src/pdf-engine.js'?r.respond({status:200,contentType:'text/javascript',body:engine}):r.continue());
   await page.evaluateOnNewDocument(()=>{localStorage.setItem('jt.welcomed','1');localStorage.setItem('jt.mic','off');window.downloads=[];HTMLAnchorElement.prototype.click=function(){const name=this.download;fetch(this.href).then(r=>r.arrayBuffer()).then(b=>downloads.push({name,bytes:[...new Uint8Array(b)]}));};});
-  await page.goto(url);await page.waitForFunction(()=>window.__jtApp?.booted);await(await page.$('#home-file-input')).uploadFile(fixture);await page.waitForFunction(()=>document.body.dataset.view==='read'&&!document.getElementById('review-original').hidden);await page.locator('#review-original').click();await page.waitForFunction(()=>!document.getElementById('pdf-review-download').disabled);return page;
+  await page.goto(url);await page.waitForFunction(()=>window.__jtApp?.booted);await(await page.$('#home-file-input')).uploadFile(fixture);await page.waitForFunction(()=>document.body.dataset.view==='read'&&!document.getElementById('review-original').hidden);await selectWorkspace(page,'organize');await page.locator('#review-original').click();await page.waitForFunction(()=>!document.getElementById('pdf-review-download').disabled);return page;
  }
  async function add(page,...files){if(!await page.$eval('.pdf-review-merge-options',n=>n.open))await page.click('.pdf-review-merge-options summary');await(await page.$('#pdf-review-merge')).uploadFile(...files);await page.click('.pdf-review-merge button');}
  async function download(page){const n=await page.evaluate(()=>downloads.length);await page.click('#pdf-review-download');await page.waitForFunction(n=>downloads.length>n,{},n);return page.evaluate(()=>downloads.at(-1));}
@@ -55,7 +56,7 @@ test('actual review merges selected PDFs, preserves originals and undo, and reje
  });
  await t.test('closing and reopening while merge render waits cannot revive the obsolete result',async t=>{
   const page=await app(t);await page.evaluate(()=>{window.failNextReviewRender=true;});await add(page,rotatedPath);await page.waitForFunction(()=>window.rejectMergedRender);
-  await page.click('#pdf-review-close');await page.locator('#review-original').click();await page.waitForFunction(()=>!document.getElementById('pdf-review-download').disabled);
+  await page.click('#pdf-review-close');await selectWorkspace(page,'organize');await page.locator('#review-original').click();await page.waitForFunction(()=>!document.getElementById('pdf-review-download').disabled);
   await page.evaluate(()=>rejectMergedRender());await page.waitForFunction(()=>window.failedRenderDestroyed);
   assert.equal(await page.$eval('#pdf-review-title',n=>n.textContent),'Review original copy');assert.deepEqual((await download(page)).bytes,[...source]);assert.equal(await page.$$eval('#pdf-review-pages canvas',nodes=>nodes.length),3);
  });

@@ -39,7 +39,7 @@ test('a bookmark selected while saved reading position returns keeps the newer p
   const anchor='const position = await positionForDoc(doc);';
   const main=await(await fetch(url+'src/main.js')).text();
   assert.equal(main.split(anchor).length-1,1,'one precise restore boundary');
-  const instrumented=main.replace(anchor,anchor+'\nif(window.__positionRestoreGate) await window.__positionRestoreGate(position);');
+  const instrumented=main.replace(anchor,anchor+'\nif(window.__positionRestoreGate) await window.__positionRestoreGate(position);').replace('const zoom = state.pdf.model.setZoom(nextZoom);','const zoom = state.pdf.model.setZoom(nextZoom); (window.__fitTransitions ??= []).push({previousZoom,zoom,mode});');
   const browser=await puppeteer.launch({executablePath:process.env.CHROME_PATH??'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true});
   t.after(()=>browser.close());const page=await browser.newPage();await page.setViewport({width:1280,height:900});
   const pageErrors=[];
@@ -111,6 +111,20 @@ test('a bookmark selected while saved reading position returns keeps the newer p
   assert.equal(await page.evaluate(()=>window.__jtApp.currentBlock()),-1,'late text position cannot override a newer blank-page selection');
   await page.evaluate(()=>window.__jtApp.position.flush());
   assert.equal((await page.evaluate(()=>window.__jtApp.position.read())).blockIndex,chapterBlock,'blank page does not fabricate a persisted text anchor');
+  // An explicit saved passage from Library must beat a stored first-page view,
+  // including when the initially hidden reader forces a real fit-width rerender.
+  await page.evaluate(()=>window.__jtApp.showView('home'));
+  await page.setViewport({width:390,height:844});
+  await page.evaluate(()=>{window.__fitTransitions=[];});
+  await step('open explicit saved passage with changed fit',()=>page.evaluate(async()=>{
+    const {createAnchor}=await import('/src/anchors.js');
+    const doc=window.__jtApp.currentDoc(),blockIndex=doc.blocks.findIndex(block=>block.locator==='page:3');
+    const savedAnchor=createAnchor({blockTexts:doc.blocks.map(block=>block.text),blockIndex,tokenStart:0,tokenEnd:2,docDigest:doc.provenance.contentDigest});
+    await window.__jtApp.perform('open-document',0,{document:doc,options:{savedAnchor}});
+  }));
+  assert.equal(await page.evaluate(()=>window.__fitTransitions.some(change=>change.mode==='fit-width'&&change.zoom!==change.previousZoom)),true,'fixture exercises a changed fit render, not the early-return branch');
+  assert.equal(await page.evaluate(()=>window.__jtApp.currentBlock()),chapterBlock);
+  assert.equal(await page.$eval('.pdf-page[data-page="3"]',node=>{const r=node.getBoundingClientRect(),top=document.getElementById('reader-toolbar').getBoundingClientRect().bottom;return r.bottom>top&&r.top<innerHeight;}),true,'saved passage page remains in view after fitting');
   assert.deepEqual(await page.evaluate(()=>Object.values(window.__jtApp.currentDoc().sourceBytes)),[...bytes]);
   assert.deepEqual(await readFile(file),Buffer.from(bytes));
 });

@@ -1,3 +1,4 @@
+import {openReaderMenu,selectWorkspace,clickReaderControl} from './reader-navigation.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
@@ -21,7 +22,7 @@ test('local PDF marks survive reload and export as reviewed standard annotations
   const page=await browser.newPage();await page.setViewport({width:1280,height:900});
   const cdp=await page.createCDPSession();await cdp.send('Page.setDownloadBehavior',{behavior:'allow',downloadPath:directory});
   await page.goto(url);await page.waitForFunction(()=>window.__jtApp?.booted);
-  await page.locator('#welcome-next').click();await page.locator('#welcome-skip').click();
+  await clickReaderControl(page,'#welcome-next');await clickReaderControl(page,'#welcome-skip');
   const fixture=path.join(root,'test/fixtures/jett-annotations.pdf'),original=await readFile(fixture);
   await (await page.$('#home-file-input')).uploadFile(fixture);
   await page.waitForSelector('#pdf-annotation-panel:not([hidden])');
@@ -40,8 +41,8 @@ test('local PDF marks survive reload and export as reviewed standard annotations
   await page.evaluate(async id=>{
     const {getDoc}=await import('/src/db.js');await window.__jtApp.openDocument(await getDoc(id));window.__jtApp.showView('read');
   },sourceId);
-  await page.locator('#pdf-annotation-panel summary').click();
-  await page.locator('#pdf-annotation-preview').click();
+  await selectWorkspace(page,'annotate');await openReaderMenu(page,'pdf-annotation-panel');
+  await clickReaderControl(page,'#pdf-annotation-preview');
   await page.waitForFunction(()=>document.getElementById('pdf-review-dialog').open&&!document.getElementById('pdf-review-download').disabled,{timeout:30000});
   assert.equal(await page.$eval('#pdf-review-title',n=>n.textContent),'Review annotated copy');
   assert.equal(await page.$$eval('.pdf-review-page canvas',n=>n.length),3);
@@ -50,7 +51,7 @@ test('local PDF marks survive reload and export as reviewed standard annotations
   await page.setViewport({width:390,height:844});
   assert.ok(await page.$eval('#pdf-review-dialog',n=>{const r=n.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth;}),'review fits a phone viewport');
   assert.ok(await page.$eval('#pdf-review-close',n=>{const r=n.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight;}),'close stays visible on a phone');
-  await page.locator('#pdf-review-download').click();
+  await clickReaderControl(page,'#pdf-review-download');
   let downloaded;
   for(let i=0;i<100;i++){downloaded=(await readdir(directory)).find(name=>name.endsWith('.pdf'));if(downloaded)break;await new Promise(r=>setTimeout(r,100));}
   assert.ok(downloaded);
@@ -69,7 +70,7 @@ test('local PDF marks survive reload and export as reviewed standard annotations
   await page.evaluate(async()=>{
     await window.__jtApp.perform('undo',0,{});await window.__jtApp.perform('undo',0,{});
   });
-  await page.locator('#pdf-annotation-preview').click();
+  await clickReaderControl(page,'#pdf-annotation-preview');
   await page.waitForFunction(()=>!document.getElementById('pdf-annotation-preview').disabled);
   assert.equal(await page.$eval('#pdf-review-dialog',n=>n.open),false,'undone marks must not export');
   assert.match(await page.$eval('#pdf-annotation-status',n=>n.textContent),/could not be created/i);

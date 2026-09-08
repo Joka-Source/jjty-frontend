@@ -14,7 +14,8 @@ try {
  await page.waitForSelector('#bento-original:not([hidden])');
  const before=await page.evaluate(async()=>{const db=await import('/src/db.js');return (await db.getDocs()).map(d=>({id:d.id,pages:d.provenance?.pageCount,bytes:Array.from(d.sourceBytes||[])}));});
  const source=before.find(d=>d.pages===2);assert.ok(source);assert.deepEqual(Buffer.from(source.bytes),original);
- await page.click('#bento-original');
+ await page.select('#reader-workspace','organize');
+ await page.locator('#reader-workspace-bento').click();
  const target=await browser.waitForTarget(t=>t.url().includes('5181/pdf-multi-tool.html#jett='),{timeout:30000});
  console.log('Source imported and Bento opened');
  const bento=await target.page();await bento.setViewport({width:1440,height:1000});bento.on('pageerror',error=>errors.push(error.message));
@@ -33,6 +34,8 @@ try {
  await page.reload();await page.waitForFunction(()=>window.__jtApp?.booted);
  const docs=await page.evaluate(async()=>{const db=await import('/src/db.js');return (await db.getDocs()).map(d=>({id:d.id,title:d.title,provenance:d.provenance,bytes:Array.from(d.sourceBytes||[])}));});
  const returned=docs.find(d=>d.provenance?.derivedFrom?.documentId===source.id);assert.ok(returned);assert.equal(returned.provenance.pageCount,3);
+ const tabs=await page.evaluate(()=>window.__jtApp.readerSession().tabs);
+ assert.ok(tabs.includes(source.id)&&tabs.includes(returned.id),'source and returned PDF retain separate Reader tabs after reload');
  assert.deepEqual(Buffer.from(docs.find(d=>d.id===source.id).bytes),original);
  assert.equal(docs.filter(d=>d.provenance?.derivedFrom?.documentId===source.id).length,1);
  await writeFile(`${directory}/returned.pdf`,Buffer.from(returned.bytes));

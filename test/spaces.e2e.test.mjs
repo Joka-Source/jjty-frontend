@@ -1,3 +1,4 @@
+import {openReaderMenu} from './reader-navigation.mjs';
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -174,7 +175,7 @@ test("spaces flow: picker, feed, import, voice ambiguity, persistence and export
   assert.equal(imported.provenance.sourceKind, "space moment");
   assert.equal(imported.provenance.original.sourceTitle, "a sample page");
   assert.match(imported.provenance.spaceImport.contentHash, /^sha256:[0-9a-f]{64}$/);
-  await page.click("#doc-prov-btn");
+  await openReaderMenu(page);await page.click("#doc-prov-btn");
   assert.match(
     await page.$eval("#doc-prov", (node) => node.textContent),
     /from space CSE-A.*original source a sample page.*sha256:/is,

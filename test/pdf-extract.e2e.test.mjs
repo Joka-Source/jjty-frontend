@@ -1,3 +1,4 @@
+import {selectWorkspace,clickReaderControl} from './reader-navigation.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
@@ -18,7 +19,7 @@ test('actual app extracts a reviewed subset while preserving the reader source a
  await page.goto(url);await page.waitForFunction(()=>window.__jtApp?.booted);
  await(await page.$('#home-file-input')).uploadFile(fixture);
  await page.waitForFunction(()=>document.body.dataset.view==='read'&&!document.getElementById('review-original').hidden);
- await page.locator('#review-original').click();
+ await selectWorkspace(page,'organize');await clickReaderControl(page,'#review-original');
  await page.waitForFunction(()=>!document.getElementById('pdf-review-extract').disabled);
  await page.$eval('#pdf-review-extract',n=>{n.value='3,1';});
  await page.click('.pdf-review-extract button');

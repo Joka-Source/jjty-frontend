@@ -1,3 +1,5 @@
+import {navigateApp, openPaste, clickReaderControl} from './reader-navigation.mjs';
+import {navigateSecondary,openReaderMenu} from './reader-navigation.mjs';
 // Headless proof that jt is a complete application shell, not a single
 // screen: every surface exists, is reachable, and interlinks, at phone size
 // and at desktop size. First-run appears exactly once; settings changes
@@ -121,7 +123,7 @@ test("desktop shell walk: first-run once, every surface, settings persist, expor
 
   // 4. Every surface is reachable from the header nav and none overflows.
   for (const v of ["history", "share", "spaces", "settings", "rooms", "home", "read"]) {
-    await page.click(`.topnav a[data-view-link="${v}"]`);
+    await navigateApp(page,v);
     await page.waitForFunction((want) => window.__jtApp.view() === want, { timeout: 5000 }, v);
     assert.equal(await surfaceVisible(page, v), true, `surface "${v}" not visible after nav`);
     await assertNoOverflow(page);
@@ -129,7 +131,7 @@ test("desktop shell walk: first-run once, every surface, settings persist, expor
 
   // 5. What-happened surface: a real act shows up with evidence; undo works there.
   await page.evaluate(() => window.__jtApp.perform("highlight", 0));
-  await page.click('.topnav a[data-view-link="history"]');
+  await navigateApp(page,'history');
   await page.waitForFunction(() => document.querySelectorAll("#history-all .entry").length >= 1, { timeout: 5000 });
   const before = await page.evaluate(() => window.__jtApp.entries().length);
   await page.locator("#history-all .undo-btn").click();
@@ -144,7 +146,7 @@ test("desktop shell walk: first-run once, every surface, settings persist, expor
   );
 
   // 6. Spaces: create institution -> space -> member; all listed, no seeds.
-  await page.click('.topnav a[data-view-link="spaces"]');
+  await navigateApp(page,'spaces');
   await page.waitForFunction(() => window.__jtApp.view() === "spaces");
   assert.equal(
     await page.evaluate(() => document.querySelectorAll("#org-tree .org-inst").length),
@@ -168,7 +170,7 @@ test("desktop shell walk: first-run once, every surface, settings persist, expor
   );
 
   // 7. Settings: change language, motion, engine.
-  await page.click('.topnav a[data-view-link="settings"]');
+  await navigateApp(page,'settings');
   await page.waitForFunction(() => window.__jtApp.view() === "settings");
   await page.select("#set-lang", "en-IN");
   await page.click('#set-motion .choice[data-value="calm"]');
@@ -194,7 +196,7 @@ test("desktop shell walk: first-run once, every surface, settings persist, expor
     "reloading #/settings should land back on settings — surfaces are real places"
   );
   await page.waitForFunction(() => window.__jtApp.engineKind() === "js", { timeout: 15000 });
-  await page.click('.topnav a[data-view-link="settings"]');
+  await navigateApp(page,'settings');
   await page.waitForFunction(() => window.__jtApp.view() === "settings");
   const persisted = await page.evaluate(() => ({
     lang: document.getElementById("set-lang").value,
@@ -202,13 +204,13 @@ test("desktop shell walk: first-run once, every surface, settings persist, expor
     engine: document.querySelector('#set-engine .choice[aria-checked="true"]').dataset.value,
   }));
   assert.deepEqual(persisted, { lang: "en-IN", motion: "calm", engine: "js" });
-  await page.click('.topnav a[data-view-link="spaces"]');
+  await navigateApp(page,'spaces');
   await page.waitForFunction(() =>
     [...document.querySelectorAll("#org-tree .org-members li")].some((li) => li.textContent.includes("asha"))
   );
 
   // 10. The honest room actually translates spoken math on this device.
-  await page.click('.topnav a[data-view-link="rooms"]');
+  await navigateApp(page,'rooms');
   await page.waitForFunction(() => window.__jtApp.view() === "rooms");
   await page.type("#math-input", "one half plus x squared");
   await page.locator("#math-try").click();
@@ -218,7 +220,7 @@ test("desktop shell walk: first-run once, every surface, settings persist, expor
   assert.ok(latex.includes("x^{2}"), `expected a real power, got: ${latex}`);
 
   // 11. Delete-all is real: two presses, then a truly fresh start.
-  await page.click('.topnav a[data-view-link="settings"]');
+  await navigateApp(page,'settings');
   await page.waitForFunction(() => window.__jtApp.view() === "settings");
   await page.locator("#delete-btn").click(); // arm
   await page.locator("#delete-btn").click(); // confirm
@@ -254,7 +256,7 @@ test("phone shell walk: bottom bar reaches everything, sheets, 44px targets, no 
   // The bottom bar is the phone's spine: home + documents + history + more.
   const bar = await page.evaluate(() => {
     const h = (id) => document.getElementById(id).getBoundingClientRect().height;
-    return { home: h("tab-home"), lib: h("tab-library"), hist: h("tab-history"), more: h("tab-more") };
+    return { home: document.querySelector('[data-view-link="home"]').getBoundingClientRect().height, more: h("tab-more") };
   });
   for (const [k, v] of Object.entries(bar)) {
     assert.ok(v >= 44, `bottom bar "${k}" too small to tap: ${v}px`);
@@ -266,7 +268,7 @@ test("phone shell walk: bottom bar reaches everything, sheets, 44px targets, no 
   await assertNoOverflow(page);
 
   // "more" opens a sheet with the remaining surfaces, all thumb-sized.
-  await page.tap("#tab-more");
+  await page.locator("#tab-more").click();
   await page.waitForFunction(() => window.__jtApp.sheet() === "more", { timeout: 3000 });
   const moreLinks = await page.evaluate(() =>
     [...document.querySelectorAll("#more-panel .more-nav a")].map((a) => ({
@@ -276,7 +278,7 @@ test("phone shell walk: bottom bar reaches everything, sheets, 44px targets, no 
   );
   assert.deepEqual(
     moreLinks.map((l) => l.href),
-    ["#/share", "#/spaces", "#/settings", "#/capabilities", "#/rooms"]
+    ["#/history", "#/share", "#/spaces", "#/settings", "#/capabilities", "#/rooms"]
   );
   for (const l of moreLinks) assert.ok(l.h >= 44, `more link ${l.href} too small: ${l.h}px`);
 
@@ -310,12 +312,14 @@ test("phone shell walk: bottom bar reaches everything, sheets, 44px targets, no 
   // From a non-reading surface, "documents" brings the reading back with its sheet.
   await page.evaluate(() => window.__jtApp.showView("home"));
   await page.waitForFunction(() => window.__jtApp.view() === "home");
-  await page.tap("#tab-library");
+  await page.locator("#tab-more").click();
+  await page.locator("#tab-library").click();
   await page.waitForFunction(
     () => window.__jtApp.view() === "read" && window.__jtApp.sheet() === "library",
     { timeout: 5000 }
   );
-  await page.tap("#tab-home");
+  await page.keyboard.press("Escape");
+  await navigateApp(page,"home");
   await page.waitForFunction(() => window.__jtApp.view() === "home" && window.__jtApp.sheet() === null, {
     timeout: 5000,
   });
@@ -327,7 +331,7 @@ test('empty library accepts pasted text; search and saved work survive return', 
   await page.locator('#welcome-skip').click();
   // An available install must not intercept the user's document action.
   await page.evaluate(() => { document.getElementById('install-hint').hidden = false; });
-  await page.type('#home-paste-box', 'Field notes\n\nThe alumni gathering is on Saturday.');
+  await openPaste(page);await page.type('#home-paste-box', 'Field notes\n\nThe alumni gathering is on Saturday.');
   await page.locator('#home-paste-add').click();
   await page.waitForFunction(() => document.body.dataset.view === 'read');
   await page.goto(`${page.url().split('#')[0]}#/home`);
@@ -367,7 +371,7 @@ test('Markdown renders structure and downloads the exact original after reload',
   const { mkdir } = await import('node:fs/promises'); await mkdir(output);
   const session = await page.createCDPSession();
   await session.send('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: output });
-  await page.locator('#download-original').click();
+  await openReaderMenu(page);await page.locator('#download-original').click();
   const downloaded = path.join(output, 'notes.md');
   const deadline = Date.now() + 5000;
   while (!existsSync(downloaded) && Date.now() < deadline) await new Promise(r => setTimeout(r, 100));
@@ -377,7 +381,7 @@ test('Markdown renders structure and downloads the exact original after reload',
 test('failed local save retains the draft and retry creates one document', { timeout: 60000 }, async t => {
   const page = await bootShell(t, 4939, { width: 1280, height: 900 });
   await page.locator('#welcome-next').click(); await page.locator('#welcome-skip').click();
-  await page.type('#home-paste-box', 'Keep this thought even when storage fails.');
+  await openPaste(page);await page.type('#home-paste-box', 'Keep this thought even when storage fails.');
   await page.evaluate(() => {
     window.originalJettPut = IDBObjectStore.prototype.put;
     IDBObjectStore.prototype.put = function(...args) {
@@ -398,7 +402,7 @@ test('failed local save retains the draft and retry creates one document', { tim
 test('reader failure after persistence reports saved and allows reopening without duplicate import', { timeout: 60000 }, async t => {
   const page = await bootShell(t, 4944, { width: 1280, height: 900 });
   await page.locator('#welcome-next').click(); await page.locator('#welcome-skip').click();
-  await page.type('#home-paste-box', 'A saved thought survives a reader error.');
+  await openPaste(page);await page.type('#home-paste-box', 'A saved thought survives a reader error.');
   await page.evaluate(() => {
     const original = Node.prototype.appendChild;
     Node.prototype.appendChild = function(child) {
@@ -425,8 +429,11 @@ test('reading-panel paste survives storage failure and preserves original text o
   await page.waitForSelector('#home-sample', { visible: true });
   await page.locator('#home-sample').click();
   await page.waitForFunction(() => document.body.dataset.view === 'read');
+  await page.waitForFunction(()=>document.querySelector('#reader-tabs [aria-selected="true"]')?.dataset.documentId===window.__jtApp.currentDoc()?.id);
   const text = 'An unlost reading-side note.\n\nKeep its blank line.';
-  await page.type('#paste-box', text);
+  await clickReaderControl(page,'#tab-more');await clickReaderControl(page,'#tab-library');
+  await page.waitForFunction(()=>document.getElementById('library-panel').getBoundingClientRect().right<=innerWidth+0.5);
+  await page.locator('#paste-box').fill(text);
   await page.evaluate(() => {
     window.savedPut = IDBObjectStore.prototype.put;
     IDBObjectStore.prototype.put = function(...args) {
@@ -434,11 +441,11 @@ test('reading-panel paste survives storage failure and preserves original text o
       return window.savedPut.apply(this, args);
     };
   });
-  await page.locator('#paste-add').click();
+  await clickReaderControl(page,'#paste-add');
   await page.waitForFunction(() => document.getElementById('status-text').textContent.includes('Couldn’t save'));
   assert.equal(await page.$eval('#paste-box', e => e.value), text);
   await page.evaluate(() => { IDBObjectStore.prototype.put = window.savedPut; });
-  await page.locator('#paste-add').click();
+  await clickReaderControl(page,'#paste-add');
   await page.waitForFunction(() => document.getElementById('paste-box').value === '');
   const data = JSON.parse(await page.evaluate(() => window.__jtApp.exportData()));
   const pasted = data.documents.find(d => d.provenance.sourceKind === 'paste');
@@ -496,12 +503,12 @@ test('images retain original bytes, render after restart and release their view 
   assert.deepEqual(exported.documents[0].blocks, []);
   const output = path.join(dir,'download'); await mkdir(output);
   const session = await page.createCDPSession(); await session.send('Page.setDownloadBehavior', {behavior:'allow',downloadPath:output});
-  await page.locator('#download-original').click();
+  await openReaderMenu(page);await page.locator('#download-original').click();
   const target = path.join(output,'field-notes.png'); const deadline = Date.now()+5000;
   while (!existsSync(target) && Date.now()<deadline) await new Promise(r=>setTimeout(r,100));
   assert.deepEqual(await readFile(target), original);
   await page.goto(`${page.url().split('#')[0]}#/home`);
-  await page.locator('#home-paste-box').fill('Return to a normal text document.');
+  await openPaste(page);await page.locator('#home-paste-box').fill('Return to a normal text document.');
   await page.locator('#home-paste-add').click();
   await page.waitForFunction(()=>document.body.dataset.view==='read' && document.querySelectorAll('#doc p[data-block]').length>0);
   assert.equal(await page.$('.image-document'),null);

@@ -53,6 +53,7 @@ export function initShell(ctx) {
     if (!VIEWS.includes(next)) next = "home";
     if (!settings.welcomed && !ctx.SIM) next = "welcome";
     const prev = view;
+    ctx.onViewChange?.(next, prev);
     view = next;
     document.body.dataset.view = next;
     if (prev !== next) scrollTo(0, 0);
@@ -71,6 +72,7 @@ export function initShell(ctx) {
     refresh(next);
     const sec = sectionOf(next);
     if (sec && !silent && prev !== next) surfaceArrive(sec);
+    ctx.afterViewChange?.(next, prev);
   }
 
   function route() {

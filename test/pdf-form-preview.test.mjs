@@ -1,3 +1,4 @@
+import {openReaderMenu,selectWorkspace} from './reader-navigation.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
@@ -25,7 +26,7 @@ test('filled PDF review renders both pages, downloads current answers and closes
   const fixture=path.join(root,'test/fixtures/jett-fillable.pdf'),original=await readFile(fixture);
   await (await page.$('#home-file-input')).uploadFile(fixture);
   await page.waitForSelector('#pdf-form-panel:not([hidden])');
-  await page.locator('#pdf-form-panel summary').click();
+  await selectWorkspace(page,'fill');await openReaderMenu(page,'pdf-form-panel');
   await page.locator('[data-field-name="consent"]').click();
   const setName=async value=>{
     await page.$eval('[data-field-name="full_name"]',(n,value)=>{n.value=value;n.dispatchEvent(new Event('input',{bubbles:true}));},value);

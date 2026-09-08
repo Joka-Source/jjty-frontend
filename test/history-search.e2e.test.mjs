@@ -1,3 +1,4 @@
+import {navigateSecondary} from './reader-navigation.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
@@ -26,7 +27,7 @@ test('saved passage and note search filters all documents and jumps without writ
  await page.evaluate(()=>window.__jtApp.addDocument('A separate opening\n\nThe roof stays sound.','Second contract'));
  await page.evaluate(()=>window.__jtApp.perform('annotate',1,{tokenStart:1,tokenEnd:3,noteText:'Ask architect about drainage'}));
  const before=await page.evaluate(async()=>{const db=await import('/src/db.js');return Promise.all((await db.getDocs()).map(async d=>[d.id,await db.getRecords(d.id)]));});
- await page.click('[data-view-link="history"]');
+ await navigateSecondary(page,'history');
  await page.waitForSelector('#history-search');
  async function search(text,count){await page.$eval('#history-search',(el,text)=>{el.value=text;el.dispatchEvent(new Event('input',{bubbles:true}));},text);await page.waitForFunction(count=>document.querySelector('#history-search-status').textContent===`${count} matches`,{},count);}
  await search('SILVER deposit',1);
@@ -34,11 +35,11 @@ test('saved passage and note search filters all documents and jumps without writ
  await page.click('#history-all .jump-btn');
  await page.waitForFunction(id=>window.__jtApp.view()==='read'&&window.__jtApp.currentDoc().id===id&&window.__jtApp.currentBlock()===1,{},first);
  assert.match(await page.$eval('#status-text',el=>el.textContent),/silver deposit/);
- await page.click('[data-view-link="history"]');await search('drainage',1);
+ await navigateSecondary(page,'history');await search('drainage',1);
  assert.match(await page.$eval('#history-all',el=>el.textContent),/Ask architect/);
  await page.click('#history-all .jump-btn');
  await page.waitForFunction(()=>window.__jtApp.view()==='read'&&window.__jtApp.currentDoc().title==='Second contract'&&window.__jtApp.currentBlock()===1);
- await page.click('[data-view-link="history"]');await search('unfindable quasar',0);
+ await navigateSecondary(page,'history');await search('unfindable quasar',0);
  assert.equal(await page.$eval('#history-empty',el=>el.hidden),false);
  const after=await page.evaluate(async()=>{const db=await import('/src/db.js');return Promise.all((await db.getDocs()).map(async d=>[d.id,await db.getRecords(d.id)]));});
  // Opening already refreshes derived anchor caches; source anchors, receipts,
@@ -51,7 +52,7 @@ test('saved passage and note search filters all documents and jumps without writ
  await page.evaluate(()=>window.__jtApp.addDocument('Start boundary here.\n\nMiddle cobalt lantern clause.\n\nFinish boundary here.','Range contract'));
  await page.evaluate(()=>window.__jtApp.voiceSegment('highlight from Start boundary to Finish boundary'));
  await page.waitForFunction(()=>window.__jtApp.entries().some(e=>e.rangeAnchor));
- await page.click('[data-view-link="history"]');await search('cobalt lantern',1);
+ await navigateSecondary(page,'history');await search('cobalt lantern',1);
  assert.match(await page.$eval('#history-all',el=>el.textContent),/Range contract/);
  // Corrupt only a stored endpoint digest: old derived segments still contain
  // the clause, but must not be trusted as a current-source search index.

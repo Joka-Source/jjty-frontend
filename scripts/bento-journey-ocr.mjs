@@ -251,6 +251,8 @@ try {
   await (await page.$("#home-file-input")).uploadFile(fixture);
   await page.waitForSelector("#bento-original:not([hidden])");
   const source = await page.evaluate(() => window.__jtApp.currentDoc().id);
+  await page.waitForFunction(()=>document.querySelector('#reader-tabs [aria-selected="true"]')?.dataset.documentId===window.__jtApp.currentDoc()?.id);
+  await page.locator("#reader-more-tools > summary").click();
   await page.select("#bento-tool", "ocr");
   await page.click("#bento-original");
   const target = await browser.waitForTarget((t) =>
@@ -657,6 +659,8 @@ try {
   await page.waitForFunction(
     () => document.querySelector(".pdf-page canvas")?.width > 0,
   );
+  if (await page.$eval("#reader-search-controls", (el) => el.hidden))
+    await page.click("#reader-search-toggle");
   await page.type("#pdf-search-input", "Invoice number 2026");
   await page.waitForFunction(
     () => document.getElementById("pdf-search-count").textContent === "1 of 1",

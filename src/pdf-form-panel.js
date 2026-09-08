@@ -101,7 +101,10 @@ export function initPdfFormPanel({saveDocument, getRecords, review=initPdfReview
   }
   download.addEventListener('click',()=>void prepareCopy());
   $('pdf-form-preview').addEventListener('click',()=>void prepareCopy(true));
-  return {async setDocument(doc){
+  return {async flush(docId=current?.id){
+    await queue;
+    if(drafts.get(docId)?.saved===false)throw new Error('Answers could not be saved. Retry saving before closing or switching this document.');
+  },async setDocument(doc){
     review.close();
     if(includeMarks)includeMarks.checked=false;
     const version=++generation;current=doc;schema=null;values={};pending=0;exporting=false;failed=false;panel.hidden=true;fields.replaceChildren();controls();

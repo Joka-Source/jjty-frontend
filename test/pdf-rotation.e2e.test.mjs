@@ -1,3 +1,4 @@
+import {openReaderMenu,selectWorkspace} from './reader-navigation.mjs';
 import test from 'node:test';import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';import {mkdtemp,mkdir,readFile,readdir,rm,writeFile} from 'node:fs/promises';import {tmpdir} from 'node:os';import path from 'node:path';
 import puppeteer from 'puppeteer-core';import {getDocument} from 'pdfjs-dist/legacy/build/pdf.mjs';import {root} from './validate.mjs';
@@ -8,7 +9,7 @@ test('rotated review downloads preserve forms and marks while keeping original b
  const url='http://127.0.0.1:4973/';let ready=false;for(let i=0;i<100;i++){try{if((await fetch(url)).ok){ready=true;break;}}catch{}await new Promise(r=>setTimeout(r,100));}assert.ok(ready);
  const browser=await puppeteer.launch({executablePath:process.env.CHROME_PATH??'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true,args:['--no-first-run']});t.after(()=>browser.close());
  const page=await browser.newPage();await page.setViewport({width:1280,height:900});await page.evaluateOnNewDocument(()=>{localStorage.setItem('jt.welcomed','1');localStorage.setItem('jt.mic','off');});await page.goto(url);await page.waitForFunction(()=>window.__jtApp?.booted);
- const original=await readFile(path.join(root,'test/fixtures/jett-fillable.pdf'));await (await page.$('#home-file-input')).uploadFile(path.join(root,'test/fixtures/jett-fillable.pdf'));await page.waitForSelector('#pdf-form-panel:not([hidden])');await page.locator('#pdf-form-panel summary').click();
+ const original=await readFile(path.join(root,'test/fixtures/jett-fillable.pdf'));await (await page.$('#home-file-input')).uploadFile(path.join(root,'test/fixtures/jett-fillable.pdf'));await page.waitForSelector('#pdf-form-panel:not([hidden])');await selectWorkspace(page,'fill');await openReaderMenu(page,'pdf-form-panel');
  await page.$eval('[data-field-name="full_name"]',n=>{n.value='Rotated Example';n.dispatchEvent(new Event('input',{bubbles:true}));});await page.$eval('[data-field-name="consent"]',n=>{n.checked=true;n.dispatchEvent(new Event('input',{bubbles:true}));});await page.waitForFunction(()=>!document.getElementById('pdf-form-preview').disabled);
  const saved=await page.evaluate(async()=>{await window.__jtApp.perform('highlight',0,{tokenStart:0,tokenEnd:2});await window.__jtApp.perform('annotate',0,{tokenStart:0,tokenEnd:2,noteText:'Check this rotated copy.'});return {id:window.__jtApp.currentDoc().id,entries:window.__jtApp.entries().filter(e=>e.kind==='act'&&!e.undone)};});
  await page.locator('#pdf-form-include-marks').click();await page.locator('#pdf-form-preview').click();
@@ -22,9 +23,9 @@ test('rotated review downloads preserve forms and marks while keeping original b
  if(process.env.JETT_ROTATION_PROOF_DIR)await page.screenshot({path:path.join(directory,'rotated-review.png'),fullPage:true});
  await rotate('right');await rotate('right');await rotate('right');const normalized=await download('four-turns');await inspect(normalized,0);
  assert.deepEqual(await page.evaluate(()=>Object.values(window.__jtApp.currentDoc().sourceBytes)),[...original]);
- await page.keyboard.press('Escape');await page.waitForFunction(()=>!document.getElementById('pdf-review-dialog').open);await page.locator('#review-original').click();await readyReview();
+ await page.keyboard.press('Escape');await page.waitForFunction(()=>!document.getElementById('pdf-review-dialog').open);await selectWorkspace(page,'organize');await page.locator('#review-original').click();await readyReview();
  await page.evaluate(()=>{document.querySelector('[data-pdf-rotate="right"][data-page-index="0"]').click();document.getElementById('pdf-review-close').click();});
- await page.waitForFunction(()=>!document.getElementById('pdf-review-dialog').open);await page.locator('#review-original').click();await readyReview();
+ await page.waitForFunction(()=>!document.getElementById('pdf-review-dialog').open);await selectWorkspace(page,'organize');await page.locator('#review-original').click();await readyReview();
  const fresh=await download('fresh-original');const task=getDocument({data:new Uint8Array(await readFile(fresh))});try{assert.equal((await(await task.promise).getPage(1)).rotate,0,'closed rotation cannot leak into a newer original review');}finally{await task.destroy();}
  await page.evaluate(()=>window.__jtApp.addDocument('Switch away from PDF.','Other document'));assert.equal(await page.$eval('#pdf-review-dialog',n=>n.open),false);
  assert.deepEqual(await readFile(path.join(root,'test/fixtures/jett-fillable.pdf')),original);
