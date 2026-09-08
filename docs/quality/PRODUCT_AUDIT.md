@@ -555,3 +555,30 @@ Final gate: 201 tests passed, none failed/skipped, plus production build; log
 ../jett-pdf-print-final-full-test.log. The earlier full run was interrupted while
 the browser evidence assertion was finalized; it is not a completed gate.
 See ../architecture/PDF_PRINT.md for behavior and practical limits.
+
+## Voice restart budget and microphone disclosure — 8 September
+
+Reproduced a retry-budget bypass: empty events, whitespace finals and never-final
+interim hypotheses reset the failure counter and could sustain endless restarts.
+Recovery now requires a newly finalized nonblank transcript to replenish the
+budget. Interim text still drives the live cursor. Synchronous cancellation from
+a state callback cannot leave a scheduled restart behind.
+
+Capture separately reports actual owned-track state. The header and settings
+now disclose that the microphone is on during acquisition and remains on during
+local recognition recovery. They continue to show recognition as interrupted;
+no continuous-capture claim is inferred for browser-managed remote mode. Pause
+and terminal errors release the track before clearing its held-state disclosure.
+
+Focused core gate: 23 tests pass; actual browser regression covers held input
+before recognizer start, reconnection, restart and pause. Full gate: 205 tests
+pass, none failed/skipped, with production build; ../jett-voice-continuity-full-test.log.
+
+Real Chrome local ASR also accepted two generated spoken commands separated by
+a deliberate recognizer stop: one acquisition, same live track, one saved voice
+highlight per spoken command and no restart-created act. Pause ended the track.
+The dedicated proof script blocks all acquisition before its generated source
+is ready and rejects native starts with any other track. It installs no packs.
+Evidence: ../runtime/local-speech-proof/continuity-result.json. This does not
+prove physical microphone/OS indicator behavior, natural device interruption,
+or lossless speech during the recognition restart interval.

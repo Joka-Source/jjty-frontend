@@ -12,8 +12,10 @@ reaching the reader. A pending start can be cancelled using the same toggle.
 Listening is reported after the recognizer's start event, rather than optimistically.
 
 Natural ends, silence and network interruptions permit three delayed restarts
-(500, 1000 and 2000 milliseconds). A useful transcript resets the retry budget;
-start events alone do not. Permission, device and other terminal errors release
+(500, 1000 and 2000 milliseconds). A newly finalized nonblank transcript resets
+the retry budget. Empty results, whitespace and interim-only recognition do not
+prove completed progress and cannot sustain endless restart cycles. Interim text
+still drives the live cursor. Permission, device and other terminal errors release
 ownership and require an explicit retry. No second permission-check audio stream
 is opened. Page exit pauses active capture, including the state retained for a
 cached page return.
@@ -99,6 +101,14 @@ terminal errors and page exit abort the recognizer, cancel recovery, detach the
 ended listener and stop all owned tracks. Browser-service mode retains its
 browser-managed capture and does not create a second microphone stream.
 
+State callbacks separately report `audioHeld`, derived from a live owned audio
+track. Acquisition can therefore report that the microphone is on before the
+recognizer starts, and reconnection can disclose that it remains on. Recognition
+readiness still reports interrupted during recovery. The UI does not claim to
+be recognizing speech simply because the microphone stream is held. Pause and
+terminal errors release the stream before reporting their final state. Browser
+mode does not infer microphone continuity from settings or recognizer intent.
+
 A pending native getUserMedia permission request cannot necessarily be cancelled
 by an AbortSignal. Session generations therefore reject a late resolution and
 immediately stop its tracks; it cannot revive the cancelled recognizer or affect
@@ -110,3 +120,24 @@ boundary and leaves recognition.start(track) entirely in production code. It
 checks one acquisition and an ended track after pause in addition to recognition,
 receipt, original custody and undo. This strengthens capture ownership evidence
 while retaining the physical-device and machine-wide network-isolation limits.
+
+## Recognition restart proof
+
+`node scripts/verify-local-speech-continuity.mjs` uses the existing isolated
+profile and language pack; it never installs a pack or acquires a physical
+microphone. Two generated utterances flow through the real local recognizer and
+application matcher/action path. Between them, the verifier deliberately stops
+the first recognizer and lets production recovery create the second.
+
+On Chrome 152, `PASS_LOCAL_SYNTHETIC_CONTINUITY` verified one acquisition, the
+same live audio track across both recognizers, no track-ended event between
+utterances, and one voice highlight for each spoken command. Restart alone
+created no extra act. Explicit pause ended the track. Evidence is the parent
+runtime/local-speech-proof/continuity-result.json.
+
+This tests recovery from a deliberate stop, not natural device failure or
+lossless speech during the restart interval. CDP offline emulation is not
+machine-wide network isolation. Physical microphone and OS indicator acceptance
+remain separate. The UI regression uses generated silent tracks and controlled
+recognizer events to check the intermediate held-track disclosure in both the
+header and settings, including acquisition before the recognizer's start event.

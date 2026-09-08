@@ -780,6 +780,11 @@ export function initShell(ctx) {
       denied: "the browser is blocking the microphone. allow it in site settings, then reload.",
       unavailable: "this browser cannot listen. reading and every record still work.",
     }[s] ?? "";
+    if (ctx.micAudioHeld?.() && ["starting", "reconnecting"].includes(s)) {
+      $("set-voice-state").textContent = s === "reconnecting"
+        ? "microphone remains on. reconnecting recognition; pause from the top bar to turn it off."
+        : "microphone is on. starting recognition; cancel from the top bar to turn it off.";
+    }
     $("set-voice-on").hidden = !["off", "paused", "error", "denied", "local-unavailable"].includes(s);
   }
 

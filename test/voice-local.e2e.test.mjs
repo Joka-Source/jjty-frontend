@@ -39,7 +39,7 @@ test('local voice requires an explicit language download and never falls back to
         return sessionStorage.getItem('test-language-installed')?'available':'downloadable';
       }
       static async install(options){window.localVoiceProbe.installs.push(options);sessionStorage.setItem('test-language-installed','yes');return true;}
-      start(track){window.localVoiceProbe.starts.push({local:this.processLocally,lang:this.lang,track});this.onstart?.();}
+      start(track){window.localVoiceProbe.starts.push({local:this.processLocally,lang:this.lang,track});if(!window.localVoiceProbe.holdStart)this.onstart?.();}
       abort(){window.localVoiceProbe.aborts++;this.onend?.();}
     }
     Recognition.prototype.processLocally=false;
@@ -71,19 +71,37 @@ test('local voice requires an explicit language download and never falls back to
   await page.locator('#set-local-voice-install').click();
   await page.waitForFunction(()=>window.localVoiceProbe.installs.length===1);
   await page.waitForFunction(()=>!document.getElementById('set-local-voice-check').disabled);
+  await page.evaluate(()=>window.localVoiceProbe.holdStart=true);
   await page.locator('#voice-toggle').click();
+  await page.waitForFunction(()=>window.localVoiceProbe.starts.length===2);
+  assert.equal(await page.evaluate(()=>window.__jtApp.micState()),'starting');
+  assert.equal(await page.evaluate(()=>window.localVoiceProbe.tracks[0].readyState),'live');
+  assert.equal(await page.evaluate(()=>window.__jtApp.micAudioHeld()),true);
+  assert.match(await page.$eval('#status-text',n=>n.textContent),/microphone is on.*starting recognition/i);
+  assert.match(await page.$eval('#set-voice-state',n=>n.textContent),/microphone is on.*starting recognition/i);
+  await page.evaluate(()=>{window.localVoiceProbe.holdStart=false;window.localVoiceProbe.instances.at(-1).onstart();});
   await page.waitForFunction(()=>window.__jtApp.micState()==='listening');
   assert.deepEqual(await page.evaluate(()=>window.localVoiceProbe.starts.map(s=>s.local)),[false,true]);
   assert.ok(await page.evaluate(()=>window.localVoiceProbe.checks.every(check=>check.processLocally===true)));
   assert.equal(await page.evaluate(()=>window.localVoiceProbe.acquisitions),1);
   assert.equal(await page.evaluate(()=>window.localVoiceProbe.starts[1].track===window.localVoiceProbe.tracks[0]),true,'local recognition must receive the owned track');
-  await page.evaluate(()=>window.localVoiceProbe.instances.at(-1).onend());
+  const interrupted=await page.evaluate(()=>{
+    window.localVoiceProbe.instances.at(-1).onend();
+    return {state:window.__jtApp.micState(),track:window.localVoiceProbe.tracks[0].readyState,status:document.getElementById('status-text').textContent,settings:document.getElementById('set-voice-state').textContent};
+  });
+  assert.equal(interrupted.state,'reconnecting');
+  assert.equal(interrupted.track,'live','recognizer restart retains the actual owned audio track');
+  assert.match(interrupted.status,/microphone.*(?:remains|still).*on/i,'reconnect must disclose continued microphone capture');
+  assert.match(interrupted.status,/reconnect/i,'continued capture must not be presented as successful recognition');
+  assert.match(interrupted.settings,/microphone remains on.*reconnecting/i);
   await page.waitForFunction(()=>window.localVoiceProbe.starts.length===3);
   assert.equal(await page.evaluate(()=>window.localVoiceProbe.acquisitions),1,'recognizer restart must retain the microphone stream');
   assert.equal(await page.evaluate(()=>window.localVoiceProbe.starts[2].track===window.localVoiceProbe.starts[1].track),true);
   await page.locator('#voice-toggle').click();
   assert.equal(await page.evaluate(()=>window.localVoiceProbe.stops),1,'pause must release the microphone');
   assert.equal(await page.evaluate(()=>window.localVoiceProbe.tracks[0].readyState),'ended');
+  assert.match(await page.$eval('#status-text',n=>n.textContent),/paused|not listening/i);
+  assert.doesNotMatch(await page.$eval('#status-text',n=>n.textContent),/microphone.*(?:remains|still).*on/i,'pause must clear the continued-capture disclosure');
   await page.reload();await page.waitForFunction(()=>window.__jtApp?.booted);
   await page.evaluate(()=>window.__jtApp.showView('settings'));
   assert.equal(await page.$eval('#set-voice-processing',n=>n.value),'local','processing preference must survive reload');

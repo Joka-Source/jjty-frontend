@@ -1839,7 +1839,7 @@ async function sendSpoken(cmd) {
 // Live mic — one permission ask, then a small state machine the header
 // reflects honestly: listening / paused / voice off / blocked / unavailable.
 
-const mic = { state: "off" };
+const mic = { state: "off", audioHeld: false };
 
 function setMicState(state, statusMsg, on = state === "listening") {
   mic.state = state;
@@ -1867,7 +1867,8 @@ const capture = createVoiceCapture({
   acquireAudio: () => navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true},video:false}),
   onInterim,
   onFinal: onFinalSegment,
-  onState: (state, reason) => {
+  onState: (state, reason, { audioHeld = false } = {}) => {
+    mic.audioHeld = audioHeld;
     if (state === 'error' && reason?.startsWith('local-')) state = 'local-unavailable';
     const messages = {
       starting: "starting voice — waiting for the browser microphone",
@@ -1881,7 +1882,12 @@ const capture = createVoiceCapture({
     };
     if (state === "listening") settings.set("mic", "on");
     if (["paused", "denied", "error", "local-unavailable"].includes(state)) settings.set("mic", "off");
-    setMicState(state, messages[state], state === "listening");
+    const message = audioHeld && state === "reconnecting"
+      ? "microphone remains on — reconnecting recognition; pause to turn it off"
+      : audioHeld && state === "starting"
+        ? "microphone is on — starting recognition; cancel to turn it off"
+        : messages[state];
+    setMicState(state, message, state === "listening");
   },
 });
 function startMic() { capture.start(); }
@@ -2034,6 +2040,7 @@ window.__jtApp = {
   registry: verbRegistry,
   currentDoc: () => state.doc,
   micState: () => mic.state,
+  micAudioHeld: () => mic.audioHeld,
   exportData: () => shell?.exportData(),
   voiceSegment: (text) => onFinalSegment(text),
   follow: (text, latestSegment) => onInterim(text, latestSegment),
@@ -2102,6 +2109,7 @@ async function boot() {
     startMic,
     voiceSettings,
     micState: () => mic.state,
+    micAudioHeld: () => mic.audioHeld,
     setStatus,
     shortDigest,
     fmtBytes,

@@ -13,7 +13,11 @@ export function createVoiceCapture({ Recognition, lang, processingMode = 'browse
       try { track.stop(); } catch { /* Continue releasing remaining tracks. */ }
     }
   }
-  const emit = (state, reason) => onState(state, reason);
+  function audioHeld() {
+    try { return !!inputStream?.getAudioTracks?.().some(track => track.kind === 'audio' && track.readyState === 'live'); }
+    catch { return false; }
+  }
+  const emit = (state, reason) => onState(state, reason, { audioHeld: audioHeld() });
   function release() {
     if (timer !== null) cancel(timer);
     timer = null;
@@ -49,15 +53,19 @@ export function createVoiceCapture({ Recognition, lang, processingMode = 'browse
     rec.onstart = () => { if (current()) emit('listening'); };
     rec.onresult = event => {
       if (!current()) return;
-      // Useful results, rather than an onstart/onend loop, prove recovery.
-      failures = 0;
       const results = event.results;
       let full = '';
       for (const result of results) full += `${result[0].transcript} `;
-      onInterim(full, results[results.length - 1]?.[0]?.transcript ?? '');
+      if (full.trim()) onInterim(full, results[results.length - 1]?.[0]?.transcript ?? '');
       for (let i = finalized; i < results.length; i++) {
         if (!current()) return;
-        if (results[i].isFinal) { finalized = i + 1; onFinal(results[i][0].transcript); }
+        if (results[i].isFinal) {
+          finalized = i + 1;
+          const text = results[i][0].transcript;
+          // Only newly finalized speech proves recovery. Empty events or endless
+          // interim hypotheses must not replenish a failing session's retry budget.
+          if (text.trim()) { failures = 0; onFinal(text); }
+        }
       }
     };
     rec.onerror = event => {
@@ -71,6 +79,7 @@ export function createVoiceCapture({ Recognition, lang, processingMode = 'browse
       owner = null;
       if (++failures > retryLimit) { terminal('error', error ?? 'repeated-end'); return; }
       emit('reconnecting', error);
+      if (!wanted || version !== generation) return;
       timer = schedule(() => { timer = null; launch(version, session); }, Math.min(500 * 2 ** (failures - 1), 4000));
     };
     try {
@@ -88,6 +97,7 @@ export function createVoiceCapture({ Recognition, lang, processingMode = 'browse
       if (!Recognition) { emit('unavailable'); return; }
       wanted = true; failures = 0; const version = ++generation;
       emit('starting');
+      if (!wanted || version !== generation) return;
       let session;
       try {
         session = { lang: typeof lang === 'function' ? lang() : lang,
@@ -128,6 +138,7 @@ export function createVoiceCapture({ Recognition, lang, processingMode = 'browse
           session.track.addEventListener('ended', ended);
           removeEnded = () => session.track.removeEventListener('ended', ended);
         } catch { terminal('error', 'audio-capture'); return; }
+        emit('starting');
         launch(version, session, prepared);
       })();
     },

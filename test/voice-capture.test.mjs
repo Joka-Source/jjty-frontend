@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createVoiceCapture } from '../src/voice-capture.js';
-function rig() {
+function rig(stateHook = () => {}) {
   const recognizers = [], states = [], finals = [], interims = [], timers = new Map(); let id = 0;
   class Recognition {
     constructor() { recognizers.push(this); this.starts = 0; this.aborts = 0; }
@@ -9,7 +9,7 @@ function rig() {
     abort() { this.aborts++; this.onend?.(); }
   }
   const capture = createVoiceCapture({ Recognition, lang: () => 'en-IN',
-    onState: (state) => states.push(state), onFinal: text => finals.push(text),
+    onState: (state) => { states.push(state); stateHook(state); }, onFinal: text => finals.push(text),
     onInterim: text => interims.push(text),
     schedule: (fn, delay) => { timers.set(++id, {fn,delay}); return id; }, cancel: id => timers.delete(id) });
   const tick = () => { const [key, timer] = timers.entries().next().value; timers.delete(key); timer.fn(); };
@@ -80,7 +80,7 @@ function localRig({ availability = async () => 'available', capable = true, acqu
   }
   const capture=createVoiceCapture({Recognition,lang:()=>locale,processingMode:()=>mode,
     acquireAudio:options=>{acquired.push(options);return acquire ? acquire(options) : Promise.resolve(stream);},
-    onState:(state,reason)=>states.push({state,reason}),onInterim(){},onFinal(){},
+    onState:(state,reason,metadata)=>states.push({state,reason,...metadata}),onInterim(){},onFinal(){},
     schedule:fn=>{timers.push(fn);return timers.length;},cancel(){}});
   return {Recognition,capture,recognizers,probes,states,timers,stream,acquired,change:(m,l)=>{mode=m;locale=l;}};
 }
@@ -164,4 +164,41 @@ test('old pending acquisition cannot stop newer session or leak its late stream'
   const pending=r.capture.start(); await Promise.resolve(); r.capture.pause();
   r.change('browser','fr-FR'); r.capture.start(); r.recognizers[1].onstart(); resolve(old); await pending;
   assert.equal(old.track.stops,1); assert.equal(r.recognizers[1].aborts,0); assert.equal(r.states.at(-1).state,'listening');
+});
+test('empty results and never-final interim text cannot replenish recovery budget',()=>{
+ for(const event of [{results:[]},result('   ',true),result('unfinished',false)]){
+  const r=rig();r.capture.start();
+  for(let cycle=0;cycle<4;cycle++){
+   const rec=r.recognizers[cycle];rec.onresult(event);rec.onerror({error:'network'});rec.onend();if(cycle<3)r.tick();
+  }
+  assert.equal(r.states.at(-1),'error');assert.equal(r.timers.size,0);assert.deepEqual(r.finals,[]);
+ }
+});
+
+test('new final speech replenishes recovery budget after repeated failures', () => {
+  const r=rig(); r.capture.start();
+  for(let i=0;i<3;i++){r.recognizers[i].onend();r.tick();}
+  r.recognizers[3].onresult(result('recovered reading'));
+  r.recognizers[3].onend();
+  assert.equal([...r.timers.values()][0].delay,500);
+  assert.deepEqual(r.finals,['recovered reading']);
+  r.capture.pause();
+});
+test('synchronous pause from reconnect status leaves no stale timer', () => {
+  const r=rig(state=>{if(state==='reconnecting')r.capture.pause();});
+  r.capture.start();r.recognizers[0].onend();
+  assert.equal(r.states.at(-1),'paused');assert.equal(r.timers.size,0);
+});
+test('owned audio metadata reflects acquisition, recovery, pause and terminal release', async () => {
+  const r=localRig();const pending=r.capture.start();
+  assert.equal(r.states[0].audioHeld,false);await pending;
+  assert.equal(r.states.at(-1).state,'starting');assert.equal(r.states.at(-1).audioHeld,true);
+  r.recognizers[0].onstart();assert.equal(r.states.at(-1).audioHeld,true);
+  r.recognizers[0].onend();assert.equal(r.states.at(-1).state,'reconnecting');assert.equal(r.states.at(-1).audioHeld,true);
+  r.capture.pause();assert.equal(r.states.at(-1).audioHeld,false);
+  const ended=localRig();await ended.capture.start();
+  ended.stream.track.readyState='ended';ended.stream.track.dispatchEvent(new Event('ended'));
+  assert.equal(ended.states.at(-1).state,'error');assert.equal(ended.states.at(-1).audioHeld,false);
+  const browser=localRig();browser.change('browser','en-US');browser.capture.start();browser.recognizers[0].onstart();
+  assert.equal(browser.states.at(-1).audioHeld,false);browser.capture.dispose();
 });
