@@ -28,3 +28,16 @@ Prior turn: progress; installed integration and verified source/edit/export/reop
 Plan: retain original-copy semantics. Allow only verified upstream tool routes through one service mapping; persist the selected tool with pending session for recovery. Keep old pending sessions compatible with Organize default. Expose tool choice only for PDF sources.
 
 Review: frontend391tests/build pass; Bento5tests/tsc pass; independent review clean. Poppler/pdf-lib verified4actual browser journeys including fill-to-sign continuity. Sourcef2cde76/Bento4c5c3c3. Added text is not existing-text replacement. Next verify actual existing-text engine, then OCR through the same durable return.
+
+## Existing-text and OCR continuation
+
+Previous goal turn: progress; actual editing, forms and fill-to-sign output verified and committed.
+
+Plan: expose actual upstream existing-text editor and OCR routes with explicit labels; verify original text replacement and image-only-to-searchable output through real browser exports and durable return. Preserve original bytes and document structures; independently inspect results before claims.
+
+- [x] Add supported text/OCR routes and purposeful Reader choices.
+- [x] Real existing-text replacement, exported PDF readback and JETT reopen.
+- [x] Real OCR on image-only source, engine/asset evidence and searchable returned output.
+- [x] Independent review, focused/full checks, SSOT and scoped commits.
+
+Review: text replacement changes original content (not overlays); form geometry preserved, font substitution remains. OCR fresh engine and searchable JETT reopen passed; partial recognition cannot omit source pages. Frontend391/full build, OCR51, bridge6 and tsc pass. Next local OCR asset packaging/offline acceptance, then broader fidelity corpus.

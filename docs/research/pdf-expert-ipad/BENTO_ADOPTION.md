@@ -11,6 +11,8 @@ Real isolated Chrome journeys have verified organize/duplicate, added text in th
 Current canonical revisions, acceptance evidence and remaining boundaries are recorded in [the founder SSOT](../../../../human/JETT_SSOT.md) and its `evidence/2026-09-09/` directory. Local runtime work is not deployment, native integration or full PDF Expert parity. The source map and licence declarations below remain historical reference evidence.
 
 
+Existing-text and OCR acceptance was subsequently added: actual Find/Replace All removes the old page text (zero FreeText overlays), with form fields retained but font substitution observed. Actual English OCR turns an image-only source into a searchable returned PDF and JETT search highlights its invoice phrase. Partial OCR failures now retain source pages. First-use runtime assets still depend on upstream CDNs; offline readiness and broad script/font fidelity remain open. See the SSOT for exact revisions and independent evidence.
+
 ## Exact reference
 
 - Upstream: https://github.com/alam00000/bentopdf
