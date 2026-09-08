@@ -349,3 +349,30 @@ jett-owned-voice-device.log in the parent workspace.
 Fresh full gate passes138 tests in jett-owned-voice-full-test.log. Independent
 capture lifecycle review and browser verification completed; no production
 release or physical-device acceptance is claimed.
+
+## PDF form fill, local recovery and export
+
+Added AcroForm inspection/editing with immutable source bytes. Text, multiline,
+checkbox, radio and scalar choice fields have local drafts and explicit filled
+copy download. Shared widgets use one answer; form JavaScript is disabled and
+unsupported/signature-protected/dynamic forms are not silently approximated.
+The original preview is labelled; local/server annotations are not part of this
+form-only export. Draft writes survive navigation/reopen; failed saves can retry;
+fields are frozen while the export snapshot is prepared.
+
+Browser proof passes six answers across reload, exact original-byte preservation,
+filled-copy download and narrow-screen layout. Independent pypdf inspection of
+canonical field values, all eight widget values/AP/ancestry and source checksum
+passes. Poppler renders of both exported pages were visually inspected: correct
+text, checkbox/radio states, dropdown, multiline notes and repeated reference.
+Evidence: parent jett-form-ui-proof.log and runtime/form-proof/ui-inspection.json,
+ui-filled-{1,2}.png. See docs/architecture/PDF_FORMS.md for exact supported scope.
+
+Final full gate:151 tests pass in jett-form-full-test.log. The final UI export
+also passes independent ui-final-inspection.json; both ui-final-{1,2}.png pages
+were visually inspected. Core covers12 focused real-PDF cases including saved
+readback failure, canonical duplicate-name rejection, permissions/signatures,
+unsupported field actions and required-value guards. The production-panel
+lifecycle browser test passes delayed save, failed save/retry and stale-object
+reopen. Frontend-local verification only; no account/server synchronization of
+form drafts or production release was performed.

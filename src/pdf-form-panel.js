@@ -1,0 +1,71 @@
+import {inspectPdfForm, fillPdfForm} from './pdf-forms.js';
+
+export function initPdfFormPanel({saveDocument}) {
+  const $=id=>document.getElementById(id), panel=$('pdf-form-panel'), status=$('pdf-form-status'), fields=$('pdf-form-fields'), download=$('pdf-form-download');
+  let current=null, generation=0, schema=null, values={}, pending=0, exporting=false, failed=false, queue=Promise.resolve();
+  const drafts=new Map();
+  const explanations={'encrypted':'This encrypted PDF cannot be filled here yet.','form-permission-denied':'This PDF does not permit form filling.','xfa-unsupported':'This dynamic XFA form needs a compatible form application.','calculated-form-unsupported':'This form has automatic calculations that are not supported here yet.','signature-protection':'This PDF has signature protection; export is disabled.','signed-document':'This PDF already has a digital signature; export is disabled.','field-type-unsupported':'This field type is not supported yet.','rich-text-unsupported':'Rich-text formatting is not supported yet.','multi-select-unsupported':'Multiple-choice selections are not supported yet.','field-actions-unsupported':'This field requires document scripts that are not run here.'};
+  const explain=code=>explanations[code] || String(code).replaceAll('-', ' ');
+  const bytes=doc=>new Uint8Array(Object.values(doc.sourceBytes));
+  function controls(){download.disabled=!schema?.canFill || pending>0 || exporting || failed;$('pdf-form-retry').hidden=!failed;$('pdf-form-retry').disabled=pending>0 || exporting;for(const input of fields.querySelectorAll('[data-editable]'))input.disabled=exporting || input.dataset.editable!=='true';}
+  function persist(){
+    const doc=current, version=generation, snapshot=structuredClone(values);
+    const draftState={sourceDigest:doc.provenance.contentDigest,values:snapshot,saved:false};drafts.set(doc.id,draftState);
+    pending++;failed=false;status.textContent='Saving answers on this device…';controls();
+    queue=queue.catch(()=>{}).then(async()=>{
+      const draft={sourceDigest:doc.provenance.contentDigest,values:snapshot};
+      await saveDocument({...doc,formDraft:draft});doc.formDraft=draft;draftState.saved=true;
+    }).then(()=>{if(version===generation){failed=false;status.textContent='Answers saved on this device. Your original is unchanged.';}},()=>{if(version===generation){failed=true;status.textContent='Answers could not be saved. Retry saving; keep this page open.';}}).finally(()=>{if(version===generation){pending--;controls();}});
+  }
+  function render(){
+    fields.replaceChildren();
+    const groups=new Map();for(const field of schema.fields){const key=field.name || field.key;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(field);}
+    let index=0;
+    for(const group of groups.values()){
+      const field=group[0], wrap=document.createElement('div'), label=document.createElement('label'), id=`pdf-answer-${index++}`;
+      wrap.className='pdf-form-field';label.htmlFor=id;label.textContent=`${field.label || field.name || 'Unnamed field'}${field.required?' (required)':''}`;
+      const hint=document.createElement('small');hint.textContent=`Page ${[...new Set(group.map(f=>f.pageIndex+1))].join(', ')}`;
+      let input;
+      if(field.type==='checkbox'){input=document.createElement('input');input.type='checkbox';input.checked=!!values[field.key];}
+      else if(field.type==='radio' || field.type==='choice'){
+        input=document.createElement('select');const options=field.type==='radio'?group.map(f=>({value:f.exportValue,label:f.exportValue})):field.options;
+        if(!field.value){const option=document.createElement('option');option.value='';option.textContent='Choose…';option.disabled=true;input.append(option);}
+        for(const item of new Map((options || []).map(o=>[o.value,o])).values()){const option=document.createElement('option');option.value=item.value;option.textContent=item.label;input.append(option);}
+        input.value=values[field.key] ?? '';
+      }else{input=document.createElement(field.multiline?'textarea':'input');if(!field.multiline)input.type='text';input.value=values[field.key] ?? '';if(field.maxLength>0)input.maxLength=field.maxLength;}
+      input.id=id;input.dataset.fieldName=field.name;input.dataset.fieldType=field.type;
+      input.disabled=!schema.canFill || group.some(f=>f.readOnly || f.unsupported?.length);input.required=!!field.required && !input.disabled;input.dataset.editable=String(!input.disabled);
+      input.addEventListener('input',()=>{for(const f of group)values[f.key]=field.type==='checkbox'?input.checked:input.value;persist();});
+      wrap.append(label,hint,input);
+      const notes=group.flatMap(f=>f.unsupported || []);if(field.readOnly)notes.push('Read only.');if(notes.length){const note=document.createElement('small');note.textContent=notes.map(explain).join(' ');wrap.append(note);}
+      fields.append(wrap);
+    }
+    controls();
+  }
+  $('pdf-form-retry').addEventListener('click',()=>{if(failed && !pending)persist();});
+  download.addEventListener('click',async()=>{
+    if(download.disabled || [...fields.querySelectorAll('input,select,textarea')].some(input=>!input.reportValidity()))return;
+    const doc=current, version=generation, snapshot=Object.fromEntries(schema.fields.filter(f=>!f.readOnly && !f.unsupported.length && values[f.key]!==f.value).map(f=>[f.key,values[f.key]]));exporting=true;controls();status.textContent='Preparing and checking your filled copy…';
+    try{
+      const result=await fillPdfForm(bytes(doc),snapshot);
+      if(version!==generation)return;
+      const url=URL.createObjectURL(new Blob([result],{type:'application/pdf'})), link=document.createElement('a');
+      link.href=url;link.download=`${(doc.provenance.name || doc.title || 'document').replace(/\.pdf$/i,'')}-filled.pdf`;link.click();setTimeout(()=>URL.revokeObjectURL(url),30000);
+      status.textContent='Filled copy prepared. Your original and saved answers remain on this device.';
+    }catch(error){if(version===generation)status.textContent=`The filled copy could not be created: ${error.message}`;}
+    finally{if(version===generation){exporting=false;controls();}}
+  });
+  return {async setDocument(doc){
+    const version=++generation;current=doc;schema=null;values={};pending=0;exporting=false;failed=false;panel.hidden=true;fields.replaceChildren();controls();
+    if(doc?.provenance?.sourceKind!=='pdf' || !doc.sourceBytes)return;
+    try{
+      await queue;if(version!==generation)return;
+      const next=await inspectPdfForm(bytes(doc));if(version!==generation)return;
+      if(!next.fields.length && !next.restrictions.length)return;
+      schema=next;const held=drafts.get(doc.id);const draft=held?.sourceDigest===doc.provenance.contentDigest?held:doc.formDraft;
+      const saved=draft?.sourceDigest===doc.provenance.contentDigest?draft.values:{};failed=held?.saved===false;
+      for(const field of schema.fields)values[field.key]=saved?.[field.key] ?? field.value;
+      panel.hidden=false;status.textContent=next.restrictions.length?next.restrictions.map(explain).join(' '):failed?'Answers could not be saved. Retry saving; keep this page open.':draft?'Your saved answers are ready.':'Fill the fields, then download your copy.';render();
+    }catch(error){if(version===generation){panel.hidden=false;status.textContent=`Form fields could not be read: ${error.message}`;}}
+  }};
+}

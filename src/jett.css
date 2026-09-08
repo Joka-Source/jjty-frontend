@@ -92,3 +92,8 @@ article.image-source { padding-bottom: 24px; }
 .server-work-layer polygon[data-annotation="note"] { fill: #60a5fa; fill-opacity: .25; }
 
 .server-work-layer line { stroke: #b55b27; stroke-width: 1.5; }
+.pdf-form-fields {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));gap:1rem;margin:1rem 0;}
+.pdf-form-field {display:flex;flex-direction:column;gap:.35rem;min-width:0;}
+.pdf-form-field small {color:var(--muted);}
+.pdf-form-field input:not([type=checkbox]), .pdf-form-field select, .pdf-form-field textarea {box-sizing:border-box;width:100%;min-height:44px;}
+.pdf-form-field input[type=checkbox] {width:24px;height:24px;}

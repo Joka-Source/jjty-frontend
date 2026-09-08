@@ -349,6 +349,15 @@
           <output id="pdf-search-count" aria-live="polite"></output>
           <p id="pdf-message" class="pdf-message" aria-live="polite"></p>
         </section>
+        <details id="pdf-form-panel" class="server-panel" hidden>
+          <summary>Fill this form</summary>
+          <p class="hint">Answers are saved on this device. Download a filled copy when ready; your original stays unchanged.</p>
+          <p id="pdf-form-status" class="hint" role="status"></p>
+          <div id="pdf-form-fields" class="pdf-form-fields"></div>
+          <button id="pdf-form-download">Download filled copy</button>
+          <button id="pdf-form-retry" hidden>Retry saving answers</button>
+          <p class="hint">The page below shows the original. The downloaded copy includes form answers; local highlights and server notes remain separate.</p>
+        </details>
         <details id="server-panel" class="server-panel" hidden>
           <summary>Work with your server</summary>
           <form id="server-connect" class="server-connect">
