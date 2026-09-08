@@ -5,6 +5,11 @@ export function createVoiceCapture({ Recognition, lang, processingMode = 'browse
   schedule = setTimeout, cancel = clearTimeout, retryLimit = 3 }) {
   let wanted = false, owner = null, generation = 0, timer = null, failures = 0;
   let inputStream = null, acquisition = null, removeEnded = null;
+  let speechDeadline = null;
+  function clearSpeechDeadline() {
+    if (speechDeadline !== null) cancel(speechDeadline);
+    speechDeadline = null;
+  }
   const stoppedTracks = new WeakSet();
   function stopStream(stream) {
     for (const track of stream?.getTracks?.() ?? []) {
@@ -19,6 +24,7 @@ export function createVoiceCapture({ Recognition, lang, processingMode = 'browse
   }
   const emit = (state, reason) => onState(state, reason, { audioHeld: audioHeld() });
   function release() {
+    clearSpeechDeadline();
     if (timer !== null) cancel(timer);
     timer = null;
     const old = owner; owner = null;
@@ -51,12 +57,26 @@ export function createVoiceCapture({ Recognition, lang, processingMode = 'browse
     let finalized = 0, error = null;
     const current = () => wanted && version === generation && owner === rec;
     rec.onstart = () => { if (current()) emit('listening'); };
+    rec.onspeechstart = () => {
+      if (!current() || speechDeadline !== null) return;
+      // Audio activity is not proof that the recognizer is producing words.
+      // Do not leave a live microphone behind a permanently optimistic label.
+      const deadline = schedule(() => {
+        if (!current() || speechDeadline !== deadline) return;
+        speechDeadline = null;
+        terminal('error', 'recognition-no-results');
+      }, 20000);
+      speechDeadline = deadline;
+    };
     rec.onresult = event => {
       if (!current()) return;
       const results = event.results;
       let full = '';
       for (const result of results) full += `${result[0].transcript} `;
-      if (full.trim()) onInterim(full, results[results.length - 1]?.[0]?.transcript ?? '');
+      if (full.trim()) {
+        clearSpeechDeadline();
+        onInterim(full, results[results.length - 1]?.[0]?.transcript ?? '');
+      }
       for (let i = finalized; i < results.length; i++) {
         if (!current()) return;
         if (results[i].isFinal) {
@@ -76,6 +96,7 @@ export function createVoiceCapture({ Recognition, lang, processingMode = 'browse
     };
     rec.onend = () => {
       if (!current()) return;
+      clearSpeechDeadline();
       owner = null;
       if (++failures > retryLimit) { terminal('error', error ?? 'repeated-end'); return; }
       emit('reconnecting', error);

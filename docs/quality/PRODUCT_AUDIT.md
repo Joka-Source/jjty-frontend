@@ -691,3 +691,31 @@ the current runtime evidence. This is research delivery, not iPad parity proof.
 Bounded local and history searches including the founder's IIIT Nagpur clue did
 not locate the reported Reddit mirror/lab; no broad archive access or collection
 claim. Public research continued independently.
+
+## Live Chrome diagnosis and silent-recognition recovery — 8 September
+
+In the user's Chrome profile, browser-service mode had microphone permission and
+emitted audio/speech-start events, but zero recognition results during the
+observed attempt. The same profile initially reported the local English pack as
+downloadable. Installing it through the app and selecting on-device mode yielded
+391 result events in one recognizer session, with an owned live microphone.
+A generated sentence played through the Mac speaker reached the physical mic,
+moved the cursor to the rent paragraph, and a subsequent spoken highlight
+created a voice act after explicit ambiguity confirmation. That act survived
+reload. Pause reported audioHeld=false; local mode persisted. No fake transcript
+or generated MediaStream supplied this live check. The result does not establish
+unattended exact selection, all accents/noise or native Android voice.
+
+Evidence: ../runtime/live-voice-diagnosis/2026-09-08.json. The temporary event-only
+instrumentation was removed by reload. No raw audio or full conversation saved.
+
+A new capture deadline handles the observed failure class: detected speech with
+no nonblank result for twenty seconds ends capture and gives a specific retry/
+settings message. Three regression tests failed before the patch and passed
+after it (26 focused tests total). A separately mocked browser journey verified
+the rendered failure, retry button and one abort with an accelerated clock.
+This mocked failure test is separate from the real-audio configuration recovery.
+
+Full local gate passed: build plus 234 tests, zero failures/skips; log
+../runtime/live-voice-diagnosis/watchdog-full.log. The reason-code assertion was
+also rerun in the focused 26-test suite. Product change is local only.

@@ -1899,7 +1899,9 @@ const capture = createVoiceCapture({
     };
     if (state === "listening") settings.set("mic", "on");
     if (["paused", "denied", "error", "local-unavailable"].includes(state)) settings.set("mic", "off");
-    const message = audioHeld && state === "reconnecting"
+    const message = reason === "recognition-no-results"
+      ? "speech was detected but no words came back — voice is off; try on-device speech in settings or retry"
+      : audioHeld && state === "reconnecting"
       ? "microphone remains on — reconnecting recognition; pause to turn it off"
       : audioHeld && state === "starting"
         ? "microphone is on — starting recognition; cancel to turn it off"

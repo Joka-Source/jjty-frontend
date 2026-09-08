@@ -141,3 +141,22 @@ machine-wide network isolation. Physical microphone and OS indicator acceptance
 remain separate. The UI regression uses generated silent tracks and controlled
 recognizer events to check the intermediate held-track disclosure in both the
 header and settings, including acquisition before the recognizer's start event.
+
+## Speech detected without words
+
+A live user Chrome profile emitted audio/speech-start events in browser-service
+mode but no recognition results. Installing the English pack in that profile
+and explicitly selecting on-device mode restored real microphone results.
+The sample cursor followed the rent paragraph; a spoken highlight went through
+an ambiguity confirmation and persisted across reload. This speaker-to-physical-
+microphone check is distinct from both transcript injection and the isolated
+synthetic-stream test. It does not prove exact accent/noise matching or identify
+why the upstream browser service returned no words.
+
+Capture now starts a twenty-second deadline when speech is detected. Any
+nonblank recognition result clears it; repeated speech-start events do not
+postpone it. If no words arrive, capture terminates, cancels recovery and reports
+`recognition-no-results`. End, pause and disposal cancel the deadline, and stale
+callbacks cannot stop a newer session. This bounds the observed silent-service
+failure without treating microphone activity as successful recognition. It does
+not detect every possible recognizer stall after a result has already arrived.

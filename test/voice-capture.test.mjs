@@ -9,7 +9,7 @@ function rig(stateHook = () => {}) {
     abort() { this.aborts++; this.onend?.(); }
   }
   const capture = createVoiceCapture({ Recognition, lang: () => 'en-IN',
-    onState: (state) => { states.push(state); stateHook(state); }, onFinal: text => finals.push(text),
+    onState: (state, reason) => { states.push(state); stateHook(state, reason); }, onFinal: text => finals.push(text),
     onInterim: text => interims.push(text),
     schedule: (fn, delay) => { timers.set(++id, {fn,delay}); return id; }, cancel: id => timers.delete(id) });
   const tick = () => { const [key, timer] = timers.entries().next().value; timers.delete(key); timer.fn(); };
@@ -201,4 +201,33 @@ test('owned audio metadata reflects acquisition, recovery, pause and terminal re
   assert.equal(ended.states.at(-1).state,'error');assert.equal(ended.states.at(-1).audioHeld,false);
   const browser=localRig();browser.change('browser','en-US');browser.capture.start();browser.recognizers[0].onstart();
   assert.equal(browser.states.at(-1).audioHeld,false);browser.capture.dispose();
+});
+
+// A real Chrome browser-service session emitted speechstart but no results.
+test('detected speech without recognition results stops with a useful reason', () => {
+  let reason;
+  const r=rig((_state, value) => { reason=value; }); r.capture.start(); const rec=r.recognizers[0];
+  rec.onstart(); rec.onspeechstart();
+  assert.equal([...r.timers.values()][0].delay,20000);
+  r.tick();
+  assert.equal(r.states.at(-1),'error'); assert.equal(reason,'recognition-no-results'); assert.equal(rec.aborts,1);
+  assert.equal(r.timers.size,0);
+  rec.onresult(result('highlight this')); assert.deepEqual(r.finals,[]);
+});
+test('recognition progress, end and pause cancel the no-result watchdog', () => {
+  for (const action of ['result','end','pause']) {
+    const r=rig();r.capture.start();const rec=r.recognizers[0];rec.onspeechstart();
+    const stale=[...r.timers.values()][0].fn;
+    if(action==='result')rec.onresult(result('rent is due',false));
+    if(action==='end')rec.onend();
+    if(action==='pause')r.capture.pause();
+    stale();
+    assert.notEqual(r.states.at(-1),'error');
+    assert.equal(r.timers.size,action==='end'?1:0);
+  }
+});
+test('repeated speech-start events cannot postpone the no-result deadline', () => {
+  const r=rig();r.capture.start();const rec=r.recognizers[0];
+  rec.onspeechstart();const first=[...r.timers.keys()][0];rec.onspeechstart();
+  assert.deepEqual([...r.timers.keys()],[first]);r.tick();assert.equal(r.states.at(-1),'error');
 });
