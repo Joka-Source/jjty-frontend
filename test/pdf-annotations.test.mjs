@@ -93,3 +93,64 @@ test('notes avoid existing annotations and other notes on the same passage',asyn
   assert.ok(a[2]<=b[0]||b[2]<=a[0]||a[3]<=b[1]||b[3]<=a[1],`${notes[i].name} overlaps ${notes[j].name}`);
  }
 });
+
+async function rangeSource(){const raw=new Uint8Array(readFileSync(new URL('./fixtures/jett-range.pdf',import.meta.url)));return {id:'range-fixture',...await ingestPdfBrowser(createMuPdfProvider(mupdf),raw,{name:'jett-range.pdf'})};}
+function rangeMark(doc){
+ const blockTexts=doc.blocks.map(block=>block.text),docDigest=doc.provenance.contentDigest;
+ const start=createAnchor({blockTexts,docDigest,blockIndex:0,tokenStart:4,tokenEnd:8});
+ const end=createAnchor({blockTexts,docDigest,blockIndex:2,tokenStart:0,tokenEnd:3});
+ return {id:'three-pages',docId:doc.id,kind:'act',act:'highlight',verbId:'highlight-range',blockIndex:0,blockEnd:2,arrival:'exact',anchor:start,rangeAnchor:{version:1,start,end}};
+}
+test('exact three-page range clips endpoints and exports every middle word with stable segment names',async()=>{
+ const doc=await rangeSource(),record=rangeMark(doc),before=hash(doc.sourceBytes),output=await exportAnnotatedPdf(doc,[record]);
+ const saved=readAnnotations(output);assert.equal(saved.length,3);assert.deepEqual(saved.map(item=>item.pageIndex),[0,1,2]);
+ assert.deepEqual(saved.map(item=>item.name),['jett:three-pages:range:0','jett:three-pages:range:1','jett:three-pages:range:2']);
+ assert.equal(saved[0].contents,'Start at the orchard gate.\n\nContinue through the trees');
+ assert.equal(saved[1].contents,'Middle page first line.\n\nEvery middle word belongs to the range');
+ assert.equal(saved[2].contents,'Finish beside the river');
+ assert.deepEqual(saved.map(item=>item.quads.length),[2,2,1]);
+ assert.equal(hash(doc.sourceBytes),before);assert.equal(readAnnotations(doc.sourceBytes).length,0);
+});
+test('range export rejects endpoint corruption and missing intermediate page coverage',async()=>{
+ const doc=await rangeSource(),record=rangeMark(doc);
+ const invalid=structuredClone(record);invalid.rangeAnchor.end.quotedText='Wrong endpoint';
+ await assert.rejects(exportAnnotatedPdf(doc,[invalid]),/RANGE_ANCHOR_INVALID/);
+ const wrongDigest=structuredClone(record);wrongDigest.rangeAnchor.end.docDigest='sha256:wrong';
+ await assert.rejects(exportAnnotatedPdf(doc,[wrongDigest]),/RANGE_ANCHOR_INVALID/);
+ const gap=structuredClone(doc);gap.blocks.splice(1,1);
+ const shifted=structuredClone(record);shifted.blockEnd=1;shifted.rangeAnchor.end.blockIndex=1;
+ await assert.rejects(exportAnnotatedPdf(gap,[shifted]),/RANGE_PAGE_GAP/);
+ const changed=structuredClone(doc);changed.blocks[1].text+=' Altered middle text';
+ await assert.rejects(exportAnnotatedPdf(changed,[record]),/PAGE_TEXT_MISMATCH/);
+});
+test('one undo removes an entire exact range and same-block range keeps ordinary annotation identity',async()=>{
+ const doc=await rangeSource(),record=rangeMark(doc);
+ await assert.rejects(exportAnnotatedPdf(doc,[record,{id:'undo-range',docId:doc.id,kind:'undo',act:'undo',undoes:record.id}]),/NO_EXPORTABLE/);
+ const same=structuredClone(record);same.blockEnd=0;same.rangeAnchor.end=structuredClone(same.rangeAnchor.start);
+ const result=readAnnotations(await exportAnnotatedPdf(doc,[same]));assert.equal(result.length,1);assert.equal(result[0].name,'jett:three-pages');assert.equal(result[0].contents,'Start at the orchard gate');
+});
+test('serialized range cannot silently lose its middle-page annotation',async()=>{
+ const doc=await rangeSource(),record=rangeMark(doc),complete=await exportAnnotatedPdf(doc,[record]);
+ const pdf=new mupdf.PDFDocument(complete),page=pdf.loadPage(1),annotations=page.getAnnotations();let incomplete;
+ try {for(const annotation of annotations)page.deleteAnnotation(annotation);const buffer=pdf.saveToBuffer();try{incomplete=new Uint8Array(buffer.asUint8Array());}finally{buffer.destroy();}}
+ finally{annotations.forEach(annotation=>annotation.destroy());page.destroy();pdf.destroy();}
+ const save=mupdf.PDFDocument.prototype.saveToBuffer;mupdf.PDFDocument.prototype.saveToBuffer=function(){return new mupdf.Buffer(incomplete);};
+ try{await assert.rejects(exportAnnotatedPdf(doc,[record]),/SERIALIZED_READBACK_FAILED/);}finally{mupdf.PDFDocument.prototype.saveToBuffer=save;}
+});
+test('range crosses a physically empty intermediate page without inventing an annotation there',async()=>{
+ const original=await rangeSource(),pdf=new mupdf.PDFDocument(original.sourceBytes.slice());let raw;
+ try {const blank=pdf.addPage([0,0,600,800],0,{},'');try{pdf.insertPage(1,blank);}finally{blank.destroy();}const buffer=pdf.saveToBuffer();try{raw=new Uint8Array(buffer.asUint8Array());}finally{buffer.destroy();}}
+ finally{pdf.destroy();}
+ const doc={id:'blank-range',...await ingestPdfBrowser(createMuPdfProvider(mupdf),raw,{name:'blank-range.pdf'})};
+ assert.deepEqual(doc.blocks.map(block=>block.locator),['page:1','page:3','page:4']);
+ const before=hash(raw),saved=readAnnotations(await exportAnnotatedPdf(doc,[rangeMark(doc)]));
+ assert.deepEqual(saved.map(item=>item.pageIndex),[0,2,3]);assert.equal(saved[0].contents,'Start at the orchard gate.\n\nContinue through the trees');assert.equal(saved.at(-1).contents,'Finish beside the river');assert.equal(hash(raw),before);
+});
+test('range rejects skipped nontext drawing pages rather than treating them as blank',async()=>{
+ const original=await rangeSource(),pdf=new mupdf.PDFDocument(original.sourceBytes.slice());let raw;
+ try {const drawing=pdf.addPage([0,0,600,800],0,{},'0 0 1 rg 60 60 100 100 re f');try{pdf.insertPage(1,drawing);}finally{drawing.destroy();}const buffer=pdf.saveToBuffer();try{raw=new Uint8Array(buffer.asUint8Array());}finally{buffer.destroy();}}
+ finally{pdf.destroy();}
+ const doc={id:'drawing-range',...await ingestPdfBrowser(createMuPdfProvider(mupdf),raw,{name:'drawing-range.pdf'})};
+ assert.deepEqual(doc.blocks.map(block=>block.locator),['page:1','page:3','page:4']);
+ await assert.rejects(exportAnnotatedPdf(doc,[rangeMark(doc)]),/RANGE_PAGE_GAP/);
+});

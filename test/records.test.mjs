@@ -143,3 +143,14 @@ test("a return is a valid lightweight non-undoable record pair", () => {
   assert.ok(validateCursor(entry.cursor), errorsOf(validateCursor));
   assert.ok(validateReceipt(entry.receipt), errorsOf(validateReceipt));
 });
+
+test('range evidence is one immutable app record with valid cursor and receipt',async()=>{
+ const {createAnchor,deriveRangeSegments}=await import('../src/anchors.js');
+ const blockTexts=['Skip head selected first tail.','Last selected stop here.'],docDigest='sha256:range-fixture';
+ const rangeAnchor={version:1,start:createAnchor({blockTexts,blockIndex:0,tokenStart:2,tokenEnd:2,docDigest}),end:createAnchor({blockTexts,blockIndex:1,tokenStart:0,tokenEnd:1,docDigest})};
+ const resolvedSegments=deriveRangeSegments(rangeAnchor,{blockTexts,docDigest});
+ const entry=makeActEntry({docId:'range-record',revision:1,blockIndex:0,blockEnd:1,act:'highlight',verbId:'highlight-range',modality:'voice',evidence:'select range',anchor:rangeAnchor.start,rangeAnchor,resolvedSegments,arrival:'exact'});
+ assert.equal(entry.kind,'act');assert.equal(entry.act,'highlight');assert.equal(entry.resolvedSegments.length,2);
+ assert.ok(validateCursor(entry.cursor),errorsOf(validateCursor));assert.ok(validateReceipt(entry.receipt),errorsOf(validateReceipt));
+ rangeAnchor.end.quotedText='changed';resolvedSegments[0].quotedText='changed';assert.equal(entry.rangeAnchor.end.quotedText,'Last selected');assert.equal(entry.resolvedSegments[0].quotedText,'selected first tail');assert.equal(entry.resolvedAnchor.quotedText,'selected first tail');
+});

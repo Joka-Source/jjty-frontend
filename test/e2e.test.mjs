@@ -110,13 +110,16 @@ test("sim replay: records created, schema-valid, undo works", { timeout: 120000 
   }
 
   // Ambiguity resolves by asking: the "did you mean…" prompt is visible;
-  // choosing the first candidate performs a range highlight — only then.
+  // A grammar choice cannot manufacture a missing complete endpoint.
   const askVisible = await page.$eval("#ask", (n) => !n.hidden);
   assert.equal(askVisible, true, "did-you-mean prompt not visible");
   const before = await page.evaluate(() => window.__jtApp.entries().length);
   await page.evaluate(() =>
     document.querySelector('#ask .ask-option[data-candidate="0"]').click()
   );
+  await page.waitForFunction(()=>!window.__jtApp.ask());
+  assert.equal(await page.evaluate(()=>window.__jtApp.entries().length),before,'nonexistent complete endpoint must not create a guessed range');
+  await page.evaluate(()=>window.__jtApp.voiceSegment('highlight from rent is due to the final inspection'));
   await page.waitForFunction(
     (n) => window.__jtApp.entries().length > n,
     { timeout: 5000 },
@@ -132,6 +135,7 @@ test("sim replay: records created, schema-valid, undo works", { timeout: 120000 
       modality: e.modality,
       cursor: e.cursor,
       receipt: e.receipt,
+      rangeAnchor:e.rangeAnchor,
       askGone: !window.__jtApp.ask(),
     };
   });
@@ -139,6 +143,9 @@ test("sim replay: records created, schema-valid, undo works", { timeout: 120000 
   assert.equal(resolved.blockIndex, 3, "range should start at the rent block");
   assert.equal(resolved.blockEnd, 4, "range should end at the deposit block");
   assert.equal(resolved.askGone, true, "ask should clear after resolution");
+  assert.equal(resolved.rangeAnchor.start.quotedText,'Rent is due');
+  assert.equal(resolved.rangeAnchor.end.quotedText,'the final inspection');
+  assert.equal(resolved.receipt.arrival,'exact');
   assert.ok(validateCursor(resolved.cursor), `range cursor: ${errorsOf(validateCursor)}`);
   assert.ok(validateReceipt(resolved.receipt), `range receipt: ${errorsOf(validateReceipt)}`);
 

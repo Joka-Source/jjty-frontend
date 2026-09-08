@@ -5,7 +5,7 @@
 import { makeActEntry, makeReturnEntry } from "./records.js";
 import { putRecord, putRecords, getRecords } from "./db.js";
 import { contentDigest } from "./ingest.js";
-import { createAnchor, migrateLegacyEntry, resolveAnchor } from "./anchors.js";
+import { createAnchor, deriveRangeSegments, migrateLegacyEntry, resolveAnchor } from "./anchors.js";
 import { verbRegistry } from "./registry/index.js";
 import { emitGlass } from "./glass-tap.js";
 
@@ -33,8 +33,27 @@ export function createActEngine({
       let entry = original.anchor
         ? { ...original }
         : migrateLegacyEntry(original, { blockTexts, docDigest });
-      if (entry.migration !== "legacy" && entry.anchor) {
-        const resolved = resolveAnchor(entry.anchor, { blockTexts, docDigest });
+      if (entry.rangeAnchor) {
+        try {
+          entry.resolvedSegments = deriveRangeSegments(entry.rangeAnchor, { blockTexts, docDigest });
+          entry.anchor = structuredClone(entry.rangeAnchor.start);
+          entry.resolvedAnchor = entry.resolvedSegments[0];
+          entry.blockIndex = entry.resolvedSegments[0].blockIndex;
+          entry.blockEnd = entry.resolvedSegments.at(-1).blockIndex;
+          entry.arrival = "exact";
+        } catch {
+          entry.arrival = "lost";
+          delete entry.resolvedSegments;
+          delete entry.resolvedAnchor;
+        }
+      } else if (entry.migration !== "legacy" && entry.anchor) {
+        const revisionMatch = /^r(\d+)$/.exec(String(entry.receipt?.sourceRevision ?? ""));
+        const sourceRevision = revisionMatch ? Number(revisionMatch[1]) : NaN;
+        const currentRevision = doc?.revision;
+        const allowSourceChange = entry.verbId !== "highlight-range" && !entry.rangeAnchor
+          && Number.isSafeInteger(sourceRevision) && Number.isSafeInteger(currentRevision)
+          && currentRevision > sourceRevision;
+        const resolved = resolveAnchor(entry.anchor, { blockTexts, docDigest, allowSourceChange });
         entry.arrival = resolved.arrival;
         if (resolved.arrival === "lost") {
           delete entry.resolvedAnchor;
@@ -63,6 +82,10 @@ export function createActEngine({
   function* affectedBlocks(entry) {
     if (entry.arrival === "lost") return;
     const blocks = getBlocks();
+    if (entry.rangeAnchor && entry.resolvedSegments) {
+      for (const segment of entry.resolvedSegments) if (blocks[segment.blockIndex]) yield blocks[segment.blockIndex];
+      return;
+    }
     const from = entry.blockIndex;
     const to = entry.blockEnd ?? entry.blockIndex;
     for (let i = from; i <= to; i++) {
@@ -110,6 +133,7 @@ export function createActEngine({
       tokenEnd,
       targetChoice,
       arrival: requestedArrival,
+      rangeAnchor,
     } = {}
   ) {
     const verb = verbRegistry.resolve(verbId);
@@ -119,7 +143,7 @@ export function createActEngine({
     const blockTexts = getBlockTexts();
     const docDigest =
       doc.provenance?.contentDigest ?? (await contentDigest(doc.text ?? blockTexts.join("\n\n")));
-    const anchor =
+    let anchor =
       Number.isInteger(tokenStart) && Number.isInteger(tokenEnd)
         ? createAnchor({
             blockTexts,
@@ -130,7 +154,22 @@ export function createActEngine({
             geometry: getAnchorGeometry(blockIndex, tokenStart, tokenEnd),
           })
         : null;
-    const arrival = requestedArrival ?? (anchor ? "exact" : "approximate");
+    let resolvedSegments, storedRange;
+    if (rangeAnchor) {
+      if (verb.recordAct !== "highlight") throw new Error("RANGE_ACT_UNSUPPORTED");
+      resolvedSegments = deriveRangeSegments(rangeAnchor, { blockTexts, docDigest });
+      if (blockIndex !== resolvedSegments[0].blockIndex || (blockEnd != null && blockEnd !== resolvedSegments.at(-1).blockIndex)) throw new Error("RANGE_ANCHOR_INVALID");
+      blockEnd = resolvedSegments.at(-1).blockIndex;
+      if (resolvedSegments.length === 1) {
+        anchor = resolvedSegments[0];
+        resolvedSegments = undefined;
+        blockEnd = null;
+      } else {
+        storedRange = structuredClone(rangeAnchor);
+        anchor = structuredClone(storedRange.start);
+      }
+    }
+    const arrival = rangeAnchor ? "exact" : requestedArrival ?? (anchor ? "exact" : "approximate");
     const entry = makeActEntry({
       docId: doc.id,
       revision: doc.revision,
@@ -147,6 +186,8 @@ export function createActEngine({
       mathLatex,
       mathUnparsed,
       anchor,
+      rangeAnchor: storedRange,
+      resolvedSegments,
       arrival,
       targetChoice,
     });

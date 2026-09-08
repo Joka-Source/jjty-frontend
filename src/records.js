@@ -130,6 +130,8 @@ export function makeActEntry({
   mathLatex = "",
   mathUnparsed = [],
   anchor = null,
+  rangeAnchor = null,
+  resolvedSegments = null,
   arrival = null,
   targetChoice = null,
   undoes = null,
@@ -143,7 +145,9 @@ export function makeActEntry({
     blockEnd != null && blockEnd !== blockIndex
       ? `blocks ${blockIndex} to ${blockEnd}`
       : `block ${blockIndex}`;
-  const target = anchor?.quotedText
+  const target = rangeAnchor
+    ? `from “${rangeAnchor.start.quotedText}” to “${rangeAnchor.end.quotedText}”`
+    : anchor?.quotedText
     ? `“${anchor.quotedText}” in block ${blockIndex}`
     : span;
   const wording = { target, span, undoes, noteText, mathLatex };
@@ -186,8 +190,9 @@ export function makeActEntry({
     evidence,
     confidence,
     matchedText,
-    anchor,
-    resolvedAnchor: anchor,
+    anchor: rangeAnchor ? structuredClone(anchor) : anchor,
+    resolvedAnchor: resolvedSegments?.[0] ? structuredClone(resolvedSegments[0]) : anchor,
+    ...(rangeAnchor ? { rangeAnchor: structuredClone(rangeAnchor), resolvedSegments: structuredClone(resolvedSegments) } : {}),
     arrival: resolvedArrival,
     targetChoice,
     noteText,

@@ -38,6 +38,8 @@ One unsupported surviving highlight or note fails the whole export. Stale,
 legacy or approximate anchors, ranges without exact endpoints, changed text,
 missing geometry, duplicate identities, encryption and signature protection are
 not silently ignored. The original PDF's annotation permission is respected.
+New exact spoken ranges are supported across pages, with one local act and
+page-specific standard annotations; see [Exact ranges](EXACT_RANGES.md).
 No mark remains exportable after its undo. Existing annotations in the original
 are preserved; a collision with a local record's annotation identity is rejected.
 

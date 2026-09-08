@@ -1,5 +1,6 @@
 import { tokenizeWithSpans } from './match.js';
 import { inspectPdfForm } from './pdf-forms.js';
+import { deriveRangeSegments } from './anchors.js';
 function fail(code) { const error=new Error(code);error.code=code;throw error; }
 async function digest(bytes) { return 'sha256:'+Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(b=>b.toString(16).padStart(2,'0')).join(''); }
 function nativeText(page) {
@@ -61,15 +62,58 @@ export async function exportAnnotatedPdf(source, records) {
   const undone=new Set(records.filter(r=>(r.kind==='act'||r.kind==='undo') && r.act==='undo' && r.docId===source.id).map(r=>r.undoes));
   const marks=records.filter(r=>r.kind==='act' && r.docId===source.id && ['highlight','note','important'].includes(r.act) && !r.undone && !undone.has(r.id));
   if(!marks.length) fail('NO_EXPORTABLE_ANNOTATIONS');
+  const recordIds=new Set(),annotationNames=new Set(),segments=[],gapPages=new Set();
+  for(const record of marks) {
+    if(!record.id || recordIds.has(record.id)) fail('ANNOTATION_DUPLICATE_ID');recordIds.add(record.id);
+    if(record.rangeAnchor) {
+      if(record.act!=='highlight' || record.arrival!=='exact' || record.migration==='legacy') fail('ANNOTATION_ANCHOR_NOT_EXACT');
+      let anchors;
+      try { anchors=deriveRangeSegments(record.rangeAnchor,{blockTexts:source.blocks.map(block=>block.text),docDigest:sourceDigest}); }
+      catch { fail('ANNOTATION_RANGE_ANCHOR_INVALID'); }
+      if(!anchors.length || record.blockIndex!==anchors[0].blockIndex || (record.blockEnd??record.blockIndex)!==anchors.at(-1).blockIndex) fail('ANNOTATION_RANGE_UNSUPPORTED');
+      let previousPage=null;
+      for(const anchor of anchors) {
+        const locator=/^page:([1-9]\d*)$/.exec(source.blocks[anchor.blockIndex]?.locator??'');
+        const page=locator?Number(locator[1]):null;
+        if(page===null || (previousPage!==null && page<=previousPage)) fail('ANNOTATION_RANGE_PAGE_GAP');
+        // Inspect skipped physical pages below before accepting the range.
+        // Ingestion intentionally omits blank blocks, but can also miss text.
+        if(previousPage!==null)for(let skipped=previousPage+1;skipped<page;skipped++)gapPages.add(skipped-1);
+        previousPage=page;
+        segments.push({...record,anchor,blockIndex:anchor.blockIndex,blockEnd:anchor.blockIndex,
+          annotationName:anchors.length===1?`jett:${record.id}`:`jett:${record.id}:range:${anchor.blockIndex}`});
+      }
+    } else segments.push({...record,annotationName:`jett:${record.id}`});
+  }
+  for(const segment of segments) {
+    if(annotationNames.has(segment.annotationName))fail('ANNOTATION_DUPLICATE_ID');annotationNames.add(segment.annotationName);
+  }
   const mupdf=await import('mupdf'),doc=new mupdf.PDFDocument(bytes),owned=[];
   const keep=o=>{owned.push(o);return o;};
   const expected=[];
   try {
     doc.disableJS(); if(!doc.hasPermission('annotate')) fail('ANNOTATION_PERMISSION_DENIED');
+    for(const pageIndex of gapPages) {
+      if(pageIndex>=doc.countPages())fail('ANNOTATION_RANGE_PAGE_GAP');
+      const page=keep(doc.loadPage(pageIndex)),object=keep(page.getObject());
+      if(nativeText(page).tokens.length)fail('ANNOTATION_RANGE_PAGE_GAP');
+      // No text is insufficient: an image-only or vector page must not vanish
+      // from an exact range. Only absent/empty content and no annotations are
+      // accepted as physically blank, without guessing at drawing operators.
+      const annotations=keep(object.get('Annots')),contents=keep(object.get('Contents'));
+      if(!annotations.isNull() && annotations.length)fail('ANNOTATION_RANGE_PAGE_GAP');
+      const streams=contents.isArray()?Array.from({length:contents.length},(_,i)=>keep(contents.get(i))):[contents];
+      for(const stream of streams) {
+        if(stream.isNull())continue;
+        if(!stream.isStream())fail('ANNOTATION_RANGE_PAGE_GAP');
+        const buffer=keep(stream.readStream());
+        if(buffer.asUint8Array().some(byte=>![0,9,10,12,13,32].includes(byte)))fail('ANNOTATION_RANGE_PAGE_GAP');
+      }
+    }
     const pages=new Map(),texts=new Map(),obstacles=new Map(),ids=new Set();
-    for(const record of marks) {
+    for(const record of segments) {
       const anchor=record.anchor;
-      if(!record.id || ids.has(record.id)) fail('ANNOTATION_DUPLICATE_ID'); ids.add(record.id);
+      if(ids.has(record.annotationName)) fail('ANNOTATION_DUPLICATE_ID'); ids.add(record.annotationName);
       if(!anchor || record.arrival!=='exact' || record.migration==='legacy' || anchor.docDigest!==sourceDigest) fail('ANNOTATION_ANCHOR_NOT_EXACT');
       if(record.blockIndex!==anchor.blockIndex || (record.blockEnd!=null && record.blockEnd!==anchor.blockIndex)) fail('ANNOTATION_RANGE_UNSUPPORTED');
       const block=source.blocks[anchor.blockIndex],locator=/^page:([1-9]\d*)$/.exec(block?.locator??'');
@@ -80,14 +124,14 @@ export async function exportAnnotatedPdf(source, records) {
       if(blockText.slice(tokens[start].start,tokens[end].end)!==anchor.quotedText) fail('ANNOTATION_QUOTE_MISMATCH');
       if(!pages.has(pageIndex)) {
         const page=keep(doc.loadPage(pageIndex));pages.set(pageIndex,page);texts.set(pageIndex,nativeText(page));obstacles.set(pageIndex,[]);
-        for(const a of page.getAnnotations()){keep(a);obstacles.get(pageIndex).push(a.getBounds());if(marks.some(mark=>a.getName()===`jett:${mark.id}`)) fail('ANNOTATION_ID_ALREADY_EXISTS');}
+        for(const a of page.getAnnotations()){keep(a);obstacles.get(pageIndex).push(a.getBounds());if(annotationNames.has(a.getName())) fail('ANNOTATION_ID_ALREADY_EXISTS');}
       }
       const native=texts.get(pageIndex);
       if(tokens.length!==native.tokens.length || tokens.some((token,i)=>token.text!==native.tokens[i].text)) fail('ANNOTATION_PAGE_TEXT_MISMATCH');
       const first=native.tokens[start].start,last=native.tokens[end].end;
       const quads=bands(native.chars.filter(c=>c.start>=first&&c.end<=last && native.text.slice(c.start,c.end).trim()));
       if(!quads.length || quads.some(q=>q.length!==8||q.some(n=>!Number.isFinite(n)))) fail('ANNOTATION_GEOMETRY_UNAVAILABLE');
-      const type=record.act==='note'?'Text':'Highlight',name=`jett:${record.id}`;
+      const type=record.act==='note'?'Text':'Highlight',name=record.annotationName;
       const contents=record.act==='note'?record.noteText:record.act==='important'?`Important: ${anchor.quotedText}`:anchor.quotedText;
       if(typeof contents!=='string'||!contents.trim()) fail('ANNOTATION_CONTENTS_MISSING');
       const annotation=keep(pages.get(pageIndex).createAnnotation(type));

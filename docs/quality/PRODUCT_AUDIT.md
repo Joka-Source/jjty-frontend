@@ -459,3 +459,40 @@ This closes the icon-only note-reading gap from the previous checkpoint. Clickin
 canvas note icons remains noninteractive; the expandable text is the current
 review interaction. Combined form/local-mark exports and exact spoken ranges
 remain distinct unfinished workflows. Local evidence only; no deployment.
+
+## Exact spoken range highlights
+
+New ranges retain both complete endpoint phrases and their original token spans.
+Repeated phrases require a contextual choice; reversed or missing endpoints do
+not create a mark. Offered alternatives and selected endpoints are retained.
+Same-block ranges clip precisely; cross-block ranges save one source-bound entry,
+replay first/last clipped segments and complete middle text, and undo atomically.
+Changing documents clears pending endpoint choices.
+
+PDF export uses physical page locators and native quads for each derived segment,
+with stable per-page annotation identities and reopened verification. Skipped
+pages must be verified empty in the original PDF; text/drawing gaps fail visibly.
+Legacy approximate ranges remain unexportable. A wrong digest prevents even a
+normalized same-block range from repainting after reload. Ordinary highlights
+still refind after an explicit revision advance, reporting refound rather than
+exact when their source changed.
+
+The first full run exposed older desktop/phone tests expecting nonexistent
+endpoint phrases to be silently shortened. Those journeys now assert no guessed
+mark and then issue a complete valid spoken command. A later gate caught ordinary
+revision-refinding compatibility; that behavior was restored without relaxing
+range integrity. Both failure logs remain in the parent project directory.
+
+Actual local UI range download independently inspected and rendered on all three
+pages: `runtime/range-proof/1788828446823/INDEPENDENT-REVIEW.md` under the parent
+directory. Three annotation identities, contents, page locations, appearances and
+quads match. Unselected first/last lines stay unmarked; the middle text is marked.
+Output SHA256 `8284ddf0923964b1209aa624fcb1e8fe32dd8891426b8dfd8cd70b96f623152d`.
+Original SHA256 `8a7dab95d681d0c7cbcc025a3bcb19150e1bd1a261eeb9cd16fb4e1d78847a83` unchanged.
+Reusable proof: `scripts/verify-range-ui.mjs`. Controlled command input and browser
+evidence only; physical microphone accuracy remains a separate gate.
+
+Final full gate: **189 tests pass**, parent
+`jett-exact-ranges-final-verified-test.log`. This includes desktop and phone
+grammar recovery, exact endpoint choices, clipped rendering, failed-save rollback,
+source mismatch on replay, three-page PDF export, reload and durable one-step undo.

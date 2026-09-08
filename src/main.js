@@ -30,7 +30,7 @@ import { ingestImage, mountImage } from "./images.js";
 import "../vendor/katex/katex.min.css";
 import "pdfjs-dist/web/pdf_viewer.css";
 import katex from "../vendor/katex/katex.mjs";
-import { tokenize, tokenizeWithSpans, matchTranscript, TARGET_POLICY } from "./match.js";
+import { tokenize, tokenizeWithSpans, TARGET_POLICY } from "./match.js";
 import { splitParagraphs, titleFrom, STARTER_DOC } from "./doc.js";
 import { IntentStream, toCommand, describeCandidate } from "./intents.js";
 import { createMatchEngine, blockForRange } from "./engine.js";
@@ -46,6 +46,9 @@ import {
   renderPdfPages,
 } from "./pdf-reading.js";
 import { decideTarget } from "./targeting.js";
+import { findRangeTargets } from "./range-targets.js";
+import { createAnchor } from "./anchors.js";
+import { contentDigest } from "./ingest.js";
 import {
   putDoc,
   getDoc,
@@ -326,6 +329,7 @@ const pdfFormPanel = initPdfFormPanel({ saveDocument: putDoc, review: pdfReview 
 const pdfAnnotationPanel = initPdfAnnotationPanel({ getRecords, review: pdfReview });
 let unmountImage = null;
 async function renderDoc(doc) {
+  hideAsk();
   serverPanel.setDocument(null);
   void pdfFormPanel.setDocument(null);
   pdfAnnotationPanel.setDocument(null);
@@ -679,26 +683,6 @@ const engine = createActEngine({
 // ---------------------------------------------------------------------------
 // Intents (jt-speech) — the only command path
 
-/**
- * Locate the block an anchor phrase points at. Spoken anchors are fuzzy and
- * may span a paragraph break ("rent is due to the deposit"), so on a failed
- * full-phrase match we retry with the phrase's head, then tail — the words
- * most likely to sit contiguously in the document.
- */
-function findAnchorBlock(anchorText, prefer = "head") {
-  const words = tokenize(anchorText);
-  const tries = [words];
-  const head = words.slice(0, 3);
-  const tail = words.slice(-3);
-  if (words.length > 3) tries.push(prefer === "tail" ? tail : head, prefer === "tail" ? head : tail);
-  for (const t of tries) {
-    if (t.length < 3) continue;
-    const m = matchTranscript(state.docTokens, t.join(" "), {});
-    if (m) return blockForRange(state.tokenBlock, m.start, m.end);
-  }
-  return -1;
-}
-
 function hideAsk() {
   state.pendingAsk = null;
   askBox.hidden = true;
@@ -832,6 +816,15 @@ function showReturnAsk(documents, { evidence, modality }) {
 async function resolveAsk(i) {
   const ask = state.pendingAsk;
   if (!ask) return;
+  if (ask.kind === 'range-target') {
+    const candidate=ask.candidates[i];hideAsk();
+    if(candidate && state.doc?.id===ask.args.rangeDocumentId){
+      return executeVerb(ask.verbId,{...ask.args,[ask.endpoint]:candidate,
+        rangeChoices:[...(ask.args.rangeChoices || []),ask.labels[i]],
+        rangeAlternatives:[...(ask.args.rangeAlternatives || []),...ask.labels]});
+    }
+    return;
+  }
   if (ask.kind === "target") {
     const candidate = ask.candidates[i];
     const labels = ask.candidates.map(targetCandidateLabel);
@@ -952,21 +945,59 @@ async function performTargeted(verbId, args) {
 }
 
 async function performRange(verbId, args) {
-  const from = findAnchorBlock(args.fromAnchor, "head");
-  const to = findAnchorBlock(args.toAnchor, "tail");
-  if (from < 0 || to < 0) {
+  const doc=state.doc;if(!doc)return null;
+  const rangeArgs={...args,rangeDocumentId:args.rangeDocumentId ?? doc.id};
+  if(rangeArgs.rangeDocumentId!==doc.id)return null;
+  const allCandidates={rangeStart:findRangeTargets(state.blockTexts,args.fromAnchor),rangeEnd:findRangeTargets(state.blockTexts,args.toAnchor)};
+  if(!allCandidates.rangeStart.length || !allCandidates.rangeEnd.length){
+    setStatus(true,"I couldn't find the complete endpoint phrases — use the words shown in the document.");
+    emitCommandResult(verbId,'none','A complete range endpoint was not found.');return null;
+  }
+  const endpoints={};
+  for(const endpoint of ['rangeStart','rangeEnd']){
+    const candidates=allCandidates[endpoint];
+    const selected=args[endpoint];
+    endpoints[endpoint]=selected && candidates.find(c=>c.blockIndex===selected.blockIndex && c.tokenStart===selected.tokenStart && c.tokenEnd===selected.tokenEnd);
+    if(!endpoints[endpoint] && candidates.length===1)endpoints[endpoint]=candidates[0];
+    if(!endpoints[endpoint] && candidates.length>1){
+      if(candidates.length>20){setStatus(true,'Those words occur in many places — include more words for the range endpoint.');return null;}
+      const labels=candidates.map(candidate=>{
+        const page=/^page:(\d+)$/.exec(doc.blocks?.[candidate.blockIndex]?.locator || '');
+        return `${page?`Page ${page[1]}`:`Passage ${candidate.blockIndex+1}`} · ${targetCandidateLabel(candidate)}`;
+      });
+      state.pendingAsk={kind:'range-target',verbId,args:{...rangeArgs,...endpoints},endpoint,candidates,labels};
+      askOptions.replaceChildren();
+      for(const [i,candidate] of candidates.entries()){
+        const button=document.createElement('button');button.className='ask-option range-ask';button.dataset.candidate=String(i);
+        button.textContent=labels[i];
+        button.addEventListener('click',()=>resolveAsk(i));askOptions.append(button);
+      }
+      const cancel=document.createElement('button');cancel.className='ask-option ask-dismiss';cancel.textContent='Cancel range';cancel.addEventListener('click',hideAsk);askOptions.append(cancel);
+      askBox.hidden=false;setStatus(true,`Choose where the range ${endpoint==='rangeStart'?'starts':'ends'}.`);
+      emitCommandResult(verbId,'ask','The complete endpoint phrase occurs more than once.');return null;
+    }
+  }
+  const from=endpoints.rangeStart,to=endpoints.rangeEnd;
+  if (!from || !to) {
     emitCommandResult(verbId, "none", "One or both spoken passage anchors were not found.", { confidence: args.confidence });
     setStatus(true, "couldn't find those words in the document");
     return null;
   }
-  const lo = Math.min(from, to);
-  const hi = Math.max(from, to);
-  const ranged = await engine.perform(verbId, lo, {
-    blockEnd: hi,
+  if(from.blockIndex>to.blockIndex || (from.blockIndex===to.blockIndex && (from.tokenStart>to.tokenStart || from.tokenEnd>to.tokenEnd))){
+    setStatus(true,'The end comes before the start — say the range in reading order.');
+    emitCommandResult(verbId,'none','Range endpoints were reversed.');return null;
+  }
+  const blockTexts=[...state.blockTexts],docDigest=doc.provenance?.contentDigest ?? await contentDigest(doc.text ?? blockTexts.join('\n\n'));
+  if(state.doc?.id!==doc.id)return null;
+  const rangeAnchor={version:1,start:createAnchor({...from,blockTexts,docDigest}),end:createAnchor({...to,blockTexts,docDigest})};
+  const ranged = await engine.perform(verbId, from.blockIndex, {
+    rangeAnchor,
+    blockEnd: to.blockIndex,
     modality: args.modality,
     evidence: args.evidence,
     confidence: args.confidence ?? null,
-    matchedText: state.blockTexts[lo]?.slice(0, 120) ?? "",
+    matchedText: `${from.quotedText} … ${to.quotedText}`,
+    targetChoice:args.rangeChoices?.length?{asked:true,reason:'Repeated range endpoint',candidates:args.rangeAlternatives || [],chosen:args.rangeChoices.join(' → ')}:null,
   });
   emitCommandResult(verbId, ranged ? "act" : "none", ranged ? "The requested passage range was highlighted." : "The passage range could not be highlighted.", { confidence: args.confidence });
   return ranged;

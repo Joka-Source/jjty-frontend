@@ -256,6 +256,9 @@ test("phone viewport: full-width document, sheet panels, 44px targets, no sidewa
   assert.ok(ask.optH >= 44, `ask option too small to tap: ${ask.optH}px`);
   const before = await page.evaluate(() => window.__jtApp.entries().length);
   await page.tap('#ask .ask-option[data-candidate="0"]');
+  await page.waitForFunction(()=>!window.__jtApp.ask());
+  assert.equal(await page.evaluate(()=>window.__jtApp.entries().length),before,'a missing endpoint must not become a guessed range');
+  await page.evaluate(()=>window.__jtApp.voiceSegment('highlight from rent is due to the final inspection'));
   await page.waitForFunction(
     (n) => window.__jtApp.entries().length > n,
     { timeout: 5000 },

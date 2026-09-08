@@ -17,7 +17,7 @@ export default targetedVerb({
   recordDescription: ({ target }) => `highlight the selected text (${target})`,
   recordResult: ({ target }) => `${target} highlighted`,
   applyEffect(block, entry) {
-    const resolved = entry.resolvedAnchor;
+    const resolved = entry.resolvedSegments?.find(segment => segment.blockIndex === Number(block.dataset.block)) ?? entry.resolvedAnchor;
     if (
       resolved &&
       resolved.blockIndex === Number(block.dataset.block) &&

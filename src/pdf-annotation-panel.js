@@ -7,6 +7,8 @@ const explanations={
   ANNOTATION_PERMISSION_DENIED:'This PDF does not permit annotations.',
   ANNOTATION_ANCHOR_NOT_EXACT:'A saved mark has no verified word-level target. Undo that mark and select its words again.',
   ANNOTATION_RANGE_UNSUPPORTED:'A mark spans pages without exact endpoints. Undo it and mark each passage separately.',
+  ANNOTATION_RANGE_PAGE_GAP:'An intermediate page could not be verified. Reopen the original PDF before exporting this range.',
+  ANNOTATION_RANGE_ANCHOR_INVALID:'A range endpoint no longer matches the original. Undo that range and select both endpoints again.',
   ANNOTATION_PAGE_TEXT_MISMATCH:'The saved text does not match the PDF closely enough to place every mark accurately.',
   ANNOTATION_QUOTE_MISMATCH:'A saved passage has changed. Undo its mark and select the words again.',
   ANNOTATION_GEOMETRY_UNAVAILABLE:'The PDF does not provide usable text coordinates for a saved mark.',
