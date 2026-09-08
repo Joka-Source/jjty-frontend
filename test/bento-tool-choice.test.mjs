@@ -15,7 +15,7 @@ test('selected tool survives reload; old sessions retain Organize and invalid ro
   await assert.rejects(bridge.start(source, '../unrelated'), /supported/);
   await assert.rejects(bridge.start(source, '__proto__'), /supported/);
   assert.equal(uploads, 0);
-  for (const [tool, path] of [['edit', 'edit-pdf'], ['forms', 'form-filler'], ['sign', 'sign-pdf']]) {
+  for (const [tool, path] of [['edit', 'edit-pdf'], ['text', 'edit-pdf-text'], ['forms', 'form-filler'], ['sign', 'sign-pdf'], ['ocr', 'ocr-pdf']]) {
     values.clear();
     await bridge.start(source, tool);
     const restored = createBentoHandoff(options);

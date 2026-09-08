@@ -1,7 +1,7 @@
 /** Original-copy custody and retry-safe return from the local Bento adapter. */
 export const BENTO_PENDING_KEY = 'jett.bento.pending.v1';
 export const MAX_BENTO_BYTES = 64 * 1024 * 1024;
-export const BENTO_TOOLS = Object.freeze({ organize: 'pdf-multi-tool', edit: 'edit-pdf', forms: 'form-filler', sign: 'sign-pdf' });
+export const BENTO_TOOLS = Object.freeze({ organize: 'pdf-multi-tool', edit: 'edit-pdf', text: 'edit-pdf-text', forms: 'form-filler', sign: 'sign-pdf', ocr: 'ocr-pdf' });
 function toolRoute(tool = 'organize') {
   if (!Object.hasOwn(BENTO_TOOLS, tool)) throw new Error('Choose a supported Bento tool.');
   return BENTO_TOOLS[tool];
