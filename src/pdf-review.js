@@ -1,11 +1,16 @@
 import {createMuPdfProvider} from './pdf-engine.js';
+import {parsePageOrder} from '../vendor/bentopdf/page-order.js';
 
 // Review and download one immutable PDF snapshot. Never mutates the reader.
 export function initPdfReview() {
   const dialog=document.getElementById('pdf-review-dialog'), pages=document.getElementById('pdf-review-pages'), status=document.getElementById('pdf-review-status'), download=document.getElementById('pdf-review-download'), print=document.getElementById('pdf-review-print');
+  const organizer=document.createElement('form');organizer.className='pdf-review-order';
+  organizer.innerHTML='<label for="pdf-review-order">Page order</label><input id="pdf-review-order" aria-describedby="pdf-review-order-help" maxlength="100000" autocomplete="off"><button type="submit" disabled>Reorder this copy</button><small id="pdf-review-order-help">Include every page once, for example 3,1-2. Numbers refer to the current preview.</small>';
+  pages.before(organizer);
+  const orderInput=organizer.querySelector('input'),orderButton=organizer.querySelector('button');
   let generation=0, snapshot=null, filename='filled.pdf', reviewKind='filled', pendingCloseEvents=0;
-  function ready(value){download.disabled=!value;if(print)print.disabled=!value;for(const button of pages.querySelectorAll('[data-pdf-rotate]'))button.disabled=!value;}
-  function clear(){generation++;snapshot=null;download.disabled=true;if(print)print.disabled=true;pages.replaceChildren();}
+  function ready(value){orderInput.disabled=!value;orderButton.disabled=!value;download.disabled=!value;if(print)print.disabled=!value;for(const button of pages.querySelectorAll('[data-pdf-rotate]'))button.disabled=!value;}
+  function clear(){generation++;snapshot=null;orderInput.disabled=true;orderButton.disabled=true;download.disabled=true;if(print)print.disabled=true;pages.replaceChildren();}
   function close(){clear();if(dialog.open){pendingCloseEvents++;dialog.close();}}
   dialog.addEventListener('close',()=>{
     // close() already cleared synchronously. Its queued event must not cancel
@@ -37,6 +42,39 @@ export function initPdfReview() {
       if(viewer.closed){clearInterval(cleanup);URL.revokeObjectURL(url);}
     },1000);
     if(version===generation)status.textContent=`Opened ${filename} in a new tab. Use the PDF viewer’s Print control. If your browser downloaded it instead, open that file in your PDF reader.`;
+  });
+  organizer.addEventListener('submit',async event=>{
+    event.preventDefault();
+    if(orderButton.disabled || !snapshot || !dialog.open)return;
+    const count=pages.querySelectorAll('.pdf-review-page').length;
+    let order;
+    try{order=parsePageOrder(orderInput.value,count);}
+    catch(error){orderInput.setAttribute('aria-invalid','true');status.textContent=error.message;orderInput.focus();return;}
+    orderInput.removeAttribute('aria-invalid');
+    if(order.every((page,index)=>page===index)){status.textContent='These pages are already in that order.';return;}
+    const version=generation,source=snapshot.slice(),previousPages=[...pages.childNodes],previousName=filename,previousKind=reviewKind,previousOrder=orderInput.value;
+    ready(false);status.textContent='Preparing and verifying the reordered copy…';
+    try{
+      const {reorderPdfPages}=await import('./pdf-reorder.js');
+      if(version!==generation || !dialog.open)return;
+      const bytes=await reorderPdfPages(source,order);
+      if(version!==generation || !dialog.open)return;
+      const nextVersion=generation+1;
+      let rendered=false;
+      try{rendered=await api.open(bytes,filename.replace(/(?:-reordered)?\.pdf$/i,'')+'-reordered.pdf',{kind:reviewKind.startsWith('reordered ')?reviewKind:`reordered ${reviewKind}`});}catch{/* Restore usable snapshot below. */}
+      if(generation!==nextVersion || !dialog.open)return;
+      if(!rendered){
+        clear();snapshot=source;filename=previousName;reviewKind=previousKind;
+        pages.replaceChildren(...previousPages);orderInput.value=previousOrder;ready(true);
+        document.getElementById('pdf-review-title').textContent=`Review ${previousKind} copy`;
+        status.textContent='The reordered copy could not be displayed. The previous reviewed copy is unchanged.';
+      }
+      orderInput.focus({preventScroll:true});
+    }catch(error){
+      if(version!==generation || !dialog.open)return;
+      const reasons={REORDER_ADVANCED_STRUCTURE_UNSUPPORTED:'This PDF has navigation, attachments or tagged structures that cannot yet be safely reordered here.',REORDER_DOCUMENT_RESTRICTED:'This PDF is protected or uses an unsupported form type.',REORDER_PERMISSION_DENIED:'This PDF does not allow page changes.'};
+      ready(true);status.textContent=`Could not reorder this copy. ${reasons[error.code] || 'The change could not be verified.'} The reviewed copy is unchanged.`;
+    }
   });
   pages.addEventListener('click',async event=>{
     const button=event.target.closest?.('[data-pdf-rotate]');
@@ -77,7 +115,7 @@ export function initPdfReview() {
     }
   });
   const api={close,prepare(){close();const version=generation;return ()=>version===generation;},async open(bytes,name,{kind='filled'}={}){
-    clear();const version=generation, owned=new Uint8Array(bytes);filename=name;reviewKind=kind;
+    clear();orderInput.removeAttribute('aria-invalid');const version=generation, owned=new Uint8Array(bytes);filename=name;reviewKind=kind;
     document.getElementById('pdf-review-title').textContent=`Review ${kind} copy`;
     status.textContent=`Rendering the exact ${kind} copy…`;if(!dialog.open)dialog.showModal();
     let opened;
@@ -124,9 +162,9 @@ export function initPdfReview() {
         await new Promise(resolve=>setTimeout(resolve,0));
       }
       if(version!==generation)return;
-      snapshot=owned;ready(true);status.textContent=`This is the ${kind} PDF that will download. Your original is unchanged.`;
+      snapshot=owned;orderInput.value=opened.document.numPages===1?'1':`1-${opened.document.numPages}`;ready(true);status.textContent=`This is the ${kind} PDF that will download. Your original is unchanged.`;
       return true;
-    }catch(error){if(version===generation){snapshot=null;download.disabled=true;if(print)print.disabled=true;status.textContent=`Preview could not be rendered: ${error.message}`;}}
+    }catch(error){if(version===generation){snapshot=null;orderInput.disabled=true;orderButton.disabled=true;download.disabled=true;if(print)print.disabled=true;status.textContent=`Preview could not be rendered: ${error.message}`;}}
     finally{await opened?.loadingTask.destroy();}
   }};
   return api;

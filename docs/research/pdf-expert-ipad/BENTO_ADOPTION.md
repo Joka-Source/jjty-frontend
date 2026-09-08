@@ -62,3 +62,27 @@ Adopt a **Bento-derived page organizer** as the next bounded JETT implementation
 6. Evaluate the complete Bento text-edit engine/package boundary as the next substantial editor integration. Obtain/track corresponding vendored engine source and notices; run the upstream fixture harness alongside JETT's preservation fixtures. Keep originals and form/annotation evidence intact while editing a derived copy.
 
 PDF Expert parity remains the founder's full target. This map establishes concrete code to reuse; it does not certify feature, UI, gesture, microinteraction, accessibility or native-platform parity. No frontend source changed in this task.
+
+
+## Implementation checkpoint — 8 September 2026
+
+The first actual adaptation now lives in `vendor/bentopdf/page-order.js`, with
+upstream LICENSE, NOTICE and a source manifest. It adapts the pinned split helpers
+and custom-order behavior into strict complete-permutation validation. The review
+screen accepts page numbers and ascending ranges (for example `3,1-2`), rejects
+missing/repeated/malformed pages, and renders a derived copy before download.
+This is a bounded custom-order operation, not the complete thumbnail organizer.
+
+The native backend uses MuPDF rearrangePages and then reopens serialized bytes.
+Testing found that native rearrangement drops catalog metadata, including AcroForm;
+the adapter explicitly retains allowed catalog entries and verifies their contents.
+Page content/resources, geometry, annotations, appearance streams, form values and
+Info metadata are checked against original page identities. Independent PDF.js
+readback covers reordered pages and filled/annotated fixtures. The original remains
+unchanged. Failed or superseded previews cannot replace a newer review.
+
+Navigation/tag structures (PageLabels, Outlines, Dests, Names, StructTreeRoot and
+OpenAction), restricted/signature/dynamic forms and denied assembly permissions
+remain refused. Deletion, duplication, merge, drag reordering and organizer undo
+are not implemented by this increment. Source licensing is AGPL-3.0-only; no
+commercial grant is assumed. This local implementation is not a production release.

@@ -796,3 +796,25 @@ the expected deposit mark. Sanitized receipt is in the parent runtime directory.
 No private document or recording was added to the repository.
 
 Final runtime checkpoint: `2283c3f`, with capture at `fe18da0`. Production build and **249 tests passed**, zero failures or skips. The physical recovery mark was removed by spoken undo; reopening preserved undo and only the original rent sample mark remained. Microphone released; feedback cleared. Frontend changes remain local.
+
+
+## Bento-derived native page reordering — PASS_LOCAL
+
+The prepared-copy review now accepts strict complete page orders such as `3,1-2`.
+Actual pinned Bento helpers are adapted with attribution, source hashes and the
+upstream license in `vendor/bentopdf/`. No source PDF is overwritten. MuPDF's
+catalog-loss behavior was reproduced and fixed by retaining allowed metadata;
+serialized readback checks content, geometry, annotations and form structures.
+Independent PDF.js fixtures confirm order and filled/annotated page identity.
+
+Rendered browser tests cover invalid-input recovery, exact download order,
+preview failure restoring the previous copy, close abandoning a pending render,
+and a newer review surviving an older failure. Existing rotation recovery,
+printing, phone, offline and voice journeys remain green. Final gate:
+`npm test` production build plus **264 tests passed**, zero failures or skips.
+Raw gate log: parent `runtime/live-voice-diagnosis/reorder-full.log`.
+
+Advanced navigation/tag/attachment structures, signatures, restricted forms,
+deletion and duplication remain outside this bounded operation. Custom ordering
+is implemented; full thumbnail organization and organizer undo remain unproven.
+This is a local engineering checkpoint, not production deployment.

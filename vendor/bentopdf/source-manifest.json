@@ -1,0 +1,43 @@
+{
+  "upstream": "https://github.com/alam00000/bentopdf",
+  "commit": "d69566ebefb9cc3ea2d8db4f845596356998a882",
+  "upstream_version": "2.8.8",
+  "license": "AGPL-3.0-only",
+  "commercial_license_obtained": false,
+  "adapted_file": "page-order.js",
+  "source_files": [
+    {
+      "path": "src/js/utils/split-pdf-helpers.ts",
+      "sha256": "5f13d2be0759f5102274f27419ca25c4e02756111198cba559644ec962f68675",
+      "url": "https://github.com/alam00000/bentopdf/blob/d69566ebefb9cc3ea2d8db4f845596356998a882/src/js/utils/split-pdf-helpers.ts"
+    },
+    {
+      "path": "src/js/logic/organize-pdf-page.ts",
+      "sha256": "f2308f02f22bc2fca36d64e99556fa4861be375ee2e9fb22d72e347443ca6397",
+      "url": "https://github.com/alam00000/bentopdf/blob/d69566ebefb9cc3ea2d8db4f845596356998a882/src/js/logic/organize-pdf-page.ts"
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "8486a10c4393cee1c25392769ddd3b2d6c242d6ec7928e1414efff7dfb2f07ef",
+      "url": "https://github.com/alam00000/bentopdf/blob/d69566ebefb9cc3ea2d8db4f845596356998a882/LICENSE"
+    },
+    {
+      "path": "package.json",
+      "sha256": "7c40a16d27e1424b86a894156d118e44ff4a2f371247287af10d481018e37ebf",
+      "url": "https://github.com/alam00000/bentopdf/blob/d69566ebefb9cc3ea2d8db4f845596356998a882/package.json"
+    }
+  ],
+  "selected_symbols": [
+    "parseRangeGroups",
+    "allPagesIndices",
+    "applyCustomOrder"
+  ],
+  "modifications": [
+    "Removed TypeScript and unrelated splitting/QPDF/DOM dependencies.",
+    "Combined comma/range expansion with complete-permutation validation.",
+    "Reject invalid groups rather than skipping them; reject duplicate or missing pages.",
+    "Strict decimal integer grammar replaces permissive Number/parseInt input.",
+    "Bounded page count, input length and range expansion; throws without returning partial results."
+  ],
+  "scope": "Local source adaptation only; not evidence of distribution, deployment, whole-product license review or commercial permission."
+}

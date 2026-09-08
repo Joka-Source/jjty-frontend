@@ -1,0 +1,10 @@
+BentoPDF page-order source adaptation
+
+Upstream: https://github.com/alam00000/bentopdf
+Pinned commit: d69566ebefb9cc3ea2d8db4f845596356998a882 (package version 2.8.8)
+License: AGPL-3.0-only, as declared in upstream package.json.
+The complete upstream LICENSE is preserved byte-for-byte here. No commercial license is inferred or obtained.
+
+page-order.js adapts parseRangeGroups/allPagesIndices from src/js/utils/split-pdf-helpers.ts and the complete-order/uniqueness checks in applyCustomOrder from src/js/logic/organize-pdf-page.ts. TypeScript, QPDF and DOM work were removed; validation is strict and bounded, returns a full zero-based permutation, and rejects malformed, duplicate or omitted pages. See source-manifest.json for exact source links and checksums.
+
+Changes made for the JETT local workbench on 2026-09-08. This notice does not alter the product root license or certify distribution readiness.

@@ -140,3 +140,8 @@ article.image-source { padding-bottom: 24px; }
 #voice-feedback .voice-toggle { min-height: 36px; }
 
 @media (max-width: 960px) { #voice-feedback { width: calc(100% - 32px); bottom: calc(78px + env(safe-area-inset-bottom)); } }
+
+.pdf-review-order {display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;flex-shrink:0;margin:.5rem 0;}
+.pdf-review-order input {flex:1;min-width:100px;max-width:100%;min-height:44px;}
+.pdf-review-order button {min-height:44px;}
+.pdf-review-order small {flex-basis:100%;}
