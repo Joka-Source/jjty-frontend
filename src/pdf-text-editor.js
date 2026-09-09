@@ -6,7 +6,19 @@ import {inspectEditSource,assertEditRegion,verifyEditedPdf} from './pdf-edit-val
 function fail(code){const error=new Error(code);error.code=code;throw error;}
 function ownBytes(bytes){if(!(bytes instanceof Uint8Array)&&!(bytes instanceof ArrayBuffer))fail('EDIT_SOURCE_INVALID');return new Uint8Array(bytes).slice();}
 const textOf=paragraph=>paragraph.runs.map(run=>run.text).join('');
-const region=paragraph=>({...paragraph.box,text:textOf(paragraph)});
+function nativeGeometry(box,rotation,engine,page){
+ const angle=(rotation??0)*Math.PI/180,c=Math.cos(angle),s=Math.sin(angle),t=page.transform,b=page.bounds,det=t[0]*t[3]-t[1]*t[2];
+ if(!Number.isFinite(det)||Math.abs(det)<1e-10||!(engine.pageWidth>0&&engine.pageHeight>0))fail('EDIT_TRANSFORM_INVALID');
+ const points=[[box.x,box.top],[box.x+box.w,box.top],[box.x+box.w,box.top-box.h],[box.x,box.top-box.h]].map(([x,y])=>{
+  // Bento local text coordinates first rotate into PDFium's cropped, rotated
+  // page space. Its dimensions omit UserUnit; MuPDF's display bounds include it.
+  const dx=b[0]+(x*c-y*s)*(b[2]-b[0])/engine.pageWidth-t[4];
+  const dy=b[1]+(engine.pageHeight-(x*s+y*c))*(b[3]-b[1])/engine.pageHeight-t[5];
+  return [(t[3]*dx-t[2]*dy)/det,(-t[1]*dx+t[0]*dy)/det];
+ });
+ const x=Math.min(...points.map(p=>p[0])),top=Math.max(...points.map(p=>p[1]));return {nativeBox:{x,top,w:Math.max(...points.map(p=>p[0]))-x,h:top-Math.min(...points.map(p=>p[1]))},nativeQuad:points.flat()};
+}
+const region=(paragraph,engine,page)=>{const geometry=nativeGeometry(paragraph.box,paragraph.rotation,engine,page);return {...geometry.nativeBox,quad:geometry.nativeQuad,text:textOf(paragraph)};};
 function dispose(engine){if(!engine)return;try{engine.close();}finally{if(engine._providerPtr){engine.M.removeFunction(engine._providerPtr);engine._providerPtr=0;}engine.M._FPDF_DestroyLibrary();}}
 async function openProtected(bytes,pageIndex){
   if(!Number.isInteger(pageIndex)||pageIndex<0)fail('EDIT_PAGE_INVALID');
@@ -29,7 +41,7 @@ async function openProtected(bytes,pageIndex){
 /** Inspect the same normalized protected model that a later fresh edit will use. */
 export async function inspectEditablePage(bytes,pageIndex){
   const original=ownBytes(bytes),metadata=await inspectEditSource(original);if(metadata.restrictions.length)fail('EDIT_DOCUMENT_RESTRICTED');let engine;
-  try{engine=await openProtected(original,pageIndex);return {paragraphs:structuredClone(engine.buildModel()),pageBounds:structuredClone(metadata.pages[pageIndex].bounds),transform:structuredClone(metadata.pages[pageIndex].transform)};}
+  try{engine=await openProtected(original,pageIndex);return {paragraphs:structuredClone(engine.buildModel().map(p=>({...p,...nativeGeometry(p.box,p.rotation,engine,metadata.pages[pageIndex])}))),pageBounds:structuredClone(metadata.pages[pageIndex].bounds),transform:structuredClone(metadata.pages[pageIndex].transform)};}
   finally{dispose(engine);}
 }
 
@@ -91,11 +103,12 @@ export async function editPdfParagraph(bytes,{pageIndex,paragraphId,originalText
     const paragraph=engine.buildModel().find(item=>item.id===paragraphId);
     if(!paragraph||textOf(paragraph)!==originalText||!originalBox||!['x','top','w','h'].every(key=>Number.isFinite(originalBox[key])&&Math.abs(originalBox[key]-paragraph.box[key])<=0.01)||!Number.isFinite(originalRotation)||Math.abs(originalRotation-(paragraph.rotation??0))>0.001)fail('EDIT_PARAGRAPH_STALE');
     if(!paragraph.editable||paragraph.lockReason)fail('EDIT_PARAGRAPH_LOCKED');
-    const runs=await replacementRuns(paragraph,text,engine),fmt=structuredClone(paragraph.format),before=region(paragraph);
+    const runs=await replacementRuns(paragraph,text,engine),fmt=structuredClone(paragraph.format),before=region(paragraph,engine,metadata.pages[pageIndex]);
     const preview=engine.previewParagraph(paragraph.id,runs,fmt);if(!preview)fail('EDIT_PREVIEW_FAILED');
-    assertEditRegion(metadata,pageIndex,before,{x:preview.x,top:preview.top,w:preview.width,h:preview.height,text});
+    const previewGeometry=nativeGeometry({x:preview.x,top:preview.top,w:preview.width,h:preview.height},paragraph.rotation,engine,metadata.pages[pageIndex]);
+    assertEditRegion(metadata,pageIndex,before,{...previewGeometry.nativeBox,quad:previewGeometry.nativeQuad,text});
     const committed=engine.commitParagraph(paragraph.id,runs,fmt);if(!committed)fail('EDIT_COMMIT_FAILED');
-    const after=region(committed);if(after.text!==text)fail('EDIT_COMMIT_TEXT_MISMATCH');
+    const after=region(committed,engine,metadata.pages[pageIndex]);if(after.text!==text)fail('EDIT_COMMIT_TEXT_MISMATCH');
     assertEditRegion(metadata,pageIndex,before,after);
     if(!engine.generateContent())fail('EDIT_GENERATE_FAILED');
     const output=await engine.saveSpliced();if(!output?.length)fail('EDIT_SAVE_FAILED');

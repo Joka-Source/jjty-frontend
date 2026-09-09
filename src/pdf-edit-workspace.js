@@ -1,5 +1,7 @@
+import {initPdfEditTargets} from './pdf-edit-targets.js';
 import {validateTextEditDraft} from './pdf-edit-draft.js';
 import './pdf-edit-workspace.css';
+import './pdf-edit-targets.css';
 
 const editMessages={
  EDIT_DIFF_LIMIT:'This replacement is too large to compare safely. Make a smaller edit or split it into steps.',
@@ -33,14 +35,42 @@ function explain(error){
 }
 
 /** A durable, single-paragraph draft. Source bytes and reviewed copies belong to the caller. */
-export function initPdfEditWorkspace({panel,getContext,snapshot,saveDraft,review}){
+export function initPdfEditWorkspace({panel,root=null,getContext,snapshot,saveDraft,review,revealTarget=()=>{}}){
  panel.classList.add('pdf-edit-workspace');
  panel.innerHTML='<h2>Edit text</h2><p>Edit a paragraph, then review a new copy.</p><div class="pdf-edit-selectors"><form class="pdf-edit-page-form"><label>Page <input id="pdf-edit-page" inputmode="numeric" pattern="[0-9]+" aria-label="Page to edit" required></label><button id="pdf-edit-load" type="submit">Load paragraphs</button></form><label class="pdf-edit-paragraph-label">Paragraph <select id="pdf-edit-paragraph" disabled><option value="">Load a page first</option></select></label></div><section id="pdf-edit-draft" hidden><p id="pdf-edit-target"></p><details><summary>Original text</summary><p id="pdf-edit-original"></p></details><label for="pdf-edit-text">Replacement text</label><textarea id="pdf-edit-text" aria-describedby="pdf-edit-target" rows="3" maxlength="100000"></textarea><div class="pdf-edit-actions"><button id="pdf-edit-review" type="button">Review edited copy</button><button id="pdf-edit-retry" type="button" hidden>Retry save</button><button id="pdf-edit-discard" type="button">Discard draft</button></div></section><p id="pdf-edit-status" role="status" aria-live="polite"></p>';
  const $=id=>panel.querySelector(`#pdf-edit-${id}`),pageInput=$('page'),select=$('paragraph'),text=$('text'),status=$('status');
- let owner=null,generation=0,disposed=false,draft=null,paragraphs=[],loadedPage=null,busy=false,pending=0,writeRevision=0,failed=false,saveQueue=Promise.resolve(),invalidDraft=false,wasActive=false;
+ let owner=null,generation=0,disposed=false,draft=null,paragraphs=[],loadedPage=null,loadedModel=null,busy=false,pending=0,writeRevision=0,failed=false,saveQueue=Promise.resolve(),invalidDraft=false,wasActive=false;
  const identity=doc=>doc?.id&&doc.provenance?.contentDigest?`${doc.id}:${doc.provenance.contentDigest}`:null;
  const owns=(version,sourceOwner)=>!disposed&&version===generation&&identity(getContext()?.doc)===sourceOwner&&getContext()?.active;
  const changed=()=>!!draft&&draft.text!==draft.originalText;
+ const targets=root?initPdfEditTargets({root,onChoose:value=>{
+  const id=value?.id??value,paragraph=paragraphs.find(p=>p.id===id);
+  if(!paragraph||busy||pending||failed||invalidDraft||changed()||!getContext()?.active)return;
+  select.value=String(paragraphs.indexOf(paragraph));choose(paragraph);
+  text.focus({preventScroll:true});
+ }}):null;
+ function showTargets(){
+  if(!targets)return;
+  if(!loadedModel||!getContext()?.active||invalidDraft){targets.clear();return;}
+  targets.show({pageIndex:loadedPage,model:loadedModel,selectedId:draft?.paragraphId??null,disabled:busy||pending>0||failed||changed()});
+ }
+ function matchesDraft(p){return p.id===draft.paragraphId&&p.runs.map(r=>r.text).join('')===draft.originalText&&['x','top','w','h'].every(key=>Number.isFinite(p.box?.[key])&&Math.abs(p.box[key]-draft.originalBox[key])<=.01)&&Math.abs((p.rotation??0)-draft.originalRotation)<=.001;}
+ async function restoreTargets(){
+  if(!targets||!draft||invalidDraft)return;
+  const doc=getContext().doc,sourceOwner=identity(doc),version=generation,pageIndex=draft.pageIndex;
+  busy=true;controls();
+  try{
+   const bytes=await snapshot(doc);if(!owns(version,sourceOwner))return;
+   const {inspectEditablePage}=await import('./pdf-text-editor.js');if(!owns(version,sourceOwner))return;
+   const model=await inspectEditablePage(bytes,pageIndex);if(!owns(version,sourceOwner))return;
+   const matched=model.paragraphs.find(p=>matchesDraft(p)&&p.editable&&!p.lockReason);
+   if(!matched){invalidDraft=true;message('The saved paragraph no longer matches this page. Your draft is kept; discard it to select another paragraph.');return;}
+   loadedModel=model;loadedPage=pageIndex;paragraphs=model.paragraphs.filter(p=>p.editable&&!p.lockReason&&p.runs?.some(r=>r.text?.trim()));
+   select.replaceChildren();paragraphs.forEach((p,index)=>{const option=document.createElement('option');option.value=String(index);option.textContent=`${index+1}. ${p.runs.map(run=>run.text).join('').slice(0,110)}`;select.append(option);});select.value=String(paragraphs.indexOf(matched));
+  }catch(error){if(owns(version,sourceOwner))message(`The saved target could not be shown: ${explain(error)}. Your draft is kept.`);}
+  finally{if(version===generation){busy=false;controls();}}
+ }
+
  function message(value){status.textContent=value;}
  function controls(){
   const active=!!getContext()?.active,blocked=busy||pending>0;
@@ -52,6 +82,7 @@ export function initPdfEditWorkspace({panel,getContext,snapshot,saveDraft,review
   $('retry').hidden=!failed;$('retry').disabled=pending>0||busy;
   $('discard').disabled=pending>0||busy;
   $('draft').hidden=!draft&&!invalidDraft&&!failed;
+  showTargets();
   $('target').textContent=draft&&!invalidDraft?`Editing page ${draft.pageIndex+1}: “${draft.originalText.slice(0,100)}${draft.originalText.length>100?'…':''}”`:'';
  }
  function persist(value){
@@ -67,7 +98,7 @@ export function initPdfEditWorkspace({panel,getContext,snapshot,saveDraft,review
  }
  function choose(paragraph){
   const doc=getContext().doc;draft={sourceDigest:doc.provenance.contentDigest,pageIndex:loadedPage,paragraphId:paragraph.id,originalBox:structuredClone(paragraph.box),originalRotation:paragraph.rotation??0,originalText:paragraph.runs.map(run=>run.text).join(''),text:paragraph.runs.map(run=>run.text).join('')};
-  $('original').textContent=draft.originalText;text.value=draft.text;invalidDraft=false;failed=false;message('Change the text, then review the edited copy.');controls();
+  $('original').textContent=draft.originalText;text.value=draft.text;invalidDraft=false;failed=false;message('Change the text, then review the edited copy.');controls();revealTarget({pageIndex:loadedPage,paragraphId:paragraph.id});
  }
  async function load(){
   if(busy||pending||changed()||invalidDraft||failed)return;
@@ -78,7 +109,7 @@ export function initPdfEditWorkspace({panel,getContext,snapshot,saveDraft,review
    const bytes=await snapshot(doc);if(!owns(version,sourceOwner))return;
    const {inspectEditablePage}=await import('./pdf-text-editor.js');if(!owns(version,sourceOwner))return;
    const model=await inspectEditablePage(bytes,pageIndex);if(!owns(version,sourceOwner))return;
-   paragraphs=model.paragraphs.filter(p=>p.editable&&!p.lockReason&&p.runs?.some(run=>run.text?.trim()));loadedPage=pageIndex;select.replaceChildren();
+   paragraphs=model.paragraphs.filter(p=>p.editable&&!p.lockReason&&p.runs?.some(run=>run.text?.trim()));loadedPage=pageIndex;loadedModel=model;select.replaceChildren();
    const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent=paragraphs.length?'Choose a paragraph':'No supported editable paragraphs';select.append(placeholder);
    paragraphs.forEach((p,index)=>{const option=document.createElement('option');option.value=String(index);option.textContent=`${index+1}. ${p.runs.map(run=>run.text).join('').slice(0,110)}`;select.append(option);});
    draft=null;text.value='';message(paragraphs.length?'Choose the paragraph you want to edit.':'This page has no supported editable paragraphs. Scanned text needs OCR first.');
@@ -104,17 +135,19 @@ export function initPdfEditWorkspace({panel,getContext,snapshot,saveDraft,review
  function refresh(){
   if(disposed)return;const context=getContext(),nextOwner=identity(context?.doc),active=!!context?.active;
   panel.hidden=!active;
-  if(nextOwner!==owner||!active||!wasActive){
-   generation++;busy=false;paragraphs=[];loadedPage=null;select.replaceChildren();owner=nextOwner;
+  const reset=nextOwner!==owner||!active||!wasActive;
+  if(reset){
+   generation++;busy=false;paragraphs=[];loadedPage=null;loadedModel=null;targets?.clear();select.replaceChildren();owner=nextOwner;
    draft=context?.doc?.textEditDraft?structuredClone(context.doc.textEditDraft):null;failed=false;
    invalidDraft=false;if(draft){try{draft=validateTextEditDraft(draft,context.doc.provenance?.contentDigest);}catch{invalidDraft=true;}}
    pageInput.value=String((draft?.pageIndex??context?.pageIndex??0)+1);text.value=draft?.text??'';$('original').textContent=draft?.originalText??'';
    if(draft&&!invalidDraft){const option=document.createElement('option');option.value='saved';option.textContent=`Saved paragraph: ${draft.originalText.slice(0,100)}`;select.append(option);select.value='saved';}
    message(invalidDraft?'This saved draft no longer matches its source. Discard it to begin again.':draft?'Saved draft restored. Review it or discard it to choose another paragraph.':'Choose a page to edit.');
   }
-  wasActive=active;controls();
+  const restore=active&&reset&&!!draft&&!invalidDraft;
+  wasActive=active;controls();if(restore)void restoreTargets();
  }
  const unload=event=>{if(pending>0||failed){event.preventDefault();event.returnValue='';}};
  globalThis.addEventListener('beforeunload',unload);
- refresh();return {refresh,beforeLeave(){if(pending>0)throw new Error('Wait for your text edit draft to finish saving before changing the document view.');if(failed)throw new Error('Retry saving or discard your text edit draft before changing the document view.');},dispose(){disposed=true;generation++;globalThis.removeEventListener('beforeunload',unload);panel.replaceChildren();}};
+ refresh();return {refresh,beforeLeave(){if(pending>0)throw new Error('Wait for your text edit draft to finish saving before changing the document view.');if(failed)throw new Error('Retry saving or discard your text edit draft before changing the document view.');},dispose(){disposed=true;generation++;globalThis.removeEventListener('beforeunload',unload);targets?.dispose();panel.replaceChildren();}};
 }

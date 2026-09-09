@@ -35,27 +35,45 @@ export async function inspectEditSource(bytes){
   return {pages,restrictions:[...new Set(restrictions)],forms:plainFieldSemantics(forms.fields)};
  }finally{owned.reverse().forEach(o=>o.destroy());doc.destroy();}
 }
-function paragraphRect(page,p){
+function paragraphPolygon(page,p){
  const box=p?.box??p;const {x,top,w,h}=box??{};
- if(![x,top,w,h].every(Number.isFinite)||w<=0||h<=0)fail('EDIT_REGION_INVALID');
+ let raw;
+ if(p?.quad!==undefined){raw=Array.isArray(p.quad)?p.quad.flat():null;if(!raw||raw.length!==8||!raw.every(Number.isFinite))fail('EDIT_REGION_INVALID');}
+ else {if(![x,top,w,h].every(Number.isFinite)||w<=0||h<=0)fail('EDIT_REGION_INVALID');raw=[x,top,x+w,top,x+w,top-h,x,top-h];}
  const t=page.transform;if(t.length!==6||!t.every(Number.isFinite)||Math.abs(t[0]*t[3]-t[1]*t[2])<1e-10)fail('EDIT_TRANSFORM_INVALID');
- const out=[];for(const [px,py]of [[x,top-h],[x+w,top-h],[x,top],[x+w,top]])out.push(t[0]*px+t[2]*py+t[4],t[1]*px+t[3]*py+t[5]);return bounds(out);
+ const points=[];for(let i=0;i<8;i+=2)points.push([t[0]*raw[i]+t[2]*raw[i+1]+t[4],t[1]*raw[i]+t[3]*raw[i+1]+t[5]]);
+ let sign=0;for(let i=0;i<4;i++){const a=points[i],b=points[(i+1)%4],c=points[(i+2)%4],cross=(b[0]-a[0])*(c[1]-b[1])-(b[1]-a[1])*(c[0]-b[0]);if(!Number.isFinite(cross)||Math.abs(cross)<1e-10||sign&&Math.sign(cross)!==sign)fail('EDIT_REGION_INVALID');sign=Math.sign(cross);}
+ return points;
+}
+function inPolygonWithPadding(points,x,y,padding){
+ let inside=true,sign=0;
+ for(let i=0;i<4;i++){
+  const a=points[i],b=points[(i+1)%4],dx=b[0]-a[0],dy=b[1]-a[1],cross=dx*(y-a[1])-dy*(x-a[0]);
+  if(cross){if(sign&&Math.sign(cross)!==sign)inside=false;else if(!sign)sign=Math.sign(cross);}
+  const u=Math.max(0,Math.min(1,((x-a[0])*dx+(y-a[1])*dy)/(dx*dx+dy*dy)));
+  if((x-a[0]-u*dx)**2+(y-a[1]-u*dy)**2<=padding*padding)return true;
+ }
+ return inside;
+}
+function masked(region,x,y){
+ if(!region)return false;const r=region.protectedRect;
+ return x>=r[0]&&x<=r[2]&&y>=r[1]&&y<=r[3]&&region.polygons.some(p=>inPolygonWithPadding(p,x,y,EDIT_PIXEL_POLICY.regionPadding));
 }
 export function assertEditRegion(metadata,pageIndex,before,after){
  if(metadata?.restrictions?.length)fail('EDIT_DOCUMENT_RESTRICTED');
  if(!Number.isInteger(pageIndex)||!metadata?.pages?.[pageIndex])fail('EDIT_PAGE_INVALID');
- const page=metadata.pages[pageIndex],beforeRect=paragraphRect(page,before),afterRect=paragraphRect(page,after);
+ const page=metadata.pages[pageIndex],polygons=[paragraphPolygon(page,before),paragraphPolygon(page,after)],beforeRect=bounds(polygons[0].flat()),afterRect=bounds(polygons[1].flat());
  if(!contains(page.bounds,beforeRect)||!contains(page.bounds,afterRect))fail('EDIT_REGION_OUTSIDE_PAGE');
  const allowedRect=[Math.min(beforeRect[0],afterRect[0]),Math.min(beforeRect[1],afterRect[1]),Math.max(beforeRect[2],afterRect[2]),Math.max(beforeRect[3],afterRect[3])];
  const pad=EDIT_PIXEL_POLICY.regionPadding,protectedRect=allowedRect.map((n,i)=>n+(i<2?-pad:pad));
  for(const annotation of page.annotations){const regions=annotation.quads.length?annotation.quads.map(bounds):[annotation.bounds];if(regions.some(r=>overlap(protectedRect,r)))fail('EDIT_REGION_OVERLAPS_ANNOTATION');}
  if(page.widgets.some(r=>overlap(protectedRect,r)))fail('EDIT_REGION_OVERLAPS_WIDGET');
  if(page.links.some(link=>overlap(protectedRect,link.bounds)))fail('EDIT_REGION_OVERLAPS_LINK');
- return {beforeRect,afterRect,allowedRect,protectedRect};
+ return {beforeRect,afterRect,allowedRect,protectedRect,polygons};
 }
 function textParts(page,region){
  const structured=page.toStructuredText('preserve-whitespace');let inside='',outside='';
- try{structured.walk({onChar(c,_origin,_font,_size,quad){const r=bounds(quad),cx=(r[0]+r[2])/2,cy=(r[1]+r[3])/2;if(region&&cx>=region[0]&&cx<=region[2]&&cy>=region[1]&&cy<=region[3])inside+=c;else outside+=c;},endLine(){inside+='\n';outside+='\n';}});}finally{structured.destroy();}
+ try{structured.walk({onChar(c,_origin,_font,_size,quad){const r=bounds(quad),cx=(r[0]+r[2])/2,cy=(r[1]+r[3])/2;if(masked(region,cx,cy))inside+=c;else outside+=c;},endLine(){inside+='\n';outside+='\n';}});}finally{structured.destroy();}
  return {inside:normalize(inside),outside:normalize(outside)};
 }
 export async function verifyEditedPdf(beforeBytes,afterBytes,{pageIndex,before,after}){
@@ -69,7 +87,7 @@ export async function verifyEditedPdf(beforeBytes,afterBytes,{pageIndex,before,a
   let p,q,lp,rp;
   try{
    p=left.loadPage(i);q=right.loadPage(i);
-   const mask=i===pageIndex?region.protectedRect:null,ltext=textParts(p,mask),rtext=textParts(q,mask);
+   const mask=i===pageIndex?region:null,ltext=textParts(p,mask),rtext=textParts(q,mask);
    if(ltext.outside!==rtext.outside)fail('EDIT_SURROUNDING_TEXT_CHANGED');
    if(i===pageIndex){if(!normalize(before.text)||ltext.inside!==normalize(before.text))fail('EDIT_SOURCE_TEXT_MISMATCH');if(rtext.inside!==normalize(after.text))fail('EDIT_REPLACEMENT_TEXT_MISMATCH');}
    const rect=a.pages[i].bounds;if(Math.ceil(rect[2]-rect[0])*Math.ceil(rect[3]-rect[1])>EDIT_PIXEL_POLICY.maxPagePixels)fail('EDIT_RASTER_LIMIT');
@@ -77,7 +95,7 @@ export async function verifyEditedPdf(beforeBytes,afterBytes,{pageIndex,before,a
    if(lp.getWidth()!==rp.getWidth()||lp.getHeight()!==rp.getHeight()||lp.getX()!==rp.getX()||lp.getY()!==rp.getY()||lp.getNumberOfComponents()!==rp.getNumberOfComponents())fail('EDIT_RASTER_GEOMETRY_CHANGED');
    const l=lp.getPixels(),r=rp.getPixels(),n=lp.getNumberOfComponents();
    for(let y=0;y<lp.getHeight();y++)for(let x=0;x<lp.getWidth();x++){
-    const px=x+lp.getX()+.5,py=y+lp.getY()+.5;if(mask&&px>=mask[0]&&px<=mask[2]&&py>=mask[1]&&py<=mask[3])continue;
+    const px=x+lp.getX()+.5,py=y+lp.getY()+.5;if(masked(mask,px,py))continue;
     for(let c=0;c<n;c++)if(Math.abs(l[y*lp.getStride()+x*n+c]-r[y*rp.getStride()+x*n+c])>EDIT_PIXEL_POLICY.channelTolerance)fail('EDIT_OUTSIDE_PIXELS_CHANGED');
    }
   }finally{lp?.destroy();rp?.destroy();p?.destroy();q?.destroy();}

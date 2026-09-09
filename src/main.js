@@ -1,3 +1,4 @@
+import './reader-edit-layout.css';
 import {initPdfEditWorkspace} from './pdf-edit-workspace.js';
 import './pdf-edit-workspace.css';
 import {isTextMarkup,normalizeMarkupColor} from './text-markup.js';
@@ -260,6 +261,7 @@ function renderReaderChrome(){
   readerChrome?.render({tabs:session.tabs.map(id=>({id,title:readerTitles.get(id) || 'Document'})),activeId:state.doc?.id===session.activeId?session.activeId:null,workspace:state.readerView?.workspace || 'read',zoomMode:state.readerView?.zoomMode || 'fit-width',isPdf:state.doc?.provenance?.sourceKind==='pdf' && !!state.doc.sourceBytes});
   readerChrome?.showPersistenceError(readerPersistence);
   pageBrowser?.refresh();
+  document.documentElement.style.setProperty('--reader-edit-top',`${readerTop()}px`);
   editTools?.refresh();
 }
 function navigationState(){
@@ -1941,6 +1943,25 @@ function renderDocHead(doc) {
   }
 }
 
+function setReaderWorkspace(workspace){return queueReader(async()=>{
+  if(!state.doc)return;guardReaderDrafts();captureReaderView();
+  const source=state.pdf,owner=navigationState()?.owner,held={...state.readerView},left=article.scrollLeft;
+  if(held.workspace===workspace)return;
+  const changesEditLayout=held.workspace==='edit'||workspace==='edit';
+  if(!changesEditLayout){state.readerView={...held,workspace};readerSession.update(state.doc,state.readerView);renderReaderChrome();return;}
+  readerLayoutBusy=true;clearTimeout(readerScrollTimer);clearTimeout(readerResizeTimer);
+  try{
+    state.readerView={...held,workspace};renderReaderChrome();
+    if(source&&held.zoomMode==='fit-width')await setPdfZoomNow(null,'fit-width',true,true);
+    if(source!==state.pdf||owner!==navigationState()?.owner)return;
+    state.readerView={...held,workspace,zoom:source?.model.zoom??held.zoom};restoreReaderView();article.scrollLeft=left;
+    captureReaderView({force:true});renderReaderChrome();
+  }catch(error){
+    if(source===state.pdf&&owner===navigationState()?.owner){state.readerView=held;renderReaderChrome();restoreReaderView();article.scrollLeft=left;readerSession.update(state.doc,held);}
+    throw error;
+  }finally{readerLayoutBusy=false;}
+});}
+
 function organizeDocument(){
   guardReaderDrafts();
   const parent=state.doc;if(!parent?.sourceBytes||parent.provenance?.sourceKind!=='pdf')return;
@@ -2009,6 +2030,7 @@ async function openDocumentNow(doc,options={}){
   if(doc.provenance?.sourceKind!=='pdf' || !doc.sourceBytes)view.workspace='read';
   switchingReader=true;
   state.readerView=view;
+  document.body.dataset.readerWorkspace=view.workspace;
   try{
     const result=await openDocumentContents(doc,options);
     if(!held || options.savedAnchor || options.requirePosition || (positionSelectionVersions.get(doc.id) ?? 0)!==selectionVersion)captureReaderView({force:true,persist:false});
@@ -2674,11 +2696,17 @@ readerChrome=initReaderChrome({
   organize:organizeDocument,
   activate:id=>reportReaderFailure(activateReaderTab(id)),
   close:id=>closeReaderTab(id).catch(error=>{setStatus(true,error?.message || 'Could not close document.');throw error;}),
-  setWorkspace:workspace=>{if(!state.doc)return;guardReaderDrafts();state.readerView={...state.readerView,workspace};readerSession.update(state.doc,state.readerView);renderReaderChrome();},
+  setWorkspace:setReaderWorkspace,
   fitWidth:()=>reportReaderFailure(setPdfZoom(null,'fit-width')),
 });
 editTools=initPdfEditWorkspace({
-  panel:document.getElementById('pdf-edit-panel'),
+  panel:document.getElementById('pdf-edit-panel'),root:article,
+  revealTarget:({pageIndex,paragraphId})=>{
+    const target=[...article.querySelectorAll('.pdf-edit-target')].find(node=>Number(node.dataset.pageIndex)===pageIndex&&node.dataset.paragraphId===String(paragraphId));
+    if(!target)return;
+    const rect=target.getBoundingClientRect(),top=readerTop(),bottom=matchMedia('(max-width:900px)').matches?document.getElementById('reader-workspace-panel').getBoundingClientRect().top-12:innerHeight-16;
+    if(rect.top<top||rect.bottom>bottom)scrollBy({top:rect.top-top-16,behavior:'instant'});
+  },
   getContext:()=>({doc:state.doc,active:document.body.dataset.view==='read'&&state.readerView?.workspace==='edit'&&state.doc?.provenance?.sourceKind==='pdf'&&!!state.doc.sourceBytes,pageIndex:(navigationState()?.page??1)-1}),
   snapshot:doc=>queueReader(async()=>{
     annotationTools?.beforeLeave();
@@ -2722,7 +2750,7 @@ annotationTools=initAnnotationToolbar({currentDoc:()=>state.doc,root:article,can
   });},
 });
 renderReaderChrome();
-addEventListener('resize',()=>{clearTimeout(readerResizeTimer);if(compactLayoutSnapshot){compactLayoutGeneration++;return;}readerResizeTimer=setTimeout(()=>{if(state.readerView?.zoomMode==='fit-width')void reportReaderFailure(setPdfZoom(null,'fit-width'));},120);});
+addEventListener('resize',()=>{clearTimeout(readerResizeTimer);if(compactLayoutSnapshot){compactLayoutGeneration++;return;}if(state.readerView?.workspace==='edit'&&state.pdf&&!readerLayoutBusy){setCompactReaderLayout({phase:'before'});setCompactReaderLayout({phase:'after'});return;}readerResizeTimer=setTimeout(()=>{if(state.readerView?.zoomMode==='fit-width')void reportReaderFailure(setPdfZoom(null,'fit-width'));},120);});
 
 async function boot() {
   if (await mountGlassDevRoute()) {

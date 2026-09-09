@@ -1,0 +1,15 @@
+body[data-view="read"][data-reader-workspace="edit"] #reader-document-workspace{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:20px;align-items:start;}
+body[data-reader-workspace="edit"] #reader-document-workspace>#doc{grid-column:1;grid-row:1;min-width:0;}
+body[data-reader-workspace="edit"] #reader-workspace-panel{grid-column:2;grid-row:1;width:100%;box-sizing:border-box;margin:0;position:sticky;top:var(--reader-edit-top,220px);max-height:calc(100dvh - var(--reader-edit-top,220px) - 16px);overflow:auto;}
+@media(max-width:900px){
+ body[data-view="read"][data-reader-workspace="edit"] #reader-document-workspace{display:block;padding-bottom:42dvh;}
+ body[data-reader-workspace="edit"] #reader-workspace-panel{position:fixed;top:auto;bottom:8px;left:8px;right:8px;width:auto;max-height:40dvh;z-index:20;margin:0;padding:12px;box-shadow:0 -4px 18px #0003;}
+}
+@media(max-width:900px){
+ #pdf-edit-panel:has(#pdf-edit-draft:not([hidden]))>h2,
+ #pdf-edit-panel:has(#pdf-edit-draft:not([hidden]))>h2+p,
+ #pdf-edit-panel:has(#pdf-edit-draft:not([hidden]))>.pdf-edit-selectors{display:none;}
+ #pdf-edit-panel:has(#pdf-edit-draft:not([hidden])) #pdf-edit-target{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0 0 4px;}
+ #pdf-edit-panel:has(#pdf-edit-draft:not([hidden])) #pdf-edit-text{height:72px;min-height:64px;margin:4px 0 8px;}
+ #pdf-edit-panel:has(#pdf-edit-draft:not([hidden])) #pdf-edit-status{margin:4px 0 0;font-size:13px;}
+}

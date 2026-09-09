@@ -66,3 +66,18 @@ test('native links are preserved independently of annotation API and protect bot
  const intersecting=await inspectEditSource(linked(fixture(),'https://example.com',[45,100,80,120]));assert.throws(()=>assertEditRegion(intersecting,0,before,after),/EDIT_REGION_OVERLAPS_LINK/);
  const proposed=await inspectEditSource(linked(fixture(),'https://example.com',[205,100,240,120]));assert.throws(()=>assertEditRegion(proposed,0,before,{...after,x:170,w:100}),/EDIT_REGION_OVERLAPS_LINK/);
 });
+
+function angledFixture({text='Hello world',paint=false,outside='A'}={}){
+ const doc=new m.PDFDocument(),font=new m.Font('Helvetica'),ref=doc.addSimpleFont(font);let object,buffer;
+ try{object=doc.addPage([0,0,300,400],0,{Font:{F1:ref}},`BT /F1 16 Tf .70710678 .70710678 -.70710678 .70710678 80 200 Tm (${text}) Tj ET BT /F1 3 Tf 70 270 Td (${outside}) Tj ET ${paint?'0 0 1 rg 70 265 4 4 re f':''}`);doc.insertPage(-1,object);buffer=doc.saveToBuffer();return new Uint8Array(buffer.asUint8Array());}
+ finally{buffer?.destroy();object?.destroy();ref.destroy();font.destroy();doc.destroy();}
+}
+test('45 degree edit uses padded polygons, rejecting changed pixels and text inside the bounding box but outside the paragraph',async()=>{
+ const c=Math.SQRT1_2,quad=[[-3,20],[110,20],[110,-6],[-3,-6]].flatMap(([x,y])=>[80+c*x-c*y,200+c*x+c*y]);
+ const start={quad,text:'Hello world'},end={quad,text:'Hola world'},a=angledFixture(),b=angledFixture({text:end.text});
+ assert.deepEqual(await verifyEditedPdf(a,b,{pageIndex:0,before:start,after:end}),b);
+ await assert.rejects(verifyEditedPdf(a,angledFixture({text:end.text,paint:true}),{pageIndex:0,before:start,after:end}),/EDIT_OUTSIDE_PIXELS_CHANGED/);
+ await assert.rejects(verifyEditedPdf(a,angledFixture({text:end.text,outside:'B'}),{pageIndex:0,before:start,after:end}),/EDIT_SURROUNDING_TEXT_CHANGED/);
+ const meta=await inspectEditSource(a);
+ for(const invalid of [[0,0,10,10,0,10,10,0],[0,0,1,1,2,2,3,3],[0,0,10,0,10,NaN,0,10]])assert.throws(()=>assertEditRegion(meta,0,{quad:invalid},end),/EDIT_REGION_INVALID/);
+});

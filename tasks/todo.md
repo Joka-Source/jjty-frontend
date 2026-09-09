@@ -239,3 +239,17 @@ Plan: [reader-edit-text-plan.md](reader-edit-text-plan.md).
 Review: restored drafts bind original source, paragraph text, box and rotation. Separate text edits retain unchanged style islands. Failed writes, stale source/route cancellation and native outside marks/links are covered. Final full gate: 441/441, 235104.043667ms.
 
 Next: execute [reader-edit-targeting-plan.md](reader-edit-targeting-plan.md) for direct on-page selection and improved editor placement. The current paragraph form is an interim interaction. Full PDF Expert, Apple Books EPUB, native voice, authenticated sync and release requirements remain open.
+
+## Direct Edit targets and page-visible workspace — 9 September (in progress)
+
+Plan: [reader-edit-targeting-plan.md](reader-edit-targeting-plan.md).
+
+- [x] Add accessible paragraph overlays on existing page canvases; retain source model ownership and clear replaced canvas targets.
+- [x] Reuse the durable draft controller from pointer and paragraph selector; restored targets require exact original text/box/rotation.
+- [x] Move desktop editor beside the page and narrow editor to a bounded bottom panel, with queued fit/position preservation.
+- [x] Focused real pointer, zoom, responsive, restored draft and held-fit/breakpoint journey passes.
+- [x] Repair engine-local rotated-box conversion; actual cropped/UserUnit PDFs at 0/90/180/270 and editable 45-degree text pass target and edited-copy readback. Polygon masks reject collateral changes outside the actual paragraph.
+- [x] Desktop/phone renders inspected; recovery, held fit/breakpoint/route cancellation and independent review clear. Build and all 450 tests pass (247956.295791ms).
+- [x] Scoped commit and canonical evidence prepared.
+
+Next: execute [epub-reader-plan.md](epub-reader-plan.md). Current code has no EPUB import/reader, despite an available engine probe. Build faithful semantic reflow and source-bound passage custody; do not substitute plain text or canvas-only output for Apple Books quality. Full PDF Expert/native voice/sync/release gates remain active.
