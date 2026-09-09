@@ -253,3 +253,20 @@ Plan: [reader-edit-targeting-plan.md](reader-edit-targeting-plan.md).
 - [x] Scoped commit and canonical evidence prepared.
 
 Next: execute [epub-reader-plan.md](epub-reader-plan.md). Current code has no EPUB import/reader, despite an available engine probe. Build faithful semantic reflow and source-bound passage custody; do not substitute plain text or canvas-only output for Apple Books quality. Full PDF Expert/native voice/sync/release gates remain active.
+
+## EPUB inside the own Reader — 9 September (in progress)
+
+Plan: [epub-reader-plan.md](epub-reader-plan.md).
+
+- [x] Bounded EPUB2/3 archive/container/spine/contents parser with exact original retention and generated malformed/resource-limit fixtures.
+- [x] Sanitized semantic chapters, publisher CSS and local illustration/font resources with stable passage locators; independent browser no-network check.
+- [x] Own Library import, sticky Contents/Text/Find controls, internal links, passage Return and persistent typography; shared exact-source annotations.
+- [x] Browser import → typography → deep passage → contents/search → annotate → reload → separate-library backup restore verifies exact bytes and annotation. Fixed publisher point sizes now respond to Text controls.
+- [x] Final independent review and rendered phone/desktop evidence clear. Build and full473/473 regression gate pass (262376.270125ms), plus held-resize race1/1.
+- [x] Scoped commit and canonical SSOT receipt prepared.
+
+Remaining Apple Books baseline: fixed-layout support, pagination/page-turn modes, complete themes/typography, advanced footnotes/navigation and performance at large-book scale, physical-device/native comparison and cross-device custody. Full PDF Expert, native voice, sync and release commitments remain active.
+
+Final review notes: publisher fixed-point type scales at the actual DOM nodes, with owned baseline attributes surviving annotation clones. Combining marks stay inside display-token spans. Resize restores only held passage fields under reader/document/navigation guards. Library search now publishes rows/count together after asynchronous positions. Final full473/473 gate and focused held-resize check pass.
+
+Next: [epub-reading-modes-plan.md](epub-reading-modes-plan.md), keeping source passage identity through pagination and mode changes. The inventory is [EPUB_PARITY.md](../docs/quality/EPUB_PARITY.md).

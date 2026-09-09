@@ -1,0 +1,10 @@
+.epub-tools{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:8px 20px;border-block:1px solid var(--line,#ddd);position:relative;z-index:2}
+.epub-tools label{display:flex;gap:6px;align-items:center;font-size:13px}.epub-tools button,.epub-tools select,.epub-tools input,.epub-tools summary{min-height:44px}.epub-tools summary{display:flex;align-items:center;cursor:pointer}
+.epub-tools details[open]>ol{position:absolute;max-height:55vh;overflow:auto;min-width:240px;max-width:min(500px,85vw);background:var(--paper,#fff);box-shadow:0 8px 28px #0002;padding:18px 24px;border-radius:12px;z-index:4}.epub-contents button{text-align:start;width:100%}
+.epub-document{max-width:850px!important}.epub-book{line-height:1.65;font-family:Georgia,serif}.epub-chapter{padding-block:30px;scroll-margin-top:140px}.epub-chapter .reading-block{scroll-margin-top:140px;font-size:inherit}.epub-book[data-typeface=serif] *{font-family:Georgia,serif!important}.epub-book[data-typeface=sans] *{font-family:system-ui,sans-serif!important}.epub-chapter img{height:auto}.epub-chapter table{max-width:100%}
+@media(max-width:600px){.epub-tools{gap:6px}.epub-tools label{flex-wrap:wrap}.epub-tools input{max-width:180px}.epub-chapter{padding-block:18px}}
+
+.epub-tools .epub-popover{position:absolute;top:100%;left:12px;max-width:calc(100vw - 32px);padding:14px;display:flex;flex-wrap:wrap;gap:12px;background:var(--paper,#fff);color:var(--ink,#222);box-shadow:0 8px 28px #0002;border-radius:12px}.epub-tools>details{position:static}.epub-tools summary{padding-inline:10px}.epub-tools>details>p{max-width:500px}.epub-tools>details[open]>ol{top:100%;margin-top:0}
+
+.epub-book{background:#fff;color:#202020;padding-inline:24px;border-radius:4px}.epub-tools>details:last-child[open]>p{position:absolute;top:100%;left:12px;padding:12px;background:var(--paper,#fff);color:var(--ink,#222);box-shadow:0 8px 28px #0002;max-width:min(500px,85vw)}
+@media(max-width:600px){.epub-book{padding-inline:12px}.epub-tools{padding-inline:12px;gap:4px}.epub-tools .epub-return{font-size:12px}}

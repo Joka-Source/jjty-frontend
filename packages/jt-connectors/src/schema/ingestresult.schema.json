@@ -51,7 +51,7 @@
       "properties": {
         "sourceKind": {
           "type": "string",
-          "enum": ["text", "markdown", "pdf", "web-page", "paste", "docx"],
+          "enum": ["text", "markdown", "pdf", "epub", "web-page", "paste", "docx"],
           "description": "What kind of material this came from."
         },
         "uri": {

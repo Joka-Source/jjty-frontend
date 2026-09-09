@@ -30,6 +30,9 @@
   "dependencies": {
     "@jt/glass": "file:packages/jt-glass",
     "bentopdf-pdfium": "file:vendor/bento-editcore/bentopdf-pdfium-8ff5002c6cd5.tgz",
+    "css-tree": "3.2.1",
+    "dompurify": "3.4.15",
+    "fflate": "0.8.3",
     "jt-connectors": "file:packages/jt-connectors",
     "jt-core": "file:packages/jt-core/pkg",
     "jt-sync": "file:packages/jt-sync",

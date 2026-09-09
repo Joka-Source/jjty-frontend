@@ -106,7 +106,7 @@ export function initReaderChrome({ activate, close, setWorkspace, fitWidth, orga
     if (event.key === 'Delete') { event.preventDefault(); void closeTab(tab.dataset.documentId); }
     // Native button Enter/Space dispatch click, so activation remains manual.
   });
-  const workspaceNav=document.createElement('nav');workspaceNav.id='reader-workspace-nav';workspaceNav.setAttribute('aria-label','PDF workspace');
+  const workspaceNav=document.createElement('nav');workspaceNav.id='reader-workspace-nav';workspaceNav.setAttribute('aria-label','Document workspace');
   for(const option of $('reader-workspace').options){
     const item=document.createElement('button');item.type='button';item.dataset.workspace=option.value;item.textContent=option.textContent;
     item.addEventListener('click',()=>{$('reader-workspace').value=option.value;$('reader-workspace').dispatchEvent(new Event('change',{bubbles:true}));});workspaceNav.append(item);
@@ -153,10 +153,10 @@ export function initReaderChrome({ activate, close, setWorkspace, fitWidth, orga
     if (current.activeId) $('reader-main').setAttribute('aria-labelledby', `reader-tab-${current.activeId}`);
     else $('reader-main').removeAttribute('aria-labelledby');
     if ($('pdf-search-input').value) { searchControls.hidden=false; searchToggle.setAttribute('aria-expanded','true'); }
-    for(const option of $('reader-workspace').options) option.disabled=option.value!=='read'&&!current.isPdf;
-    $('reader-workspace').value = current.isPdf ? current.workspace : 'read';
+    for(const option of $('reader-workspace').options) option.disabled=option.value!=='read'&&!current.isPdf&&!(current.isEpub&&option.value==='annotate');
+    $('reader-workspace').value = current.isPdf||current.isEpub ? current.workspace : 'read';
     $('reader-workspace').disabled = !current.activeId;
-    for(const item of workspaceNav.children){item.disabled=!current.activeId||(item.dataset.workspace!=='read'&&!current.isPdf);item.setAttribute('aria-current',item.dataset.workspace===current.workspace?'page':'false');}
+    for(const item of workspaceNav.children){item.disabled=!current.activeId||(item.dataset.workspace!=='read'&&!current.isPdf&&!(current.isEpub&&item.dataset.workspace==='annotate'));item.setAttribute('aria-current',item.dataset.workspace===current.workspace?'page':'false');}
     $('pdf-fit-width').setAttribute('aria-pressed', String(current.zoomMode === 'fit-width'));
     workspaceView();
     compactTools?.refresh();

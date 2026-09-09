@@ -159,19 +159,15 @@ export function initShell(ctx) {
     if (renderId !== homeRender) return;
     const query = $("home-search").value.trim().toLocaleLowerCase();
     const matching = docs.filter(d => !query || [d.title, ...(d.blocks ?? []).map(b => typeof b === "string" ? b : b.text ?? "")].join(" ").toLocaleLowerCase().includes(query));
-    $("home-result-count").textContent = `${matching.length} ${matching.length === 1 ? "document" : "documents"}`;
-    $("home-no-results").hidden = !query || matching.length > 0;
-    $("home-empty").hidden = docs.length > 0;
-    $("home-add-more").hidden = docs.length === 0;
     const list = $("home-doc-list");
-    list.textContent = "";
+    const fragment=document.createDocumentFragment();
     const current = ctx.currentDoc();
     for (const d of matching) {
       const li = document.createElement("li");
       li.className = "home-doc";
       const kind = document.createElement("span");
       kind.className = "document-kind";
-      kind.textContent = d.provenance?.sourceKind === "image" ? "IMG" : d.provenance?.sourceKind === "pdf" ? "PDF" : d.provenance?.sourceKind === "markdown" ? "MD" : "TXT";
+      kind.textContent = d.provenance?.sourceKind === "image" ? "IMG" : d.provenance?.sourceKind === "pdf" ? "PDF" : d.provenance?.sourceKind === "epub" ? "EPUB" : d.provenance?.sourceKind === "markdown" ? "MD" : "TXT";
       kind.setAttribute("aria-hidden", "true");
       li.appendChild(kind);
       const btn = document.createElement("button");
@@ -199,8 +195,14 @@ export function initShell(ctx) {
         ? `block ${position.blockIndex + 1} of ${position.blockCount} · ${ctx.relativeReadTime(position.updatedAt)}`
         : "not started";
       li.appendChild(place);
-      list.appendChild(li);
+      fragment.appendChild(li);
     }
+    if(renderId!==homeRender)return;
+    list.replaceChildren(fragment);
+    $("home-result-count").textContent = `${matching.length} ${matching.length === 1 ? "document" : "documents"}`;
+    $("home-no-results").hidden = !query || matching.length > 0;
+    $("home-empty").hidden = docs.length > 0;
+    $("home-add-more").hidden = docs.length === 0;
   }
 
   $("home-search").addEventListener("input", () => renderHome());

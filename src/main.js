@@ -1,3 +1,6 @@
+import {EPUB_LIMITS} from './epub-package.js';
+import {ingestEpub} from './epub-ingest.js';
+import {mountEpubReader} from './epub-reader.js';
 import './reader-edit-layout.css';
 import {initPdfEditWorkspace} from './pdf-edit-workspace.js';
 import './pdf-edit-workspace.css';
@@ -258,7 +261,7 @@ const readerSession = createReaderSession({onError(message){
 function renderReaderChrome(){
   pageNavigation?.refresh();
   const session = readerSession.snapshot();
-  readerChrome?.render({tabs:session.tabs.map(id=>({id,title:readerTitles.get(id) || 'Document'})),activeId:state.doc?.id===session.activeId?session.activeId:null,workspace:state.readerView?.workspace || 'read',zoomMode:state.readerView?.zoomMode || 'fit-width',isPdf:state.doc?.provenance?.sourceKind==='pdf' && !!state.doc.sourceBytes});
+  readerChrome?.render({tabs:session.tabs.map(id=>({id,title:readerTitles.get(id) || 'Document'})),activeId:state.doc?.id===session.activeId?session.activeId:null,workspace:state.readerView?.workspace || 'read',zoomMode:state.readerView?.zoomMode || 'fit-width',isEpub:state.doc?.provenance?.sourceKind==='epub' && !!state.doc.sourceBytes,isPdf:state.doc?.provenance?.sourceKind==='pdf' && !!state.doc.sourceBytes});
   readerChrome?.showPersistenceError(readerPersistence);
   pageBrowser?.refresh();
   document.documentElement.style.setProperty('--reader-edit-top',`${readerTop()}px`);
@@ -376,6 +379,7 @@ function readerAvailableWidth(){
 function captureReaderView({force=false,persist=true}={}){
   if(((switchingReader||readerLayoutBusy) && !force) || !state.doc || document.body.dataset.view!=='read')return;
   const top=readerTop();
+  if(epubReader){const index=state.blocks.findIndex(node=>node.getBoundingClientRect().bottom>top);if(index>=0&&index!==state.currentBlock){state.currentBlock=index;rememberPosition(index);}}
   const pages=[...article.querySelectorAll(':scope > .pdf-page')];
   const page=pages.find(node=>node.getBoundingClientRect().bottom>top) || pages.at(-1);
   const rect=page?.getBoundingClientRect();
@@ -390,7 +394,7 @@ function restoreReaderView(){
   const pages=[...article.querySelectorAll(':scope > .pdf-page')];
   const page=pages[Math.min(pages.length-1,Math.max(0,view.pageNumber-1))];
   if(page){const rect=page.getBoundingClientRect();window.scrollBy({top:rect.top+view.pageOffset*rect.height-readerTop(),behavior:'auto'});}
-  else if(view.blockIndex>=0)state.blocks[view.blockIndex]?.scrollIntoView({block:'start',behavior:'auto'});
+  else if(view.blockIndex>=0){const block=state.blocks[view.blockIndex];if(epubReader&&block)window.scrollBy({top:block.getBoundingClientRect().top-readerTop(),behavior:'instant'});else block?.scrollIntoView({block:'start',behavior:'auto'});}
   const tool=document.getElementById('bento-tool');
   if(tool && [...tool.options].some(option=>option.value===view.bentoTool))tool.value=view.bentoTool;
 }
@@ -657,6 +661,7 @@ const documentRename=initDocumentRename({onRenamed:async doc=>{
 const pdfFormPanel = initPdfFormPanel({ saveDocument: putDoc, getRecords, review: pdfReview });
 const pdfAnnotationPanel = initPdfAnnotationPanel({ getRecords, review: pdfReview });
 let unmountImage = null;
+let epubReader = null;
 async function renderDoc(doc) {
   cancelStagedRange();
   showHeard('');
@@ -666,6 +671,7 @@ async function renderDoc(doc) {
   void pdfFormPanel.setDocument(null);
   pdfAnnotationPanel.setDocument(null);
   unmountImage?.(); unmountImage = null;
+  epubReader?.dispose(); epubReader=null;
   await state.pdf?.loadingTask?.destroy?.();
   for (const p of state.blocks) p.remove();
   for (const page of article.querySelectorAll(":scope > .pdf-page")) page.remove();
@@ -694,7 +700,10 @@ async function renderDoc(doc) {
     : splitParagraphs(doc.text).map((text) => ({ text, kind: "paragraph" }));
 
   const hasPdfSource = doc.provenance?.sourceKind === "pdf" && doc.sourceBytes;
-  if (doc.provenance?.sourceKind === "image" && doc.sourceBytes) {
+  if(doc.provenance?.sourceKind==='epub' && doc.sourceBytes){
+    epubReader=await mountEpubReader(article,doc,{getReaderTop:readerTop,onSelect:selectPdfBlock,preferences:state.readerView?.epub,onPreferences:epub=>{state.readerView={...state.readerView,epub};readerSession.update(doc,state.readerView);}});
+    state.blocks=epubReader.blocks;state.blockTexts=epubReader.blockTexts;
+  } else if (doc.provenance?.sourceKind === "image" && doc.sourceBytes) {
     unmountImage = await mountImage(article, doc);
   } else if (hasPdfSource) {
     try {
@@ -1948,7 +1957,7 @@ function setReaderWorkspace(workspace){return queueReader(async()=>{
   const source=state.pdf,owner=navigationState()?.owner,held={...state.readerView},left=article.scrollLeft;
   if(held.workspace===workspace)return;
   const changesEditLayout=held.workspace==='edit'||workspace==='edit';
-  if(!changesEditLayout){state.readerView={...held,workspace};readerSession.update(state.doc,state.readerView);renderReaderChrome();return;}
+  if(!changesEditLayout){state.readerView={...held,workspace};readerSession.update(state.doc,state.readerView);renderReaderChrome();if(epubReader){const ownerDoc=state.doc,ownerReader=epubReader,selectionVersion=positionSelectionVersions.get(ownerDoc.id);requestAnimationFrame(()=>{if(state.doc===ownerDoc&&epubReader===ownerReader&&positionSelectionVersions.get(ownerDoc.id)===selectionVersion&&state.readerView?.workspace===workspace)restoreReaderView();});}return;}
   readerLayoutBusy=true;clearTimeout(readerScrollTimer);clearTimeout(readerResizeTimer);
   try{
     state.readerView={...held,workspace};renderReaderChrome();
@@ -1997,7 +2006,7 @@ document.getElementById("download-original").addEventListener("click", () => {
   const doc = state.doc;
   if (!doc?.sourceBytes) return;
   const kind = doc.provenance?.sourceKind;
-  const ext = kind === "pdf" ? "pdf" : kind === "markdown" ? "md" : doc.sourceMime === "text/html" ? "html" : "txt";
+  const ext = kind === "epub" ? "epub" : kind === "pdf" ? "pdf" : kind === "markdown" ? "md" : doc.sourceMime === "text/html" ? "html" : "txt";
   const mime = doc.sourceMime || (kind === "pdf" ? "application/pdf" : kind === "markdown" ? "text/markdown" : "text/plain");
   const url = URL.createObjectURL(new Blob([pdfSourceBytes(doc.sourceBytes)], { type: mime }));
   const a = document.createElement("a");
@@ -2027,7 +2036,7 @@ async function openDocumentNow(doc,options={}){
   const held=Object.hasOwn(session.views,doc.id);
   const selectionVersion=positionSelectionVersions.get(doc.id) ?? 0;
   const view=readerSession.get(doc);
-  if(doc.provenance?.sourceKind!=='pdf' || !doc.sourceBytes)view.workspace='read';
+  if(!doc.sourceBytes || (doc.provenance?.sourceKind!=='pdf' && !(doc.provenance?.sourceKind==='epub' && ['read','annotate'].includes(view.workspace))))view.workspace='read';
   switchingReader=true;
   state.readerView=view;
   document.body.dataset.readerWorkspace=view.workspace;
@@ -2075,7 +2084,7 @@ async function closeReaderTab(id){
 }
 async function releaseReader(){
       cancelStagedRange();hideAsk();markerDriver.stop();marker.classList.remove('on');
-      try{await state.pdf?.loadingTask?.destroy?.();}catch{/* A failed renderer must still release its UI. */}unmountImage?.();unmountImage=null;
+      try{await state.pdf?.loadingTask?.destroy?.();}catch{/* A failed renderer must still release its UI. */}unmountImage?.();unmountImage=null;epubReader?.dispose();epubReader=null;
       for(const block of state.blocks)block.remove();for(const page of article.querySelectorAll(':scope > .pdf-page'))page.remove();
       resetPdfTools();state.doc=null;state.pdf=null;state.blocks=[];state.blockTexts=[];state.currentBlock=-1;state.readerView=null;state.docTokens=[];state.tokenBlock=[];state.tokenMeta=[];state.lastMatch=null;state.lastReadingMatch=null;state.matcher=null;
       documentRename.setDocument(null);serverPanel.setDocument(null);await pdfFormPanel.setDocument(null);pdfAnnotationPanel.setDocument(null);renderDocHead(null);
@@ -2201,6 +2210,12 @@ async function addDocument(text, nameHint = "") {
 }
 
 async function ingestFile(f) {
+  if(/\.epub$/i.test(f.name)||f.type==='application/epub+zip'){
+    if(f.size>EPUB_LIMITS.sourceBytes){setStatus(false,'This EPUB exceeds the current 32 MB book limit.');return null;}
+    setStatus(true,`Opening ${f.name}…`);
+    try{return await addIngested(await ingestEpub(new Uint8Array(await f.arrayBuffer()),{name:f.name}),f.name.replace(/\.epub$/i,''));}
+    catch(error){setStatus(false,`Could not open this EPUB: ${error.message}`);return null;}
+  }
   if (/\.(png|jpe?g|webp|gif)$/i.test(f.name) || /^image\//.test(f.type)) {
     try { return await addIngested(await ingestImage(f), f.name); }
     catch (error) { setStatus(false, error.message); return null; }
@@ -2218,7 +2233,7 @@ async function ingestFile(f) {
     const result = await ingestText(new TextDecoder().decode(rawBytes), { name: f.name, rawBytes });
     return addIngested(result, f.name.replace(/\.(txt|md)$/i, ""));
   }
-  setStatus(true, "JETT opens PDF, Markdown, text, PNG, JPEG, WebP and GIF.");
+  setStatus(true, "JETT opens EPUB, PDF, Markdown, text, PNG, JPEG, WebP and GIF.");
   return null;
 }
 
@@ -2744,13 +2759,14 @@ annotationTools=initAnnotationToolbar({currentDoc:()=>state.doc,root:article,can
     if(!selectionStillCurrent(target,state.doc,article))throw new Error('The document changed. Select its words again.');
     if(target.start.blockIndex!==target.end.blockIndex){
       if(!isTextMarkup(kind))throw new Error('Select words on one page for this note.');
-      return executeVerb(`${kind}-range`,{markupColor,fromAnchor:target.start.quotedText,toAnchor:target.end.quotedText,rangeStart:target.start,rangeEnd:target.end,rangeDocumentId:target.docId,modality:'pointer',evidence:'Selected PDF words'});
+      return executeVerb(`${kind}-range`,{markupColor,fromAnchor:target.start.quotedText,toAnchor:target.end.quotedText,rangeStart:target.start,rangeEnd:target.end,rangeDocumentId:target.docId,modality:'pointer',evidence:state.doc?.provenance?.sourceKind==='epub'?'Selected book words':'Selected PDF words'});
     }
-    return executeVerb(kind,{...target.start,noteText,markupColor,modality:'pointer',evidence:'Selected PDF words',matchedText:target.quote});
+    return executeVerb(kind,{...target.start,noteText,markupColor,modality:'pointer',evidence:state.doc?.provenance?.sourceKind==='epub'?'Selected book words':'Selected PDF words',matchedText:target.quote});
   });},
 });
 renderReaderChrome();
-addEventListener('resize',()=>{clearTimeout(readerResizeTimer);if(compactLayoutSnapshot){compactLayoutGeneration++;return;}if(state.readerView?.workspace==='edit'&&state.pdf&&!readerLayoutBusy){setCompactReaderLayout({phase:'before'});setCompactReaderLayout({phase:'after'});return;}readerResizeTimer=setTimeout(()=>{if(state.readerView?.zoomMode==='fit-width')void reportReaderFailure(setPdfZoom(null,'fit-width'));},120);});
+let epubResizeFrame=null,epubResizeView=null;
+addEventListener('resize',()=>{clearTimeout(readerResizeTimer);if(epubReader&&state.doc){clearTimeout(readerScrollTimer);epubResizeView??={doc:state.doc,reader:epubReader,selectionVersion:positionSelectionVersions.get(state.doc.id),blockIndex:state.readerView.blockIndex};cancelAnimationFrame(epubResizeFrame);epubResizeFrame=requestAnimationFrame(()=>{epubResizeFrame=requestAnimationFrame(()=>{const held=epubResizeView;epubResizeView=null;if(held?.doc===state.doc&&held.reader===epubReader&&document.body.dataset.view==='read'&&positionSelectionVersions.get(state.doc.id)===held.selectionVersion){state.readerView={...state.readerView,blockIndex:held.blockIndex};restoreReaderView();captureReaderView({force:true});}});});return;}if(compactLayoutSnapshot){compactLayoutGeneration++;return;}if(state.readerView?.workspace==='edit'&&state.pdf&&!readerLayoutBusy){setCompactReaderLayout({phase:'before'});setCompactReaderLayout({phase:'after'});return;}readerResizeTimer=setTimeout(()=>{if(state.readerView?.zoomMode==='fit-width')void reportReaderFailure(setPdfZoom(null,'fit-width'));},120);});
 
 async function boot() {
   if (await mountGlassDevRoute()) {

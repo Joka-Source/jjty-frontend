@@ -11,3 +11,8 @@ Menus, drawers and sticky headers change where controls can be reached. Verify a
 ## 9 September — own the professional document interface
 
 The founder asked where the actual PDF Expert parity UI was after seeing Bento. A tool catalog and a redirect are not the requested JETT workspace. Build direct JETT interactions over the verified engines, demonstrate the actual user journey in our interface, and never substitute toolkit availability for product parity.
+
+- 9 September: keep the founder in JETT's own reader when demonstrating the product. Bento's standalone toolkit is supporting implementation, not evidence of our UI or PDF Expert parity; open the own app and identify the exact surface.
+- EPUB typography checks must inspect actual publisher-sized paragraphs, not merely the reader wrapper's CSS. Preserve the visible deep passage while controls change layout; test a long chapter with fixed publisher point sizes.
+- Reader layout recovery must verify source identity and navigation generation, and restore only position fields. A held resize cannot overwrite a newer Contents jump, workspace or typography choice. Inspect rendered output after the reader finishes booting, not merely after its chapter nodes mount.
+- Publish Library result counts and document rows atomically after saved-position reads. A matching count alone did not mean its rows had finished rendering.

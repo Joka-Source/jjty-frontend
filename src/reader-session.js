@@ -14,6 +14,7 @@ export function normalizeReaderView(value = {}) {
       typeof value.fingerprint === "string"
         ? value.fingerprint.slice(0, 300)
         : "",
+    epub: {size:[18,22,26,30].includes(value.epub?.size)?value.epub.size:22,font:['publisher','serif','sans'].includes(value.epub?.font)?value.epub.font:'publisher'},
     returnPlace: value.returnPlace && typeof value.returnPlace==='object' ? {
       pageNumber:Math.floor(number(value.returnPlace.pageNumber,1,1,100000)),pageOffset:number(value.returnPlace.pageOffset,0,-1,1),blockIndex:Math.floor(number(value.returnPlace.blockIndex,-1,-1,1000000)),zoom:number(value.returnPlace.zoom,1,0.05,2.5),zoomMode:value.returnPlace.zoomMode==='custom'?'custom':'fit-width'
     }:null,

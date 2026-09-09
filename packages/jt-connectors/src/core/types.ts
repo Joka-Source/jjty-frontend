@@ -29,6 +29,7 @@ export type SourceKind =
   | "text"
   | "markdown"
   | "pdf"
+  | "epub"
   | "web-page"
   | "paste"
   | "docx";

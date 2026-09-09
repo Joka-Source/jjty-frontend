@@ -3,7 +3,7 @@ import {pdfSelectionTarget,selectionStillCurrent} from './pdf-selection.js';
 
 export function initAnnotationToolbar({currentDoc,root,run,canUndo,getColor=()=>'yellow',setColor=()=>{}}) {
   const toolbar=document.createElement('section');toolbar.id='annotation-toolbar';toolbar.setAttribute('aria-label','Annotation tools');
-  toolbar.innerHTML='<div class="annotation-actions"><button type="button" data-annotation="highlight">Highlight</button><button type="button" data-annotation="underline">Underline</button><button type="button" data-annotation="strikethrough">Strikethrough</button><label class="annotation-color-label">Color <select id="annotation-color" aria-label="Markup color"></select></label><button type="button" data-annotation="note">Note</button><button type="button" data-annotation="undo">Undo</button></div><p class="annotation-selection" role="status">Select words in the PDF, then choose a markup tool or add a note.</p><form class="annotation-note" hidden><label for="annotation-note-text">Note on selected words</label><textarea id="annotation-note-text" rows="2" maxlength="10000"></textarea><button type="submit">Save note</button><button type="button" data-annotation="cancel">Cancel</button></form>';
+  toolbar.innerHTML='<div class="annotation-actions"><button type="button" data-annotation="highlight">Highlight</button><button type="button" data-annotation="underline">Underline</button><button type="button" data-annotation="strikethrough">Strikethrough</button><label class="annotation-color-label">Color <select id="annotation-color" aria-label="Markup color"></select></label><button type="button" data-annotation="note">Note</button><button type="button" data-annotation="undo">Undo</button></div><p class="annotation-selection" role="status">Select words in the document, then choose a markup tool or add a note.</p><form class="annotation-note" hidden><label for="annotation-note-text">Note on selected words</label><textarea id="annotation-note-text" rows="2" maxlength="10000"></textarea><button type="submit">Save note</button><button type="button" data-annotation="cancel">Cancel</button></form>';
   document.getElementById('reader-chrome').append(toolbar);
   const status=toolbar.querySelector('[role=status]'),form=toolbar.querySelector('form'),input=toolbar.querySelector('textarea');
   const preview=document.getElementById('pdf-annotation-preview');
@@ -16,11 +16,12 @@ export function initAnnotationToolbar({currentDoc,root,run,canUndo,getColor=()=>
   let held=null,busy=false,feedback='';
   const button=kind=>toolbar.querySelector(`[data-annotation="${kind}"]`);
   function controls(){
+    const isEpub=currentDoc()?.provenance?.sourceKind==='epub';preview.hidden=isEpub;document.getElementById('pdf-annotation-status').hidden=isEpub;
     const valid=selectionStillCurrent(held,currentDoc(),root),unavailable=busy||preview.dataset.exportBusy==='true';
     for(const act of TEXT_MARKUP_ACTS)button(act).disabled=unavailable||!valid;
     color.disabled=unavailable;
     button('note').disabled=unavailable||!valid||held.start.blockIndex!==held.end.blockIndex;
-    button('undo').disabled=unavailable||!currentDoc()||!canUndo();button('export').disabled=unavailable||!currentDoc()||(!form.hidden&&!!input.value.trim());
+    button('undo').disabled=unavailable||!currentDoc()||!canUndo();button('export').disabled=isEpub||unavailable||!currentDoc()||(!form.hidden&&!!input.value.trim());
     form.querySelector('button[type=submit]').disabled=unavailable||!valid;
     input.disabled=unavailable;button('cancel').disabled=unavailable;
   }
@@ -31,8 +32,9 @@ export function initAnnotationToolbar({currentDoc,root,run,canUndo,getColor=()=>
     if(selection?.isCollapsed && (inTools||!form.hidden))return;
     const candidate=pdfSelectionTarget(selection,currentDoc(),root);
     if(inTools&&!candidate)return;
-    held=candidate;if(candidate)feedback='';
-    status.textContent=held?`Whole-word selection: “${held.quote.slice(0,240)}${held.quote.length>240?'…':''}”`:(feedback||'Select words in the PDF, then choose a markup tool or add a note.');
+    const same=candidate&&held&&candidate.docId===held.docId&&JSON.stringify(candidate.start)===JSON.stringify(held.start)&&JSON.stringify(candidate.end)===JSON.stringify(held.end);
+    held=candidate;if(candidate&&!same)feedback='';
+    status.textContent=feedback||(held?`Whole-word selection: “${held.quote.slice(0,240)}${held.quote.length>240?'…':''}”`:'Select words in the document, then choose a markup tool or add a note.');
     controls();
   }
   document.addEventListener('selectionchange',capture);
@@ -65,9 +67,9 @@ export function initAnnotationToolbar({currentDoc,root,run,canUndo,getColor=()=>
   form.addEventListener('submit',event=>{event.preventDefault();void perform('annotate');});
   new MutationObserver(()=>{
     if(held&&!selectionStillCurrent(held,currentDoc(),root)){
-      held=null;if(!input.value.trim())form.hidden=true;status.textContent=input.value.trim()?'Your note draft is kept. Select its words again before saving.':'Select words in the PDF, then choose a markup tool or add a note.';
+      held=null;if(!input.value.trim())form.hidden=true;status.textContent=input.value.trim()?'Your note draft is kept. Select its words again before saving.':'Select words in the document, then choose a markup tool or add a note.';
     }
     controls();
   }).observe(root,{childList:true,subtree:true});
-  controls();return {toolbar,refresh:controls,clearSelection(){held=null;form.hidden=true;feedback='';status.textContent='Select words in the PDF, then choose a markup tool or add a note.';controls();},beforeLeave(){if(!form.hidden&&input.value.trim())throw new Error("Save or cancel your note in Annotate before changing the document view.");}};
+  controls();return {toolbar,refresh:controls,clearSelection(){held=null;form.hidden=true;feedback='';status.textContent='Select words in the document, then choose a markup tool or add a note.';controls();},beforeLeave(){if(!form.hidden&&input.value.trim())throw new Error("Save or cancel your note in Annotate before changing the document view.");}};
 }
