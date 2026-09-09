@@ -9,6 +9,7 @@
 // app-level evidence for the history panel.
 
 import { emitGlass } from "./glass-tap.js";
+import { validateTextEditDraft } from './pdf-edit-draft.js';
 
 const DB_NAME = "jt-web";
 const DB_VERSION = 3;
@@ -90,6 +91,13 @@ export async function putDocIfAbsent(doc) {
 export async function putDoc(doc) {
   const incoming = structuredClone(doc);
   await updateDocument(incoming.id, existing => {
+    // Draft custody belongs to saveTextEditDraft. A stale form/metadata save
+    // must neither resurrect a discarded edit nor erase a newly saved one.
+    if(existing){
+      if(existing.textEditDraft && existing.provenance?.contentDigest===incoming.provenance?.contentDigest)
+        incoming.textEditDraft=existing.textEditDraft;
+      else delete incoming.textEditDraft;
+    }
     if (Number.isSafeInteger(existing?.titleRevision) && existing.titleRevision > 0) {
       incoming.title = existing.title;
       incoming.titleRevision = existing.titleRevision;
@@ -101,6 +109,18 @@ export async function putDoc(doc) {
     return incoming;
   });
   return incoming.id;
+}
+
+export async function saveTextEditDraft(id, sourceDigest, draft) {
+  const validated=draft===null?null:validateTextEditDraft(draft,sourceDigest);
+  return updateDocument(id, existing=>{
+    if(!existing?.sourceBytes || existing.provenance?.sourceKind!=='pdf' || existing.provenance.contentDigest!==sourceDigest)
+      throw new Error('The source changed. Reopen the document before editing.');
+    const saved={...existing};
+    if(validated===null)delete saved.textEditDraft;
+    else saved.textEditDraft=validated;
+    return saved;
+  });
 }
 
 export async function renameDocument(id, title) {

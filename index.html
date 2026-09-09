@@ -292,7 +292,7 @@
       <div id="reader-tabs" role="tablist" aria-label="Open documents"></div>
       <p id="reader-persistence-status" role="status" hidden></p>
       <div id="reader-toolbar">
-        <label class="reader-workspace-label">Workspace<select id="reader-workspace"><option value="read">Read</option><option value="annotate">Annotate</option><option value="organize">Organize</option><option value="fill">Fill</option></select></label>
+        <label class="reader-workspace-label">Workspace<select id="reader-workspace"><option value="read">Read</option><option value="annotate">Annotate</option><option value="edit">Edit</option><option value="organize">Organize</option><option value="fill">Fill</option></select></label>
         <div id="reader-document-slot"></div>
         <details id="reader-more-tools" class="reader-menu"><summary>More tools</summary><div id="reader-more-tools-content" class="reader-menu-content"></div></details>
         <div id="reader-pdf-slot"></div>
@@ -443,6 +443,7 @@
           <button id="server-disconnect" type="button">Disconnect</button>
         </details>
         <section id="reader-workspace-panel" aria-label="Workspace controls" hidden>
+          <section id="pdf-edit-panel" aria-label="Edit PDF text" hidden></section>
           <div id="reader-organize-panel"><p>Review the PDF to rotate, reorder, merge or extract pages.</p></div>
           <p id="reader-workspace-hint" class="hint"></p>
         </section>

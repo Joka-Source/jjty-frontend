@@ -1,0 +1,17 @@
+{
+  "upstream": "https://github.com/alam00000/bentopdf",
+  "revision": "f0c0a3fc83ad99655026b7a8524cbb6ba58cdde4",
+  "engineVersion": "0.0.0-8ff5002c6cd5",
+  "license": "AGPL-3.0",
+  "files": {
+    "core.js": "ee60e4219dfa8db02785044de1f9920edb4bce46436e99112fcdb958192fe902",
+    "type3surgery.js": "73549fde64e52af6979b138b1e9aa052c369009e54afe6b36fa13aa8fece0966",
+    "shadingsurgery.js": "6b29249d8556b2910b7a1a32407dc8e463cf0cd77b9f4a19b386d11717a0b2d5",
+    "LICENSE": "8486a10c4393cee1c25392769ddd3b2d6c242d6ec7928e1414efff7dfb2f07ef",
+    "bentopdf-pdfium-8ff5002c6cd5.tgz": "41c8d3e72418127fc908f374dc13f50d64b7e0f50d8d7d727c179a0ce0377459",
+    "streamsplice.js": "45982b25eee039f56667f3e6848d0ad41704e893ef2501b264a5ce6ef3b864e6"
+  },
+  "adaptations": [
+    "engine-loader.js uses Vite URL import for the pinned WASM asset; upstream engine modules are copied unchanged."
+  ]
+}

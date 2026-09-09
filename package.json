@@ -29,6 +29,7 @@
   },
   "dependencies": {
     "@jt/glass": "file:packages/jt-glass",
+    "bentopdf-pdfium": "file:vendor/bento-editcore/bentopdf-pdfium-8ff5002c6cd5.tgz",
     "jt-connectors": "file:packages/jt-connectors",
     "jt-core": "file:packages/jt-core/pkg",
     "jt-sync": "file:packages/jt-sync",

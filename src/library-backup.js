@@ -3,6 +3,7 @@ import {isTextMarkup,isTextMarkupRangeVerb,normalizeMarkupColor} from './text-ma
 // or authority to contact any server. Derived reading text is not authenticated
 // by the source-byte digest; PDF export still verifies native text independently.
 import { deriveRangeSegments, resolveAnchor } from './anchors.js';
+import { validateTextEditDraft } from './pdf-edit-draft.js';
 
 export const LIBRARY_BACKUP_MAX_BYTES = 100 * 1024 * 1024;
 const MAX_ITEMS = 100000, MAX_BLOCKS = 100000;
@@ -56,7 +57,7 @@ export async function validateLibrarySnapshot(snapshot) {
   for(const key of ['docs','records','positions'])if(!Array.isArray(snapshot[key])||snapshot[key].length>MAX_ITEMS)fail('BACKUP_INVALID_COLLECTION');
   const docs=[], records=[], positions=[], docMap=new Map(), docDigests=new Map(), recordMap=new Map(), positionIds=new Set();let totalBytes=0;
   for(const raw of snapshot.docs){
-    const {sourceBytes,formDraft,...rest}=raw??{};const doc=pick(rest,DOC_KEYS);
+    const {sourceBytes,formDraft,textEditDraft,...rest}=raw??{};const doc=pick(rest,DOC_KEYS);
     if(!id(doc.id)||!str(doc.title)||!str(doc.text)||!date(doc.createdAt)||!integer(doc.revision,1,Number.MAX_SAFE_INTEGER))fail('BACKUP_INVALID_DOCUMENT');
     if(doc.titleRevision!==undefined&&!integer(doc.titleRevision,0,Number.MAX_SAFE_INTEGER))fail('BACKUP_INVALID_DOCUMENT');
     if(doc.titleRevision>0&&(!doc.title.trim()||doc.title!==doc.title.trim()||doc.title.length>200))fail('BACKUP_INVALID_DOCUMENT');
@@ -76,6 +77,12 @@ export async function validateLibrarySnapshot(snapshot) {
       const draft=formDraft;
       if(!plain(draft)||!doc.provenance||draft.sourceDigest!==doc.provenance.contentDigest||!plain(draft.values)||Object.entries(draft.values).some(([key,value])=>!id(key)||!(str(value)||typeof value==='boolean')))fail('BACKUP_INVALID_FORM_DRAFT');
       doc.formDraft={sourceDigest:draft.sourceDigest,values:Object.fromEntries(Object.entries(draft.values))};
+    }
+    if(textEditDraft!==undefined){
+      try{
+        if(doc.provenance?.sourceKind!=='pdf'||!doc.sourceBytes)throw new Error();
+        doc.textEditDraft=validateTextEditDraft(textEditDraft,doc.provenance.contentDigest);
+      }catch{fail('BACKUP_INVALID_TEXT_EDIT_DRAFT');}
     }
     docs.push(doc);docMap.set(doc.id,doc);docDigests.set(doc.id,doc.provenance?.contentDigest??await hash(new TextEncoder().encode(doc.text)));
   }

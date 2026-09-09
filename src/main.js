@@ -1,3 +1,5 @@
+import {initPdfEditWorkspace} from './pdf-edit-workspace.js';
+import './pdf-edit-workspace.css';
 import {isTextMarkup,normalizeMarkupColor} from './text-markup.js';
 import {initReaderPageBrowser} from './reader-page-browser.js';
 import {initReaderPageNavigation} from './reader-page-navigation.js';
@@ -70,6 +72,7 @@ import { createAnchor, resolveAnchor } from "./anchors.js";
 import { contentDigest } from "./ingest.js";
 import {
   putDoc,
+  saveTextEditDraft,
   putDocIfAbsent,
   getDoc,
   getDocs,
@@ -241,6 +244,8 @@ let pageNavigation = null;
 let pageBrowser = null;
 let readerChrome = null;
 let annotationTools = null;
+let editTools = null;
+function guardReaderDrafts(){annotationTools?.beforeLeave();editTools?.beforeLeave();}
 let readerPersistence = '';
 let switchingReader = false;
 let readerLayoutBusy = false;
@@ -255,6 +260,7 @@ function renderReaderChrome(){
   readerChrome?.render({tabs:session.tabs.map(id=>({id,title:readerTitles.get(id) || 'Document'})),activeId:state.doc?.id===session.activeId?session.activeId:null,workspace:state.readerView?.workspace || 'read',zoomMode:state.readerView?.zoomMode || 'fit-width',isPdf:state.doc?.provenance?.sourceKind==='pdf' && !!state.doc.sourceBytes});
   readerChrome?.showPersistenceError(readerPersistence);
   pageBrowser?.refresh();
+  editTools?.refresh();
 }
 function navigationState(){
   if(!state.pdf||!state.doc||document.body.dataset.view!=='read')return null;
@@ -265,7 +271,7 @@ function navigationState(){
 function navigateReaderPage(target,owner,options={}){return queueReader(()=>navigateReaderPageNow(target,owner,options));}
 async function navigateReaderPageNow(target,owner,options={}){
   if(navigationState()?.owner!==owner)throw new Error('The document changed. Choose a page in the current document.');
-  annotationTools?.beforeLeave();captureReaderView();const departure={...state.readerView};
+  guardReaderDrafts();captureReaderView();const departure={...state.readerView};
   const place=target==='return'?departure.returnPlace:null;
   const pageNumber=place?.pageNumber??target;
   const pages=[...article.querySelectorAll(':scope > .pdf-page')];
@@ -331,7 +337,7 @@ function setPageBrowserLayout({open,modal=false,owner,isCurrent=()=>true,force=f
     if(navigationState()?.owner!==owner)throw new Error('The document changed. Open Pages in the current document.');
     const dock=!!open&&!modal,previousDock=document.body.dataset.readerPagesDocked==='true';
     if(dock===previousDock)return;
-    annotationTools?.beforeLeave();
+    guardReaderDrafts();
     clearTimeout(readerScrollTimer);clearTimeout(readerResizeTimer);captureReaderView();
     const source=state.pdf,snapshot={view:{...state.readerView},blocks:state.blocks,pages:[...article.querySelectorAll(':scope > .pdf-page')],zoom:source.model.zoom,left:article.scrollLeft};
     readerLayoutBusy=true;
@@ -822,7 +828,7 @@ function setPdfZoom(nextZoom,mode='custom'){
   return queueReader(()=>source===state.pdf ? setPdfZoomNow(nextZoom,mode) : undefined);
 }
 async function setPdfZoomNow(nextZoom,mode='custom',preserveView=false,throwOnFailure=false) {
-  annotationTools?.beforeLeave();
+  guardReaderDrafts();
   if (!state.pdf) return;
   const source=state.pdf;
   if(!preserveView)captureReaderView();
@@ -880,7 +886,7 @@ function searchReader(kind){
   const source=state.pdf,owner=navigationState()?.owner,query=pdfSearchInput.value,version=kind==='query'?++searchRequest:searchRequest;
   return queueReader(async()=>{
     if(source!==state.pdf||!owner||owner!==navigationState()?.owner||version!==searchRequest)return;
-    annotationTools?.beforeLeave();
+    guardReaderDrafts();
     const result=kind==='query'?source.model.setSearchQuery(query):kind==='next'?source.model.nextSearchHit():source.model.previousSearchHit();
     if(result.hit){
       const page=state.blocks[result.hit.blockIndex]?.closest('.pdf-page');
@@ -1936,7 +1942,7 @@ function renderDocHead(doc) {
 }
 
 function organizeDocument(){
-  annotationTools?.beforeLeave();
+  guardReaderDrafts();
   const parent=state.doc;if(!parent?.sourceBytes||parent.provenance?.sourceKind!=='pdf')return;
   const identity=reviewOrigin(parent),ownsReview=pdfReview.prepare('Including your saved marks, notes and form answers…');
   return queueReader(async()=>{
@@ -1992,7 +1998,7 @@ function queueReader(task){
 function openDocument(doc, options = {}) {return queueReader(()=>openDocumentNow(doc,options));}
 async function openDocumentNow(doc,options={}){
   if(options.openIf&&!options.openIf())return doc;
-  annotationTools?.beforeLeave();
+  guardReaderDrafts();
   const session=readerSession.snapshot();
   captureReaderView();
   if(state.doc){await positionMemory.flush(state.doc.id);await pdfFormPanel.flush(state.doc.id);}
@@ -2033,7 +2039,7 @@ async function closeReaderTab(id){
   return queueReader(async()=>{
     const session=readerSession.snapshot();if(!session.tabs.includes(id))return;
     if(session.activeId!==id){readerSession.close(id);renderReaderChrome();return;}
-    annotationTools?.beforeLeave();
+    guardReaderDrafts();
     captureReaderView();await positionMemory.flush(id);await pdfFormPanel.flush(id);
     const index=session.tabs.indexOf(id),remaining=session.tabs.filter(tab=>tab!==id);
     const next=remaining[Math.min(index,remaining.length-1)];
@@ -2668,8 +2674,37 @@ readerChrome=initReaderChrome({
   organize:organizeDocument,
   activate:id=>reportReaderFailure(activateReaderTab(id)),
   close:id=>closeReaderTab(id).catch(error=>{setStatus(true,error?.message || 'Could not close document.');throw error;}),
-  setWorkspace:workspace=>{if(!state.doc)return;annotationTools?.beforeLeave();state.readerView={...state.readerView,workspace};readerSession.update(state.doc,state.readerView);renderReaderChrome();},
+  setWorkspace:workspace=>{if(!state.doc)return;guardReaderDrafts();state.readerView={...state.readerView,workspace};readerSession.update(state.doc,state.readerView);renderReaderChrome();},
   fitWidth:()=>reportReaderFailure(setPdfZoom(null,'fit-width')),
+});
+editTools=initPdfEditWorkspace({
+  panel:document.getElementById('pdf-edit-panel'),
+  getContext:()=>({doc:state.doc,active:document.body.dataset.view==='read'&&state.readerView?.workspace==='edit'&&state.doc?.provenance?.sourceKind==='pdf'&&!!state.doc.sourceBytes,pageIndex:(navigationState()?.page??1)-1}),
+  snapshot:doc=>queueReader(async()=>{
+    annotationTools?.beforeLeave();
+    const digest=doc.provenance?.contentDigest;
+    const assertOwner=()=>{if(state.doc?.id!==doc.id||state.doc?.provenance?.contentDigest!==digest||document.body.dataset.view!=='read')throw new Error('Return to this document to continue editing.');};
+    assertOwner();await pdfFormPanel.flush(doc.id);assertOwner();
+    const source=await getDoc(doc.id);assertOwner();
+    if(!source||source.provenance?.contentDigest!==digest)throw new Error('The source changed. Reopen the document before editing.');
+    const records=await getRecords(doc.id);assertOwner();
+    const undone=new Set(records.filter(r=>r.act==='undo').map(r=>r.undoes));
+    const hasMarks=records.some(r=>r.kind==='act'&&(isTextMarkup(r.act)||['note','important'].includes(r.act))&&!r.undone&&!undone.has(r.id));
+    const hasForms=source.formDraft&&Object.keys(source.formDraft.values||{}).length>0;
+    const bytes=hasMarks||hasForms?(await exportCombinedPdf({source,savedFormDraft:source.formDraft??null,committedRecords:records,allowFormOnly:true})).bytes:pdfSourceBytes(source.sourceBytes).slice();
+    assertOwner();return bytes;
+  }),
+  saveDraft:async(doc,draft)=>{
+    const saved=await saveTextEditDraft(doc.id,doc.provenance?.contentDigest,draft);
+    if(state.doc?.id===saved.id&&state.doc?.provenance?.contentDigest===saved.provenance.contentDigest){
+      if(saved.textEditDraft)state.doc.textEditDraft=saved.textEditDraft;else delete state.doc.textEditDraft;
+    }
+    return saved;
+  },
+  review:async(bytes,doc)=>{
+    if(state.doc?.id!==doc.id||state.doc?.provenance?.contentDigest!==doc.provenance?.contentDigest||document.body.dataset.view!=='read'||state.readerView?.workspace!=='edit')throw new Error('Return to the Edit workspace to review this copy.');
+    return pdfReview.open(bytes,`${(doc.provenance.name||doc.title||'document').replace(/\.pdf$/i,'')}-edited.pdf`,{kind:'edited',origin:reviewOrigin(doc)});
+  },
 });
 pageNavigation=initReaderPageNavigation({read:navigationState,navigate:navigateReaderPage});
 pageBrowser=initReaderPageBrowser({read:navigationState,navigate:navigateReaderPage,layout:setPageBrowserLayout});
@@ -2699,8 +2734,8 @@ async function boot() {
     SIM,
     engineState: () => ({ kind: state.engineKind, mode: ENGINE_MODE }),
     currentDoc: () => state.doc,
-    onViewChange(next,prev){if(prev==='read' && next!==prev)captureReaderView();},
-    afterViewChange(next,prev){pageBrowser?.refresh();if(next==='read' && prev!==next && !switchingReader)requestAnimationFrame(()=>{
+    onViewChange(next,prev){if(prev==='read' && next!==prev){guardReaderDrafts();captureReaderView();}},
+    afterViewChange(next,prev){pageBrowser?.refresh();editTools?.refresh();if(next==='read' && prev!==next && !switchingReader)requestAnimationFrame(()=>{
       void reportReaderFailure(queueReader(async()=>{if(document.body.dataset.view!=='read')return;if(state.readerView?.zoomMode==='fit-width')await setPdfZoomNow(null,'fit-width',true);restoreReaderView();}));
     });},
     getDocs,

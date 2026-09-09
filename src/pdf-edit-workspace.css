@@ -1,0 +1,15 @@
+.pdf-edit-workspace{margin:0;padding:0;border:0;background:transparent;color:var(--ink);font:14px/1.5 system-ui,sans-serif;box-sizing:border-box;}
+.pdf-edit-workspace[hidden]{display:none;}
+.pdf-edit-workspace h2{font-size:18px;margin:0 0 8px;}
+.pdf-edit-workspace p{margin:8px 0;overflow-wrap:anywhere;}
+.pdf-edit-page-form,.pdf-edit-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.pdf-edit-workspace button,.pdf-edit-workspace input,.pdf-edit-workspace select{min-height:44px;min-width:44px;box-sizing:border-box;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;}
+#pdf-edit-page{width:80px;}
+.pdf-edit-selectors{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin:10px 0;}
+.pdf-edit-paragraph-label{display:block;flex:1;min-width:240px;}
+.pdf-edit-page-form label{display:flex;align-items:center;gap:6px;}
+#pdf-edit-paragraph{display:block;width:100%;max-width:100%;}
+#pdf-edit-text{display:block;width:100%;min-height:90px;max-height:45dvh;resize:vertical;box-sizing:border-box;margin:8px 0 12px;padding:10px;font:16px/1.5 system-ui,sans-serif;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;}
+#pdf-edit-original{white-space:pre-wrap;max-height:25dvh;overflow:auto;}
+.pdf-edit-workspace button:disabled{opacity:.5;}
+@media(max-width:640px){.pdf-edit-selectors{display:block;}.pdf-edit-paragraph-label{margin-top:10px;min-width:0;}}

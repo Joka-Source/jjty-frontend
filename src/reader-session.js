@@ -1,6 +1,6 @@
 // UI continuity only. Source files, records and answers remain in IndexedDB.
 export const READER_SESSION_KEY = "jett.reader-session.v1";
-const workspaces = new Set(["read", "annotate", "organize", "fill"]);
+const workspaces = new Set(["read", "annotate", "edit", "organize", "fill"]);
 const validId = (value) =>
   typeof value === "string" && value.length > 0 && value.length <= 200;
 const number = (value, fallback, min, max) =>

@@ -224,3 +224,18 @@ Next: execute [reader-compact-tools-plan.md](reader-compact-tools-plan.md). The 
 Review: actual phone page begins at363px rather than708px; portrait tablet overlap was caught visually and repaired with compact controls through900px. Updated legacy tests reach relocated controls through View and check the actual visible tab title. The final full gate passes without removed journey assertions.
 
 Next: execute [reader-edit-text-plan.md](reader-edit-text-plan.md). Audit Bento engine preservation and annotation intersections before implementing the own Edit workspace over portable, provenance-pinned engine code. Preserve all PDF Expert, Apple Books EPUB, native voice, sync and release requirements.
+
+## Own Edit workspace — 9 September (in progress)
+
+Plan: [reader-edit-text-plan.md](reader-edit-text-plan.md).
+
+- [x] Vendor pinned Bento core, preservation helpers, stream splicing and local WASM package with license and SHA256 provenance.
+- [x] Implement independent source/region/output validation; eight focused checks pass. Actual adapter browser verification passes.
+- [x] Add source-bound draft schema, backup custody and transactional persistence; pure checks and database concurrency/failure/retry proof pass.
+- [x] Connect own Edit controls, paragraph targeting, durable recovery and fresh saved-work composition to existing PDF Review.
+- [x] Verify real edit → review → save Library copy → reopen; original bytes, mixed formatting, marks/forms, stale ownership, failure and mobile layout.
+- [x] Independent final review repaired separated-edit formatting and native link preservation; final build and all 441 tests pass. Desktop/phone/review/Poppler evidence inspected; scoped commit and canonical receipt prepared.
+
+Review: restored drafts bind original source, paragraph text, box and rotation. Separate text edits retain unchanged style islands. Failed writes, stale source/route cancellation and native outside marks/links are covered. Final full gate: 441/441, 235104.043667ms.
+
+Next: execute [reader-edit-targeting-plan.md](reader-edit-targeting-plan.md) for direct on-page selection and improved editor placement. The current paragraph form is an interim interaction. Full PDF Expert, Apple Books EPUB, native voice, authenticated sync and release requirements remain open.

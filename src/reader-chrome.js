@@ -117,9 +117,10 @@ export function initReaderChrome({ activate, close, setWorkspace, fitWidth, orga
 
   function workspaceView() {
     document.body.dataset.readerWorkspace = current.workspace;
+    $('pdf-edit-panel').hidden=current.workspace!=='edit'||!current.isPdf;
     organizePages.hidden=current.workspace!=='organize'||!current.isPdf;
     organizePages.disabled=!current.activeId;
-    workspaceBento.hidden = ['read','annotate','organize'].includes(current.workspace) || $('bento-original').hidden;
+    workspaceBento.hidden = ['read','annotate','edit','organize'].includes(current.workspace) || $('bento-original').hidden;
     workspaceBento.disabled = $('bento-original').disabled;
     workspaceBento.textContent = `${({annotate:'Annotate',organize:'Organize',fill:'Fill'})[current.workspace] || 'Open'} original in Bento`;
     workspaceBento.title = 'Open an original copy. Saved JETT marks and form answers stay here.';
