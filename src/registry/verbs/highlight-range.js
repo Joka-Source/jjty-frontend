@@ -5,7 +5,7 @@ export default defineVerb({
   spokenForms: ["highlight from this to that", "highlight this range"],
   description: "Highlight everything between two spoken places.",
   argsSchema: objectArgs(
-    { fromAnchor: { type: "string" }, toAnchor: { type: "string" } },
+    { fromAnchor: { type: "string" }, toAnchor: { type: "string" },markupColor:{type:"string"} },
     ["fromAnchor", "toAnchor"],
   ),
   recordKinds: ["act", "intention", "proof"],
@@ -22,6 +22,7 @@ export default defineVerb({
       verbId: "highlight-range",
       fromAnchor: event.args.fromAnchor,
       toAnchor: event.args.toAnchor,
+      markupColor:event.args.markupColor,
       evidence,
       confidence,
     };

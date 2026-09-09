@@ -2,7 +2,7 @@ import {reviewOrigin} from './reviewed-copy.js';
 import {exportAnnotatedPdf} from './pdf-annotations.js';
 
 const explanations={
-  NO_EXPORTABLE_ANNOTATIONS:'There are no saved local highlights or notes to export yet.',
+  NO_EXPORTABLE_ANNOTATIONS:'There are no saved marks or notes to export yet.',
   ANNOTATION_SOURCE_DIGEST_MISMATCH:'The stored original no longer matches this document. Reopen the original before exporting.',
   ANNOTATION_DOCUMENT_RESTRICTED:'This PDF has encryption, signature protection or unsupported form behavior.',
   ANNOTATION_PERMISSION_DENIED:'This PDF does not permit annotations.',

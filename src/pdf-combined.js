@@ -1,5 +1,6 @@
 import {inspectPdfForm,fillPdfForm} from './pdf-forms.js';
 import {exportAnnotatedPdf} from './pdf-annotations.js';
+import {isTextMarkup} from './text-markup.js';
 function fail(code){const error=new Error(code);error.code=code;throw error;}
 function owned(source){return source instanceof Uint8Array||source instanceof ArrayBuffer||Array.isArray(source)?new Uint8Array(source).slice():new Uint8Array(Object.values(source??{}));}
 async function digest(bytes){return 'sha256:'+Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(b=>b.toString(16).padStart(2,'0')).join('');}
@@ -42,7 +43,7 @@ export async function exportCombinedPdf({source,savedFormDraft=null,committedRec
   changes[key]=value;
  }
  const undone=new Set(records.filter(r=>r.docId===snapshot.id && r.act==='undo' && (r.kind==='undo'||r.kind==='act')).map(r=>r.undoes));
- const marks=records.filter(r=>r.kind==='act'&&r.docId===snapshot.id&&['highlight','note','important'].includes(r.act)&&!r.undone&&!undone.has(r.id));
+ const marks=records.filter(r=>r.kind==='act'&&r.docId===snapshot.id&&(isTextMarkup(r.act)||['note','important'].includes(r.act))&&!r.undone&&!undone.has(r.id));
  if(!marks.length&&!allowFormOnly)fail('NO_EXPORTABLE_ANNOTATIONS');
  const sourceAnnotations=await annotations(original);
  const annotated=marks.length?await exportAnnotatedPdf(snapshot,records):original.slice();

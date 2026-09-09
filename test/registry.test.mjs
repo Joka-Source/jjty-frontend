@@ -4,6 +4,7 @@ import { createVerbRegistry, historyTitleFor, verbRegistry } from "../src/regist
 import { makeActEntry } from "../src/records.js";
 
 const expectedIds = [
+  "underline", "underline-range", "strikethrough", "strikethrough-range",
   "highlight",
   "highlight-range",
   "annotate",
@@ -34,7 +35,8 @@ test("registry exposes every real and designed verb as an executable self-descri
   );
   for (const verb of verbRegistry.list()) {
     assert.equal(typeof verb.id, "string", `${verb.id}: id`);
-    assert.ok(verb.spokenForms.length > 0, `${verb.id}: spoken forms`);
+    assert.ok(Array.isArray(verb.spokenForms), `${verb.id}: spoken forms`);
+    if(!verb.spokenForms.length)assert.ok(["underline-range","strikethrough-range"].includes(verb.id), `${verb.id}: intentional pointer-only operation`);
     assert.match(verb.description, /^[a-z0-9]/i, `${verb.id}: plain description`);
     assert.equal(verb.argsSchema.type, "object", `${verb.id}: args schema`);
     assert.ok(Array.isArray(verb.recordKinds), `${verb.id}: record kinds`);
@@ -157,4 +159,17 @@ test("record and history output come from a newly registered verb module", () =>
   assert.equal(entry.cursor.proposedIntention, "registry intention");
   assert.equal(entry.receipt.result, "registry result");
   assert.equal(historyTitleFor(entry), "registry title");
+});
+
+test('pointer-only markup ranges do not advertise unsupported spoken commands',async()=>{
+ const {JSDOM}=await import('jsdom');const {renderCapabilities}=await import('../src/capabilities.js');
+ const dom=new JSDOM('<main></main>');const previous=globalThis.document;globalThis.document=dom.window.document;
+ try{
+  const container=document.querySelector('main');renderCapabilities(container,verbRegistry);
+  for(const id of ['underline-range','strikethrough-range']){
+   assert.deepEqual(verbRegistry.get(id).spokenForms,[]);
+   assert.equal(container.querySelector(`[data-capability-id="${id}"] .capability-spoken`).textContent,'Use the selection toolbar.');
+  }
+  assert.match(container.querySelector('[data-capability-id="highlight"] .capability-spoken').textContent,/^say:/);
+ }finally{globalThis.document=previous;dom.window.close();}
 });

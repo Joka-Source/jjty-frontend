@@ -196,3 +196,19 @@ Plan: [reader-docked-pages-plan.md](reader-docked-pages-plan.md).
 - [x] Build and all 409 tests pass; docked desktop and mobile renders inspected.
 
 Next: execute [pdf-text-markup-plan.md](pdf-text-markup-plan.md) through the existing operation/schema/paint/export/undo pipeline for underline, strikethrough and color. Independent review adds backup/restore style custody. Do not create a parallel annotation store or substitute server-only capability for local UI parity. Keep Apple Books/native voice/sync/release gates active.
+
+## Durable text markup — 9 September
+
+Plan: [pdf-text-markup-plan.md](pdf-text-markup-plan.md).
+
+- [x] Shared named palette and truthful Highlight/Underline/Strikethrough operations persist through the existing records, paint and backup paths.
+- [x] Native PDF subtype/color validation and combined export support the new marks; focused export checks pass.
+- [x] Underline-only Organize → Save copy → reload preserves the mark and original bytes; settings reject invalid/failed writes without changing the live color.
+- [x] Review caught and repaired stale interim speech replay and fuzzy substitution of unsupported underline commands into highlights.
+- [x] Own-toolbar mixed/cross-page, failure/retry, zoom/reload, backup custody and downloaded output browser verification.
+- [x] Simulated speech integration, final independent review, build and all 426 tests pass; desktop/phone/PDF evidence inspected.
+- [x] Scoped implementation and canonical SSOT receipt prepared with exact proof boundaries.
+
+Review: repaired the held-restore Pages deadlock for geometry-free mobile modal opening, retaining owner guards and queued desktop docking. The held bookmark race and final full suite pass. A separate thumbnail timeout did not reproduce; its test now settles collapsed Contents layout and reports geometry on failure without relaxing bounded preview assertions.
+
+Next: execute [reader-compact-tools-plan.md](reader-compact-tools-plan.md). The inspected phone Annotate controls and duplicate export panel consume too much vertical space. Preserve page/offset before disclosure changes, dirty notes, selection and source ownership. Full PDF Expert/Apple Books/native voice/sync/release gates remain open.

@@ -1,3 +1,4 @@
+import {isTextMarkup,isTextMarkupRangeVerb,normalizeMarkupColor} from './text-markup.js';
 // jt — the act engine. Applies acts to the open document's DOM, writes the
 // paired cursor + receipt records to IndexedDB, and reverses acts on undo
 // (undo itself is an act with its own records — the trail never thins).
@@ -23,6 +24,7 @@ export function createActEngine({
 
   async function load(docId) {
     entries = await getRecords(docId);
+    for(const entry of entries)if(isTextMarkup(entry.act))normalizeMarkupColor(entry.markupColor);
     const doc = getDoc();
     const blockTexts = getBlockTexts();
     const docDigest =
@@ -50,7 +52,7 @@ export function createActEngine({
         const revisionMatch = /^r(\d+)$/.exec(String(entry.receipt?.sourceRevision ?? ""));
         const sourceRevision = revisionMatch ? Number(revisionMatch[1]) : NaN;
         const currentRevision = doc?.revision;
-        const allowSourceChange = entry.verbId !== "highlight-range" && !entry.rangeAnchor
+        const allowSourceChange = !entry.rangeAnchor && !isTextMarkupRangeVerb(entry.verbId)
           && Number.isSafeInteger(sourceRevision) && Number.isSafeInteger(currentRevision)
           && currentRevision > sourceRevision;
         const resolved = resolveAnchor(entry.anchor, { blockTexts, docDigest, allowSourceChange });
@@ -125,6 +127,7 @@ export function createActEngine({
       confidence,
       matchedText,
       noteText,
+      markupColor,
       blockEnd,
       mathSpeech,
       mathLatex,
@@ -138,6 +141,7 @@ export function createActEngine({
   ) {
     const verb = verbRegistry.resolve(verbId);
     if (!verb?.recordAct) throw new TypeError(`verb cannot create an act: ${verbId}`);
+    if(isTextMarkup(verb.recordAct))markupColor=normalizeMarkupColor(markupColor);
     const doc = getDoc();
     if (!doc || blockIndex < 0) return null;
     const blockTexts = getBlockTexts();
@@ -156,7 +160,7 @@ export function createActEngine({
         : null;
     let resolvedSegments, storedRange;
     if (rangeAnchor) {
-      if (verb.recordAct !== "highlight") throw new Error("RANGE_ACT_UNSUPPORTED");
+      if (!isTextMarkup(verb.recordAct)) throw new Error("RANGE_ACT_UNSUPPORTED");
       resolvedSegments = deriveRangeSegments(rangeAnchor, { blockTexts, docDigest });
       if (blockIndex !== resolvedSegments[0].blockIndex || (blockEnd != null && blockEnd !== resolvedSegments.at(-1).blockIndex)) throw new Error("RANGE_ANCHOR_INVALID");
       blockEnd = resolvedSegments.at(-1).blockIndex;
@@ -169,6 +173,7 @@ export function createActEngine({
         anchor = structuredClone(storedRange.start);
       }
     }
+    if(isTextMarkup(verb.recordAct)&&verb.recordAct!=='highlight'&&!anchor)throw new Error('TEXT_MARKUP_TARGET_NOT_EXACT');
     const arrival = rangeAnchor ? "exact" : requestedArrival ?? (anchor ? "exact" : "approximate");
     const entry = makeActEntry({
       docId: doc.id,
@@ -182,6 +187,7 @@ export function createActEngine({
       confidence,
       matchedText: anchor?.quotedText ?? matchedText,
       noteText,
+      markupColor,
       mathSpeech,
       mathLatex,
       mathUnparsed,

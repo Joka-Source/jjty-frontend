@@ -1,3 +1,4 @@
+import {isTextMarkup,isTextMarkupRangeVerb,normalizeMarkupColor} from './text-markup.js';
 // Local library data only. This is a consistency-checked backup, not a signature
 // or authority to contact any server. Derived reading text is not authenticated
 // by the source-byte digest; PDF export still verifies native text independently.
@@ -6,7 +7,7 @@ import { deriveRangeSegments, resolveAnchor } from './anchors.js';
 export const LIBRARY_BACKUP_MAX_BYTES = 100 * 1024 * 1024;
 const MAX_ITEMS = 100000, MAX_BLOCKS = 100000;
 const DOC_KEYS = 'id title titleRevision text blocks provenance warnings pdfEngine sourceBytes sourceMime imageSource refusal createdAt revision formDraft'.split(' ');
-const RECORD_KEYS = 'id docId kind act verbId blockIndex blockEnd modality evidence confidence matchedText anchor rangeAnchor arrival targetChoice noteText undone undoes createdAt cursor receipt mathSpeech mathLatex mathUnparsed migration'.split(' ');
+const RECORD_KEYS = 'id docId kind act verbId blockIndex blockEnd modality evidence confidence matchedText anchor rangeAnchor arrival targetChoice noteText undone undoes createdAt cursor receipt mathSpeech mathLatex mathUnparsed migration markupColor'.split(' ');
 const forbidden = new Set(['__proto__','prototype','constructor','serverLink','settings','runtime','connection','connections','accessToken','refreshToken','token','tokens','credentials']);
 const fail = code => { const error = new Error(code); error.code = code; throw error; };
 const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value) && (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
@@ -83,6 +84,8 @@ export async function validateLibrarySnapshot(snapshot) {
     const blockTexts=doc?.blocks?.map(b=>b.text)??doc?.text.split(/\n\s*\n/).filter(s=>s.trim());
     if(!id(record.id)||!doc||!['act','undo','return'].includes(record.kind)||!id(record.act)||!date(record.createdAt)||!integer(record.blockIndex,0,(blockTexts?.length??0)-1)
       ||(record.blockEnd!=null&&!integer(record.blockEnd,record.blockIndex,blockTexts.length-1))||(record.undone!==undefined&&typeof record.undone!=='boolean'))fail('BACKUP_INVALID_RECORD');
+    if(isTextMarkup(record.act)){try{normalizeMarkupColor(record.markupColor);}catch{fail('BACKUP_INVALID_MARKUP_COLOR');}}
+    else if(record.markupColor!==undefined)fail('BACKUP_INVALID_MARKUP_COLOR');
     if(recordMap.has(record.id))fail('BACKUP_DUPLICATE_RECORD');
     for(const key of ['noteText','matchedText','evidence','verbId','mathSpeech','mathLatex'])if(record[key]!==undefined&&!str(record[key]))fail('BACKUP_INVALID_RECORD');
     for(const key of ['cursor','receipt'])if(record[key]!=null&&(!plain(record[key])||record[key].sourceId!==record.docId))fail('BACKUP_INVALID_RECORD_REFERENCE');
@@ -97,7 +100,7 @@ export async function validateLibrarySnapshot(snapshot) {
     }else if(record.anchor){
       const revision=/^r(\d+)$/.exec(record.receipt?.sourceRevision??'');
       const resolved=resolveAnchor(record.anchor,{blockTexts,docDigest:docDigests.get(doc.id),
-        allowSourceChange:record.verbId!=='highlight-range'&&!!revision&&doc.revision>Number(revision[1])});
+        allowSourceChange:!record.rangeAnchor&&!isTextMarkupRangeVerb(record.verbId)&&!!revision&&doc.revision>Number(revision[1])});
       record.arrival=record.migration==='legacy'&&resolved.arrival!=='lost'?'approximate':resolved.arrival;
       if(resolved.arrival!=='lost'){record.resolvedAnchor=resolved;record.blockIndex=resolved.blockIndex;}
     }else if(record.kind==='act')record.arrival='approximate';

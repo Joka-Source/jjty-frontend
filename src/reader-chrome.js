@@ -125,7 +125,7 @@ export function initReaderChrome({ activate, close, setWorkspace, fitWidth, orga
     const panel = current.workspace === 'fill' ? $('pdf-form-panel') : current.workspace === 'annotate' ? $('pdf-annotation-panel') : null;
     if (panel) panel.open = true;
     $('reader-workspace-hint').textContent = current.workspace === 'fill' && $('pdf-form-panel').hidden
-      ? 'No fillable fields are available here. More tools includes Bento PDF form tools.' : current.workspace==='organize' ? 'Organize a copy with your saved highlights, notes and form answers.' : '';
+      ? 'No fillable fields are available here. More tools includes Bento PDF form tools.' : current.workspace==='organize' ? 'Organize a copy with your saved marks, notes and form answers.' : '';
     $('reader-workspace-hint').hidden = !$('reader-workspace-hint').textContent;
   }
   function render(value) {

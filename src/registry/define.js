@@ -28,8 +28,8 @@ export function assertVerbModule(verb) {
   if (typeof verb.description !== "string" || !verb.description.trim()) {
     throw new TypeError(`${verb.id}: description must be plain words`);
   }
-  if (!Array.isArray(verb.spokenForms) || verb.spokenForms.length === 0) {
-    throw new TypeError(`${verb.id}: spokenForms must not be empty`);
+  if (!Array.isArray(verb.spokenForms) || verb.spokenForms.some(form => typeof form !== "string" || !form.trim())) {
+    throw new TypeError(`${verb.id}: spokenForms must contain nonempty strings`);
   }
   if (!Array.isArray(verb.recordKinds)) throw new TypeError(`${verb.id}: recordKinds must be an array`);
   if (verb.recordKinds.some((kind) => typeof kind !== "string" || !kind)) {

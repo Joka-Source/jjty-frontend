@@ -1,3 +1,4 @@
+import {isTextMarkup,normalizeMarkupColor} from './text-markup.js';
 import {initReaderPageBrowser} from './reader-page-browser.js';
 import {initReaderPageNavigation} from './reader-page-navigation.js';
 import {exportCombinedPdf} from './pdf-combined.js';
@@ -288,6 +289,13 @@ async function navigateReaderPageNow(target,owner,options={}){
 
 function setPageBrowserLayout({open,modal=false,owner,isCurrent=()=>true,force=false}){
   if(force){delete document.body.dataset.readerPagesDocked;return Promise.resolve();}
+  // Modal presentation changes no reader geometry and must remain available
+  // while an owned restore holds the document queue. Desktop docking stays queued.
+  if(modal && document.body.dataset.readerPagesDocked!=='true'){
+    if(!isCurrent())return Promise.resolve(false);
+    if(navigationState()?.owner!==owner)return Promise.reject(new Error('The document changed. Open Pages in the current document.'));
+    return Promise.resolve();
+  }
   return queueReader(async()=>{
     if(!isCurrent())return false;
     if(navigationState()?.owner!==owner)throw new Error('The document changed. Open Pages in the current document.');
@@ -1202,6 +1210,7 @@ function performActAtTarget(verbId, args, target, targetChoice = null) {
     confidence: target?.score ?? args.confidence ?? state.lastMatch?.score ?? null,
     matchedText,
     noteText: args.noteText ?? "",
+    markupColor:isTextMarkup(verbRegistry.resolve(verbId)?.recordAct)?normalizeMarkupColor(args.markupColor??settings.markupColor):undefined,
     tokenStart: target?.tokenStart ?? args.tokenStart,
     tokenEnd: target?.tokenEnd ?? args.tokenEnd,
     targetChoice,
@@ -1341,6 +1350,7 @@ async function performRange(verbId, args) {
   const rangeAnchor={version:1,start:createAnchor({...from,blockTexts,docDigest}),end:createAnchor({...to,blockTexts,docDigest})};
   const ranged = await engine.perform(verbId, from.blockIndex, {
     rangeAnchor,
+    markupColor:normalizeMarkupColor(args.markupColor??settings.markupColor),
     blockEnd: to.blockIndex,
     modality: args.modality,
     evidence: args.evidence,
@@ -1349,7 +1359,7 @@ async function performRange(verbId, args) {
     targetChoice:args.rangeChoices?.length?{asked:true,reason:'Repeated range endpoint',candidates:args.rangeAlternatives || [],chosen:args.rangeChoices.join(' → ')}:null,
   });
   if (ranged && args.stagedGeneration != null && args.stagedGeneration === stagedRange?.generation) { cancelStagedRange(false, false); setStatus(true, "Passage highlighted — say undo to remove the whole selection."); }
-  emitCommandResult(verbId, ranged ? "act" : "none", ranged ? "The requested passage range was highlighted." : "The passage range could not be highlighted.", { confidence: args.confidence });
+  emitCommandResult(verbId, ranged ? "act" : "none", ranged ? "The requested passage range was marked." : "The passage range could not be marked.", { confidence: args.confidence });
   return ranged;
 }
 
@@ -1471,7 +1481,7 @@ const verbExecutionContext = {
 async function executeVerb(id, args = {}) {
   const traceId = args.traceId ?? args.voiceTarget?.traceId ?? commandJournal.begin({source:args.modality ?? 'pointer',rawText:args.evidence});
   const started = performance.now();
-  commandJournal.record(traceId,{stage:'intent',status:'parsed',intent:id,expected:['highlight','highlight-range','annotate','mark-important','math-keep'].includes(id)?'durable-entry':id==='undo'?'undo':'unknown'});
+  commandJournal.record(traceId,{stage:'intent',status:'parsed',intent:id,expected:['highlight','highlight-range','underline','underline-range','strikethrough','strikethrough-range','annotate','mark-important','math-keep'].includes(id)?'durable-entry':id==='undo'?'undo':'unknown'});
   try {
     const result = await executeRegisteredVerb(id, verbExecutionContext, {...args,traceId});
     // These entries are returned only after the act engine's IndexedDB write.
@@ -1898,7 +1908,7 @@ function renderDocHead(doc) {
 function organizeDocument(){
   annotationTools?.beforeLeave();
   const parent=state.doc;if(!parent?.sourceBytes||parent.provenance?.sourceKind!=='pdf')return;
-  const identity=reviewOrigin(parent),ownsReview=pdfReview.prepare('Including your saved highlights, notes and form answers…');
+  const identity=reviewOrigin(parent),ownsReview=pdfReview.prepare('Including your saved marks, notes and form answers…');
   return queueReader(async()=>{
     const isCurrent=()=>ownsReview()&&state.doc?.id===identity.documentId&&state.doc?.provenance?.contentDigest===identity.contentDigest;
     try{
@@ -1911,7 +1921,7 @@ function organizeDocument(){
       const records=await getRecords(source.id);
       if(!isCurrent())return;
       const undone=new Set(records.filter(r=>r.docId===source.id&&r.act==='undo').map(r=>r.undoes));
-      const hasMarks=records.some(r=>r.docId===source.id&&r.kind==='act'&&['highlight','note','important'].includes(r.act)&&!r.undone&&!undone.has(r.id));
+      const hasMarks=records.some(r=>r.docId===source.id&&r.kind==='act'&&(isTextMarkup(r.act)||['note','important'].includes(r.act))&&!r.undone&&!undone.has(r.id));
       const hasForms=source.formDraft&&Object.keys(source.formDraft.values||{}).length>0;
       const bytes=hasMarks||hasForms?(await exportCombinedPdf({source,savedFormDraft:source.formDraft??null,committedRecords:records,allowFormOnly:true})).bytes:pdfSourceBytes(source.sourceBytes).slice();
       if(!isCurrent())return;
@@ -2632,15 +2642,16 @@ readerChrome=initReaderChrome({
 pageNavigation=initReaderPageNavigation({read:navigationState,navigate:navigateReaderPage});
 pageBrowser=initReaderPageBrowser({read:navigationState,navigate:navigateReaderPage,layout:setPageBrowserLayout});
 annotationTools=initAnnotationToolbar({currentDoc:()=>state.doc,root:article,canUndo:()=>engine.entries.some(e=>e.kind==='act'&&!e.undone),
-  run:(kind,target,noteText)=>{const owner=state.doc?.id;return queueReader(async()=>{
+  getColor:()=>settings.markupColor,setColor:value=>settings.set('markupColor',value),
+  run:(kind,target,noteText,markupColor)=>{const owner=state.doc?.id;return queueReader(async()=>{
     if(state.doc?.id!==owner)throw new Error('The document changed. Try again in the current document.');
     if(kind==='undo')return executeVerb('undo',{modality:'pointer'});
     if(!selectionStillCurrent(target,state.doc,article))throw new Error('The document changed. Select its words again.');
     if(target.start.blockIndex!==target.end.blockIndex){
-      if(kind!=='highlight')throw new Error('Select words on one page for this note.');
-      return executeVerb('highlight-range',{fromAnchor:target.start.quotedText,toAnchor:target.end.quotedText,rangeStart:target.start,rangeEnd:target.end,rangeDocumentId:target.docId,modality:'pointer',evidence:'Selected PDF words'});
+      if(!isTextMarkup(kind))throw new Error('Select words on one page for this note.');
+      return executeVerb(`${kind}-range`,{markupColor,fromAnchor:target.start.quotedText,toAnchor:target.end.quotedText,rangeStart:target.start,rangeEnd:target.end,rangeDocumentId:target.docId,modality:'pointer',evidence:'Selected PDF words'});
     }
-    return executeVerb(kind,{...target.start,noteText,modality:'pointer',evidence:'Selected PDF words',matchedText:target.quote});
+    return executeVerb(kind,{...target.start,noteText,markupColor,modality:'pointer',evidence:'Selected PDF words',matchedText:target.quote});
   });},review:()=>document.getElementById('pdf-annotation-preview').click(),
 });
 renderReaderChrome();

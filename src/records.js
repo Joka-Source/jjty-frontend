@@ -1,3 +1,4 @@
+import {isTextMarkup,normalizeMarkupColor} from './text-markup.js';
 // jt — record factories. Pure functions, no DOM, no storage: importable from
 // both the browser app and node tests. The objects returned by makeCursor and
 // makeReceipt conform to contracts/cursor.schema.json and
@@ -126,6 +127,7 @@ export function makeActEntry({
   confidence = null,
   matchedText = "",
   noteText = "",
+  markupColor,
   mathSpeech = "",
   mathLatex = "",
   mathUnparsed = [],
@@ -183,6 +185,7 @@ export function makeActEntry({
     docId,
     kind: verb.historyKind ?? "act",
     act: storedAct,
+    ...(isTextMarkup(storedAct)?{markupColor:normalizeMarkupColor(markupColor)}:{}),
     verbId: verb.id,
     blockIndex,
     blockEnd,

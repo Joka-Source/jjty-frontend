@@ -1,6 +1,7 @@
 import { tokenizeWithSpans } from './match.js';
 import { inspectPdfForm } from './pdf-forms.js';
 import { deriveRangeSegments } from './anchors.js';
+import { isTextMarkup, markupColorRgb, MARKUP_OPACITY } from './text-markup.js';
 function fail(code) { const error=new Error(code);error.code=code;throw error; }
 async function digest(bytes) { return 'sha256:'+Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(b=>b.toString(16).padStart(2,'0')).join(''); }
 function nativeText(page) {
@@ -60,13 +61,14 @@ export async function exportAnnotatedPdf(source, records) {
   const restrictions=(await inspectPdfForm(bytes)).restrictions;
   if(restrictions.some(r=>['encrypted','signed-document','signature-protection','xfa-unsupported','calculated-form-unsupported'].includes(r))) fail('ANNOTATION_DOCUMENT_RESTRICTED');
   const undone=new Set(records.filter(r=>(r.kind==='act'||r.kind==='undo') && r.act==='undo' && r.docId===source.id).map(r=>r.undoes));
-  const marks=records.filter(r=>r.kind==='act' && r.docId===source.id && ['highlight','note','important'].includes(r.act) && !r.undone && !undone.has(r.id));
+  const marks=records.filter(r=>r.kind==='act' && r.docId===source.id && (isTextMarkup(r.act) || ['note','important'].includes(r.act)) && !r.undone && !undone.has(r.id));
   if(!marks.length) fail('NO_EXPORTABLE_ANNOTATIONS');
   const recordIds=new Set(),annotationNames=new Set(),segments=[],gapPages=new Set();
   for(const record of marks) {
+    if(isTextMarkup(record.act))markupColorRgb(record.markupColor);
     if(!record.id || recordIds.has(record.id)) fail('ANNOTATION_DUPLICATE_ID');recordIds.add(record.id);
     if(record.rangeAnchor) {
-      if(record.act!=='highlight' || record.arrival!=='exact' || record.migration==='legacy') fail('ANNOTATION_ANCHOR_NOT_EXACT');
+      if(!isTextMarkup(record.act) || record.arrival!=='exact' || record.migration==='legacy') fail('ANNOTATION_ANCHOR_NOT_EXACT');
       let anchors;
       try { anchors=deriveRangeSegments(record.rangeAnchor,{blockTexts:source.blocks.map(block=>block.text),docDigest:sourceDigest}); }
       catch { fail('ANNOTATION_RANGE_ANCHOR_INVALID'); }
@@ -134,14 +136,15 @@ export async function exportAnnotatedPdf(source, records) {
       const first=native.tokens[start].start,last=native.tokens[end].end;
       const quads=bands(native.chars.filter(c=>c.start>=first&&c.end<=last && native.text.slice(c.start,c.end).trim()));
       if(!quads.length || quads.some(q=>q.length!==8||q.some(n=>!Number.isFinite(n)))) fail('ANNOTATION_GEOMETRY_UNAVAILABLE');
-      const type=record.act==='note'?'Text':'Highlight',name=record.annotationName;
+      const type=record.act==='note'?'Text':record.act==='underline'?'Underline':record.act==='strikethrough'?'StrikeOut':'Highlight',name=record.annotationName;
+      const color=record.act==='important'?[1,0.55,0]:isTextMarkup(record.act)?markupColorRgb(record.markupColor):null;
       const contents=record.act==='note'?record.noteText:record.act==='important'?`Important: ${anchor.quotedText}`:anchor.quotedText;
       if(typeof contents!=='string'||!contents.trim()) fail('ANNOTATION_CONTENTS_MISSING');
       const annotation=keep(pages.get(pageIndex).createAnnotation(type));
       annotation.setName(name);annotation.setContents(contents);annotation.setFlags(mupdf.PDFAnnotation.IS_PRINT);
-      if(type==='Highlight') {annotation.setQuadPoints(quads);annotation.setColor(record.act==='important'?[1,0.55,0]:[1,0.85,0]);annotation.setOpacity(0.4);}
+      if(type!=='Text') {annotation.setQuadPoints(quads);annotation.setColor(color);annotation.setOpacity(MARKUP_OPACITY);}
       else annotation.setRect(noteMargin(pages.get(pageIndex),native,quads[0],obstacles.get(pageIndex)));
-      annotation.update(); if(type==='Text')obstacles.get(pageIndex).push(annotation.getBounds()); expected.push({pageIndex,name,type,contents,quads:type==='Highlight'?quads:null,rect:type==='Text'?annotation.getRect():null});
+      annotation.update(); if(type==='Text')obstacles.get(pageIndex).push(annotation.getBounds()); expected.push({pageIndex,name,type,contents,quads:type!=='Text'?quads:null,color,opacity:type!=='Text'?MARKUP_OPACITY:null,rect:type==='Text'?annotation.getRect():null});
     }
     for(const page of pages.values())page.update();
     const buffer=doc.saveToBuffer({garbage:3,compress:true});let output;
@@ -151,11 +154,12 @@ export async function exportAnnotatedPdf(source, records) {
       reopened.disableJS();
       for(let pageIndex=0;pageIndex<reopened.countPages();pageIndex++){
         const page=reopened.loadPage(pageIndex);try{for(const annotation of page.getAnnotations()){
-          try{read.push({pageIndex,name:annotation.getName(),type:annotation.getType(),contents:annotation.getContents(),rect:annotation.getType()==='Text'?annotation.getRect():null,quads:annotation.getType()==='Highlight'?annotation.getQuadPoints():null});}finally{annotation.destroy();}
+          try{read.push({pageIndex,name:annotation.getName(),type:annotation.getType(),contents:annotation.getContents(),rect:annotation.getType()==='Text'?annotation.getRect():null,quads:annotation.hasQuadPoints()?annotation.getQuadPoints():null,color:annotation.getColor(),opacity:annotation.getOpacity()});}finally{annotation.destroy();}
         }}finally{page.destroy();}
       }
       for(const wanted of expected){const matches=read.filter(r=>r.name===wanted.name);const found=matches[0];
         if(matches.length!==1 || found.pageIndex!==wanted.pageIndex || found.type!==wanted.type || found.contents!==wanted.contents) fail('ANNOTATION_SERIALIZED_READBACK_FAILED');
+        if(wanted.color && (found.color.length!==wanted.color.length||found.color.some((n,i)=>Math.abs(n-wanted.color[i])>0.0001)||Math.abs(found.opacity-wanted.opacity)>0.0001))fail('ANNOTATION_SERIALIZED_STYLE_FAILED');
         if(wanted.rect && found.rect.some((n,i)=>Math.abs(n-wanted.rect[i])>0.01)) fail('ANNOTATION_SERIALIZED_GEOMETRY_FAILED');
         if(wanted.quads && (found.quads.length!==wanted.quads.length||found.quads.some((q,i)=>q.some((n,j)=>Math.abs(n-wanted.quads[i][j])>0.01))))fail('ANNOTATION_SERIALIZED_GEOMETRY_FAILED');
       }

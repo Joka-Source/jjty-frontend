@@ -9,11 +9,24 @@
 import { IntentStream as SourceIntentStream } from "../vendor/jt-speech/index.js";
 import { verbRegistry } from "./registry/index.js";
 
+// Recognize only complete supported markup commands. Unsupported markup speech
+// stays non-actionable rather than becoming a fuzzy Highlight command.
+function markupEvents(text) {
+  if(!/\b(?:underline|strikethrough|strike\s+through)\b/i.test(text))return null;
+  const sourceSpan={text,startToken:0,endToken:text.trim().split(/\s+/).length};
+  const match=/^\s*(underline|strikethrough|strike\s+through)\s+(this|that)[.!?]?\s*$/i.exec(text);
+  return match?[{type:'intent',intent:`${match[1].toLowerCase()==='underline'?'underline':'strikethrough'}.this`,args:{},confidence:1,sourceSpan}]:[{type:'reading',sourceSpan}];
+}
+
 // Keep source spans unchanged, but do not treat a standalone courtesy word
 // beside a recognized instruction as document reading that invalidates its target.
 export class IntentStream extends SourceIntentStream {
   push(input) {
+    // Let the source stream consume the boundary and clear held interim words.
     const events = super.push(input);
+    if(input.final===false)return events;
+    const text=input.words?.length?input.words.map(word=>word.text).join(' '):input.text??'';
+    const markup=markupEvents(text);if(markup)return markup;
     // Only reinterpret the incomplete, leading imperative. Existing complete
     // deictic/range commands and compound commands retain the source grammar.
     const phrase = /^\s*highlight\s+(.+?)\s*$/i.exec(input.text ?? '');
@@ -31,6 +44,12 @@ export class IntentStream extends SourceIntentStream {
       return command.type !== 'reading' || !/^please[,.!?]*$/i.test(command.text.trim());
     });
   }
+  flush() {
+    const text=this.buffer.concat(this.interim).map(word=>word.text).join(' ');
+    const events=super.flush();
+    return markupEvents(text)??events;
+  }
+
 }
 
 /**
