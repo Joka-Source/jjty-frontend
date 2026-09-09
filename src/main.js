@@ -287,6 +287,36 @@ async function navigateReaderPageNow(target,owner,options={}){
   readerSession.update(state.doc,state.readerView);if(options.focus!==false){setStatus(true,`${place?'Returned to':'Opened'} page ${pageNumber}.`);page.tabIndex=-1;page.focus({preventScroll:true});}pageNavigation?.refresh();
 }
 
+let compactLayoutSnapshot=null,compactLayoutAccepted=false,compactLayoutGeneration=0;
+function setCompactReaderLayout({phase}) {
+  if(phase==='before') {
+    compactLayoutAccepted=false;compactLayoutGeneration++;
+    if(readerLayoutBusy||switchingReader||!state.pdf||document.body.dataset.view!=='read')return;
+    // The viewport has already changed. Use the last owned reading place,
+    // rather than measuring it against newly wrapped header geometry.
+    compactLayoutSnapshot={source:state.pdf,owner:navigationState()?.owner,view:{...state.readerView},left:article.scrollLeft};
+    compactLayoutAccepted=true;
+    readerLayoutBusy=true;
+    clearTimeout(readerScrollTimer);clearTimeout(readerResizeTimer);
+    return;
+  }
+  const held=compactLayoutAccepted?compactLayoutSnapshot:null;compactLayoutAccepted=false;if(!held)return;
+  void reportReaderFailure(queueReader(async()=>{
+    const owns=()=>state.pdf===held.source&&navigationState()?.owner===held.owner&&document.body.dataset.view==='read';
+    try {
+      if(!owns())return;
+      state.readerView={...held.view};
+      try {
+        if(held.view.zoomMode==='fit-width') {
+          let fittedGeneration;
+          do {fittedGeneration=compactLayoutGeneration;await setPdfZoomNow(null,'fit-width',true,true);}
+          while(owns()&&fittedGeneration!==compactLayoutGeneration);
+        }
+      }
+      finally {if(owns()){state.readerView={...held.view,zoom:held.source.model.zoom};restoreReaderView();article.scrollLeft=held.left;captureReaderView({force:true});renderReaderChrome();}}
+    } finally {if(compactLayoutSnapshot===held){compactLayoutSnapshot=null;readerLayoutBusy=false;}}
+  }));
+}
 function setPageBrowserLayout({open,modal=false,owner,isCurrent=()=>true,force=false}){
   if(force){delete document.body.dataset.readerPagesDocked;return Promise.resolve();}
   // Modal presentation changes no reader geometry and must remain available
@@ -356,7 +386,7 @@ function restoreReaderView(){
   const tool=document.getElementById('bento-tool');
   if(tool && [...tool.options].some(option=>option.value===view.bentoTool))tool.value=view.bentoTool;
 }
-let readerScrollTimer;
+let readerScrollTimer,readerResizeTimer;
 addEventListener('scroll',()=>{clearTimeout(readerScrollTimer);readerScrollTimer=setTimeout(captureReaderView,400);},{passive:true});
 addEventListener('pagehide',captureReaderView);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')captureReaderView();});
@@ -2633,6 +2663,8 @@ window.__jtApp = {
 // Boot
 
 readerChrome=initReaderChrome({
+  compactLayout:setCompactReaderLayout,
+  readNavigation:navigationState,
   organize:organizeDocument,
   activate:id=>reportReaderFailure(activateReaderTab(id)),
   close:id=>closeReaderTab(id).catch(error=>{setStatus(true,error?.message || 'Could not close document.');throw error;}),
@@ -2652,11 +2684,10 @@ annotationTools=initAnnotationToolbar({currentDoc:()=>state.doc,root:article,can
       return executeVerb(`${kind}-range`,{markupColor,fromAnchor:target.start.quotedText,toAnchor:target.end.quotedText,rangeStart:target.start,rangeEnd:target.end,rangeDocumentId:target.docId,modality:'pointer',evidence:'Selected PDF words'});
     }
     return executeVerb(kind,{...target.start,noteText,markupColor,modality:'pointer',evidence:'Selected PDF words',matchedText:target.quote});
-  });},review:()=>document.getElementById('pdf-annotation-preview').click(),
+  });},
 });
 renderReaderChrome();
-let readerResizeTimer;
-addEventListener('resize',()=>{clearTimeout(readerResizeTimer);readerResizeTimer=setTimeout(()=>{if(state.readerView?.zoomMode==='fit-width')void reportReaderFailure(setPdfZoom(null,'fit-width'));},120);});
+addEventListener('resize',()=>{clearTimeout(readerResizeTimer);if(compactLayoutSnapshot){compactLayoutGeneration++;return;}readerResizeTimer=setTimeout(()=>{if(state.readerView?.zoomMode==='fit-width')void reportReaderFailure(setPdfZoom(null,'fit-width'));},120);});
 
 async function boot() {
   if (await mountGlassDevRoute()) {

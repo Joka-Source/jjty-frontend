@@ -1,5 +1,7 @@
+import {initReaderCompactTools} from './reader-compact-tools.js';
+import './reader-compact-tools.css';
 /** One document renderer, with a manually activated tab strip around it. */
-export function initReaderChrome({ activate, close, setWorkspace, fitWidth, organize }) {
+export function initReaderChrome({ activate, close, setWorkspace, fitWidth, organize, compactLayout, readNavigation }) {
   const $ = id => document.getElementById(id);
   const strip = $('reader-tabs');
   let current = { tabs: [], activeId: null, workspace: 'read', zoomMode: 'fit-width', isPdf: false };
@@ -121,9 +123,9 @@ export function initReaderChrome({ activate, close, setWorkspace, fitWidth, orga
     workspaceBento.disabled = $('bento-original').disabled;
     workspaceBento.textContent = `${({annotate:'Annotate',organize:'Organize',fill:'Fill'})[current.workspace] || 'Open'} original in Bento`;
     workspaceBento.title = 'Open an original copy. Saved JETT marks and form answers stay here.';
-    $('reader-workspace-panel').hidden = !current.activeId || !current.isPdf || current.workspace === 'read';
+    $('reader-workspace-panel').hidden = !current.activeId || !current.isPdf || ['read','annotate'].includes(current.workspace);
     const panel = current.workspace === 'fill' ? $('pdf-form-panel') : current.workspace === 'annotate' ? $('pdf-annotation-panel') : null;
-    if (panel) panel.open = true;
+    if (panel && current.workspace==='fill') panel.open = true;
     $('reader-workspace-hint').textContent = current.workspace === 'fill' && $('pdf-form-panel').hidden
       ? 'No fillable fields are available here. More tools includes Bento PDF form tools.' : current.workspace==='organize' ? 'Organize a copy with your saved marks, notes and form answers.' : '';
     $('reader-workspace-hint').hidden = !$('reader-workspace-hint').textContent;
@@ -156,6 +158,7 @@ export function initReaderChrome({ activate, close, setWorkspace, fitWidth, orga
     for(const item of workspaceNav.children){item.disabled=!current.activeId||(item.dataset.workspace!=='read'&&!current.isPdf);item.setAttribute('aria-current',item.dataset.workspace===current.workspace?'page':'false');}
     $('pdf-fit-width').setAttribute('aria-pressed', String(current.zoomMode === 'fit-width'));
     workspaceView();
+    compactTools?.refresh();
     if (previousFocus && current.tabs.some(tab => tab.id === previousFocus)) focusTab(previousFocus);
   }
   new MutationObserver(workspaceView).observe($('pdf-form-panel'), { attributes:true, attributeFilter:['hidden'] });
@@ -193,6 +196,7 @@ export function initReaderChrome({ activate, close, setWorkspace, fitWidth, orga
   for (const menu of document.querySelectorAll('.reader-menu')) menu.addEventListener('toggle', () => {
     if (menu.open) for (const other of document.querySelectorAll('.reader-menu[open]')) if(other!==menu)other.open=false;
   });
+  const compactTools=initReaderCompactTools({read:()=>{const navigation=readNavigation?.();return {...navigation,owner:navigation?.owner??current.activeId,isPdf:current.isPdf};},layout:compactLayout});
   render(current);
   return { render, showPersistenceError };
 }

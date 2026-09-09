@@ -54,7 +54,7 @@ test('local PDF marks survive reload and export as reviewed standard annotations
   await page.evaluate(async id=>{
     const {getDoc}=await import('/src/db.js');await window.__jtApp.openDocument(await getDoc(id));window.__jtApp.showView('read');
   },sourceId);
-  await selectWorkspace(page,'annotate');await openReaderMenu(page,'pdf-annotation-panel');
+  await selectWorkspace(page,'annotate');
   await clickReaderControl(page,'#pdf-annotation-preview');
   await page.waitForFunction(()=>document.getElementById('pdf-review-dialog').open&&!document.getElementById('pdf-review-download').disabled,{timeout:30000});
   assert.equal(await page.$eval('#pdf-review-title',n=>n.textContent),'Review annotated copy');

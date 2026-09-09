@@ -212,3 +212,15 @@ Plan: [pdf-text-markup-plan.md](pdf-text-markup-plan.md).
 Review: repaired the held-restore Pages deadlock for geometry-free mobile modal opening, retaining owner guards and queued desktop docking. The held bookmark race and final full suite pass. A separate thumbnail timeout did not reproduce; its test now settles collapsed Contents layout and reports geometry on failure without relaxing bounded preview assertions.
 
 Next: execute [reader-compact-tools-plan.md](reader-compact-tools-plan.md). The inspected phone Annotate controls and duplicate export panel consume too much vertical space. Preserve page/offset before disclosure changes, dirty notes, selection and source ownership. Full PDF Expert/Apple Books/native voice/sync/release gates remain open.
+
+## Compact reader controls — 9 September
+
+- [x] Consolidate original annotation export button and status in toolbar, retaining ownership, errors, busy state and draft guards.
+- [x] Implement out-of-flow narrow View popover using existing controls; keep Find and Pages visible and restore desktop nodes.
+- [x] Review breakpoint ownership and actual page labels; repair duplicate scheduling and stale fit on rapid crossings.
+- [x] Verify pointer/keyboard, selection, note recovery, reading place, source/route changes and responsive document space.
+- [x] Phone/tablet/desktop inspected; independent final review clear; build and all 427 tests pass. Scoped commit and SSOT receipt prepared.
+
+Review: actual phone page begins at363px rather than708px; portrait tablet overlap was caught visually and repaired with compact controls through900px. Updated legacy tests reach relocated controls through View and check the actual visible tab title. The final full gate passes without removed journey assertions.
+
+Next: execute [reader-edit-text-plan.md](reader-edit-text-plan.md). Audit Bento engine preservation and annotation intersections before implementing the own Edit workspace over portable, provenance-pinned engine code. Preserve all PDF Expert, Apple Books EPUB, native voice, sync and release requirements.

@@ -492,7 +492,7 @@ test('images retain original bytes, render after restart and release their view 
   await page.setViewport({width:390,height:844});
   await page.waitForFunction(()=>getComputedStyle(document.getElementById("library-panel")).visibility === "hidden" && getComputedStyle(document.getElementById("history-panel")).visibility === "hidden");
   await assertNoOverflow(page);
-  assert.ok(await page.evaluate(()=>document.getElementById('doc-head').getBoundingClientRect().top >= document.querySelector('.bar').getBoundingClientRect().bottom), 'document title clears the fixed header');
+  assert.ok(await page.evaluate(()=>{const title=document.querySelector('#reader-tabs [aria-selected="true"]'),r=title.getBoundingClientRect();return title.textContent.includes('field-notes')&&r.width>0&&r.height>0&&r.top>=document.querySelector('.bar').getBoundingClientRect().bottom;}), 'active document title remains visible below the fixed header');
   await page.screenshot({path:'/Users/sunlight/Documents/ChatGPT/JJTY/jett-image-phone.png',fullPage:true});
   await page.setViewport({width:1280,height:900});
   await page.locator('.image-controls button').click();

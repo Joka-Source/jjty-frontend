@@ -17,3 +17,9 @@ Independent review: a disclosure changes `readerTop()`. Capture the document-own
 Write a browser journey using actual pointer/keyboard access for narrow-screen tools, all three markup actions, export, dirty-note refusal and page navigation/Return. Check document-visible height and absence of horizontal overflow at 390×844 and 768×1024, plus desktop stability. Inspect screenshots rather than treating CSS assertions as design approval. Update existing helpers to use visible controls without bypassing UI; run focused and full gates and independent review.
 
 This is a UI continuation, not PDF Expert completion. Keep richer annotation editing, Pencil, EPUB/Apple Books, native voice, authenticated sync and release gates active.
+
+## Concrete compact control implementation
+
+Use one native auto popover inside `#reader-toolbar`. Its top-layer fixed surface is out of flow, so opening and closing cannot change reader chrome height. The trigger reads “View · page/total”; Find and Pages remain directly reachable. Move the actual document, More tools, zoom and numbered-navigation nodes into labelled popup groups using comment anchors to restore exact desktop positions and preserve event listeners. Nested document menus flow within the popup's own scrolling surface.
+
+Close on source/route change and breakpoint change. Use native Escape/light dismiss plus explicit Close, with preventScroll trigger focus only for deliberate dismissal. Preserve native selection on pointer entry into controls. An optional chrome `compactLayout({phase})` before/after callback coordinates breakpoint reparenting with main's existing reader view/resize ownership; popup open/close needs no independent scroll store.

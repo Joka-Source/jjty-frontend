@@ -331,6 +331,8 @@ body:not([data-view="read"]) #annotation-toolbar,body:not([data-reader-workspace
 .annotation-actions button,.annotation-note button { min-height:44px; padding:8px 14px; border:1px solid var(--line); border-radius:6px; background:var(--panel); color:var(--ink); }
 .annotation-actions [data-annotation="highlight"]::before { content:'▰'; color:#e3c75f; margin-right:8px; }
 .annotation-selection { margin:8px 0 0; max-width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--ink-dim); }
+#annotation-toolbar #pdf-annotation-status:empty { display:none; }
+#annotation-toolbar #pdf-annotation-status { margin:8px 0 0; }
 .annotation-note { margin-top:10px; max-width:640px; }
 .annotation-note label { display:block; margin-bottom:6px; }
 .annotation-note textarea { display:block; width:100%; box-sizing:border-box; margin-bottom:8px; padding:8px; background:var(--bg); color:var(--ink); border:1px solid var(--line); border-radius:6px; }

@@ -33,7 +33,7 @@ export function initPdfAnnotationPanel({getRecords, review, exportPdf=exportAnno
   button.addEventListener('click',async()=>{
     if(!current || button.disabled)return;
     const doc=structuredClone(current), version=generation, ownsReview=review.prepare();
-    button.disabled=true;status.textContent='Checking saved marks against the original PDF…';
+    button.disabled=true;button.dataset.exportBusy='true';status.textContent='Checking saved marks against the original PDF…';
     try {
       const records=await getRecords(doc.id);
       if(version!==generation)return;
@@ -46,11 +46,11 @@ export function initPdfAnnotationPanel({getRecords, review, exportPdf=exportAnno
     } catch(error) {
       if(version===generation)status.textContent=`The annotated copy could not be created: ${explanations[error.code] || error.message}`;
     } finally {
-      if(version===generation)button.disabled=false;
+      if(version===generation){button.disabled=false;button.dataset.exportBusy='false';}
     }
   });
   return {setDocument(doc){
-    generation++;current=doc;review.close();status.textContent='';button.disabled=false;
+    generation++;current=doc;review.close();status.textContent='';button.disabled=false;button.dataset.exportBusy='false';
     panel.hidden=!(doc?.provenance?.sourceKind==='pdf' && doc.sourceBytes);
   }};
 }

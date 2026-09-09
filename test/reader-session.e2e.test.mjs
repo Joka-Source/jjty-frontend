@@ -1,3 +1,4 @@
+import {openReaderView} from './reader-navigation.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
@@ -123,7 +124,7 @@ test('Fit width renders a phone-sized PDF and tabs support manual keyboard activ
   await page.waitForFunction(id => window.__jtApp.currentDoc()?.id === id
     && document.querySelector(`[role="tab"][data-document-id="${id}"]`)?.getAttribute('aria-selected') === 'true', {}, a);
   await page.setViewport({width: 390, height: 844});
-  await page.locator('#pdf-fit-width').click();
+  await openReaderView(page,'#pdf-fit-width');await page.locator('#pdf-fit-width').click();
   await page.waitForFunction(() => {
     const paper = document.querySelector('.pdf-page');
     return paper && paper.getBoundingClientRect().width <= innerWidth - 8;

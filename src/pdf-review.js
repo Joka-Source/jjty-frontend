@@ -278,7 +278,7 @@ export function initPdfReview({saveCopy}={}) {
       try{const {inspectPdfExtraction}=await import('./pdf-extract.js');extraction=await inspectPdfExtraction(owned);}catch{extraction={allowed:false,reason:'EXTRACT_PREFLIGHT_FAILED'};}
       if(version!==generation)return;
       setExtractAvailability(extraction);extractInput.value=opened.document.numPages===1?'1':`1-${opened.document.numPages}`;
-      setReorderAvailability(availability);snapshot=owned;orderInput.value=opened.document.numPages===1?'1':`1-${opened.document.numPages}`;ready(true);status.textContent=`This is the ${kind} PDF that will download. Your original is unchanged.`;
+      setReorderAvailability(availability);snapshot=owned;orderInput.value=opened.document.numPages===1?'1':`1-${opened.document.numPages}`;ready(true);status.textContent=`This is the ${kind} PDF that will download. Your original is unchanged.${kind==='annotated'||kind.endsWith(' annotated')?' Includes saved marks and notes. To include form answers, export from Fill or Organize.':''}`;
       return true;
     }catch(error){if(version===generation){snapshot=null;orderInput.disabled=true;orderButton.disabled=true;download.disabled=true;if(print)print.disabled=true;status.textContent=`Preview could not be rendered: ${error.message}`;}}
     finally{await opened?.loadingTask.destroy();}
