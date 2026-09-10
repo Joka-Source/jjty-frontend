@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Draft and delivery lab</title>
+<link rel="stylesheet" href="/styles.css">
+<main>
+  <header>
+    <p class="eyebrow">Original JETT learning implementation</p>
+    <h1>Draft and delivery lab</h1>
+    <p class="lead">See what survives when a save response disappears or another participant writes first.</p>
+  </header>
+
+  <section aria-labelledby="identity-title" class="panel identity">
+    <div>
+      <h2 id="identity-title">Simulated participants</h2>
+      <p>This is fixture identity for a local lab. It is not production authentication.</p>
+    </div>
+    <div class="persona" role="group" aria-label="Choose a simulated participant">
+      <button type="button" data-persona="alex">Continue as Alex</button>
+      <button type="button" data-persona="sam">Continue as Sam</button>
+    </div>
+  </section>
+
+  <section aria-labelledby="note-title" class="workspace" hidden>
+    <article class="panel timeline">
+      <div class="section-heading">
+        <div><p class="eyebrow">Shared research note</p><h2 id="note-title">Verified learning</h2></div>
+        <span id="revision" class="revision">Revision 0</span>
+      </div>
+      <ol id="entries" class="entries" aria-live="polite"></ol>
+      <p id="empty-note">No accepted entries yet.</p>
+    </article>
+
+    <form class="panel composer" id="composer">
+      <div class="section-heading"><h2>Add an entry</h2><span id="participant"></span></div>
+      <label for="draft">Your draft</label>
+      <textarea id="draft" maxlength="20000" rows="7" required></textarea>
+      <p id="draft-state" class="state" aria-live="polite">Draft ready.</p>
+      <label class="fault"><input id="lose-response" type="checkbox"> Simulate a lost server response once</label>
+      <div class="actions">
+        <button id="send" type="submit">Append entry</button>
+        <button id="retry" type="button" hidden>Retry the same operation</button>
+        <button id="reload" type="button" class="quiet">Reload current state</button>
+      </div>
+      <p id="delivery-state" class="delivery" role="status">Nothing is pending.</p>
+    </form>
+  </section>
+
+  <aside class="panel proof" aria-labelledby="proof-title">
+    <h2 id="proof-title">What the code proves</h2>
+    <ul>
+      <li>Drafts live in SQLite per participant and survive a process restart.</li>
+      <li>Retry reuses one operation ID, so an accepted write cannot duplicate.</li>
+      <li>A stale revision returns a conflict while the participant draft stays intact.</li>
+      <li>Private-note access fails as not found across fixture identities.</li>
+    </ul>
+    <details><summary>Evidence boundary</summary><p>This is original study code using synthetic people and text. It contains no Slack source, Slack content or production JETT identity.</p></details>
+    <nav aria-label="Read the implementation">
+      <a href="/source/store.mjs">SQLite store</a> ·
+      <a href="/source/server.mjs">HTTP boundary</a> ·
+      <a href="/source/client.mjs">browser state machine</a>
+    </nav>
+  </aside>
+</main>
+<script type="module" src="/client.mjs"></script>
+</html>

@@ -1,0 +1,15 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtempSync, rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {createStore} from '../store.mjs';
+function setup(t){const dir=mkdtempSync(join(tmpdir(),'jett-lab-')); const path=join(dir,'lab.sqlite');let store=createStore(path);t.after(()=>{store.close();rmSync(dir,{recursive:true,force:true});});return {get store(){return store;},restart(){store.close();store=createStore(path);return store;}};}
+const op=(extra={})=>({operationId:'op-1',noteId:'shared',baseRevision:0,text:'A verified learning note',...extra});
+test('draft survives a database restart and stays participant scoped',t=>{const s=setup(t);s.store.saveDraft('alex','shared','unfinished');s.restart();assert.equal(s.store.getDraft('alex','shared').text,'unfinished');assert.equal(s.store.getDraft('sam','shared').text,'');});
+test('an acknowledged retry after restart returns the same operation without duplicating a note',t=>{const s=setup(t);const first=s.store.append('alex',op());s.restart();assert.deepEqual(s.store.append('alex',op()),first);assert.equal(s.store.getNote('sam','shared').entries.length,1);});
+test('a stale concurrent writer keeps their draft and cannot overwrite accepted content',t=>{const {store}=setup(t);store.saveDraft('sam','shared','keep this');store.append('alex',op());assert.throws(()=>store.append('sam',op({operationId:'op-2',text:'keep this'})),e=>e.code==='CONFLICT'&&e.currentRevision===1);assert.equal(store.getDraft('sam','shared').text,'keep this');assert.equal(store.getNote('alex','shared').entries.length,1);});
+test('reusing an operation ID with different content fails closed',t=>{const {store}=setup(t);store.append('alex',op());assert.throws(()=>store.append('alex',op({text:'different'})),e=>e.code==='OPERATION_MISMATCH');});
+test('an accepted operation cannot erase text typed while its response was in flight',t=>{const {store}=setup(t);store.saveDraft('alex','shared','newer draft');store.append('alex',op());assert.equal(store.getDraft('alex','shared').text,'newer draft');});
+test('accepted exact draft clears atomically but private notes cannot leak to another participant',t=>{const {store}=setup(t);store.saveDraft('alex','shared',op().text);store.append('alex',op());assert.equal(store.getDraft('alex','shared').text,'');assert.throws(()=>store.getNote('sam','alex-private'),e=>e.code==='NOT_FOUND');assert.throws(()=>store.saveDraft('sam','alex-private','no'),e=>e.code==='NOT_FOUND');assert.throws(()=>store.append('sam',op({noteId:'alex-private'})),e=>e.code==='NOT_FOUND');});
+test('invalid identities, lengths, revision and prototype-shaped payloads are rejected',t=>{const {store}=setup(t);assert.throws(()=>store.getNote('unknown','shared'));for(const item of [op({text:'  '}),op({text:'x'.repeat(20001)}),op({baseRevision:-1}),op({baseRevision:0.5}),op({operationId:''}),op({operationId:'x'.repeat(201)})])assert.throws(()=>store.append('alex',item),e=>e.code==='INVALID_INPUT');assert.throws(()=>store.saveDraft('alex','shared','x'.repeat(20001)),e=>e.code==='INVALID_INPUT');});

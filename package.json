@@ -16,6 +16,8 @@
     "test:e2e": "node --test --test-concurrency=1 test/capabilities.e2e.test.mjs test/e2e.test.mjs test/mobile.e2e.test.mjs test/pwa.e2e.test.mjs test/return.e2e.test.mjs test/shell.e2e.test.mjs test/spaces.e2e.test.mjs",
     "test:e2e:sync": "node --test test/sync.e2e.test.mjs",
     "test:parity": "node --test test/parity.test.mjs",
+    "lab:drafts": "node labs/draft-delivery/run.mjs",
+    "test:lab:drafts": "node --test --test-concurrency=1 labs/draft-delivery/test/*.test.mjs",
     "check:vocabulary": "node scripts/check-vocabulary.mjs"
   },
   "devDependencies": {
