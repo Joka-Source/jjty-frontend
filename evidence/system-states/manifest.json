@@ -1,0 +1,173 @@
+{
+  "generatedAt": "2026-09-11",
+  "source": "production Vite build",
+  "route": "#/states/{state}",
+  "states": [
+    "loading",
+    "empty",
+    "offline",
+    "permission",
+    "error",
+    "recovery"
+  ],
+  "files": [
+    {
+      "file": "loading-desktop.png",
+      "state": "loading",
+      "size": "desktop",
+      "width": 1280,
+      "height": 900,
+      "sha256": "f0290c45a1d473187d9d18819d533d3ae31b54519aa2e183aa98ab3f8270bd3e"
+    },
+    {
+      "file": "empty-desktop.png",
+      "state": "empty",
+      "size": "desktop",
+      "width": 1280,
+      "height": 900,
+      "sha256": "fecc25633a9714fd3cc93a6a4db5b98391a0b744f31c6cd7e9b7927e9262eb61"
+    },
+    {
+      "file": "offline-desktop.png",
+      "state": "offline",
+      "size": "desktop",
+      "width": 1280,
+      "height": 900,
+      "sha256": "316305b2db55ab56afc2f0d924e328677952ec6db777a9dfd34b078105d36d47"
+    },
+    {
+      "file": "permission-desktop.png",
+      "state": "permission",
+      "size": "desktop",
+      "width": 1280,
+      "height": 900,
+      "sha256": "e2bcb1d8843e559eb191358a8fb969263b1ef4b5113727a8299bd1b5fe2adb3a"
+    },
+    {
+      "file": "error-desktop.png",
+      "state": "error",
+      "size": "desktop",
+      "width": 1280,
+      "height": 900,
+      "sha256": "23b4515b1d4e874ea46b194f3ab9ad98564d506d6a5209dee1c9628e1f0d077b"
+    },
+    {
+      "file": "recovery-desktop.png",
+      "state": "recovery",
+      "size": "desktop",
+      "width": 1280,
+      "height": 900,
+      "sha256": "b252175e7462e527b7a6368ad8641eb922837fbd1a1d0c7568c7a3ad94b56a4a"
+    },
+    {
+      "file": "loading-phone.png",
+      "state": "loading",
+      "size": "phone",
+      "width": 375,
+      "height": 812,
+      "sha256": "928e80662861463ab964582c87a30793b7f0e1b5f268b807abcf1f6ee1ba3f25"
+    },
+    {
+      "file": "empty-phone.png",
+      "state": "empty",
+      "size": "phone",
+      "width": 375,
+      "height": 812,
+      "sha256": "bd04cebe53b96a4e3de81cf1f29debce046c1de2d6ea4c679c5079249196f846"
+    },
+    {
+      "file": "offline-phone.png",
+      "state": "offline",
+      "size": "phone",
+      "width": 375,
+      "height": 812,
+      "sha256": "dff4f1dc3f1b1a27a430ed7cb430aacc61278ff9b861e6158941697a89f2a641"
+    },
+    {
+      "file": "permission-phone.png",
+      "state": "permission",
+      "size": "phone",
+      "width": 375,
+      "height": 812,
+      "sha256": "b15e857498d8057c349e5d73968fe5bac954e851498b47561f0b2e447de897f4"
+    },
+    {
+      "file": "error-phone.png",
+      "state": "error",
+      "size": "phone",
+      "width": 375,
+      "height": 812,
+      "sha256": "0b6240bd9613c39ab506f62360bc90e9fb060d56ddcf7615930ab9a03c19c78c"
+    },
+    {
+      "file": "recovery-phone.png",
+      "state": "recovery",
+      "size": "phone",
+      "width": 375,
+      "height": 812,
+      "sha256": "a16dc4dc6b97ef8ec6247adbd856cff7520f92fc845d31466366b76e170ea42a"
+    }
+  ],
+  "audits": [
+    {
+      "state": "loading",
+      "size": "desktop",
+      "violations": []
+    },
+    {
+      "state": "empty",
+      "size": "desktop",
+      "violations": []
+    },
+    {
+      "state": "offline",
+      "size": "desktop",
+      "violations": []
+    },
+    {
+      "state": "permission",
+      "size": "desktop",
+      "violations": []
+    },
+    {
+      "state": "error",
+      "size": "desktop",
+      "violations": []
+    },
+    {
+      "state": "recovery",
+      "size": "desktop",
+      "violations": []
+    },
+    {
+      "state": "loading",
+      "size": "phone",
+      "violations": []
+    },
+    {
+      "state": "empty",
+      "size": "phone",
+      "violations": []
+    },
+    {
+      "state": "offline",
+      "size": "phone",
+      "violations": []
+    },
+    {
+      "state": "permission",
+      "size": "phone",
+      "violations": []
+    },
+    {
+      "state": "error",
+      "size": "phone",
+      "violations": []
+    },
+    {
+      "state": "recovery",
+      "size": "phone",
+      "violations": []
+    }
+  ]
+}

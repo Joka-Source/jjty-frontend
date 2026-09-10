@@ -1,4 +1,5 @@
 node_modules
 dist
+storybook-static
 .npm-cache/
 .local/

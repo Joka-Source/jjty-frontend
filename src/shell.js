@@ -27,8 +27,9 @@ import {
 import pkg from "../package.json" with { type: "json" };
 import { renderCapabilities } from "./capabilities.js";
 import { verbRegistry } from "./registry/index.js";
+import { JETT_UI_STATES, mountStateSurface } from "./ui-state.js";
 
-const VIEWS = ["welcome", "home", "read", "history", "share", "spaces", "settings", "capabilities", "rooms"];
+const VIEWS = ["welcome", "home", "read", "history", "share", "spaces", "settings", "capabilities", "states", "rooms"];
 
 const $ = (id) => document.getElementById(id);
 
@@ -73,6 +74,12 @@ export function initShell(ctx) {
   function route() {
     const m = location.hash.match(/^#\/([a-z]+)(?:\/([a-z0-9-]+))?/);
     const next = m && VIEWS.includes(m[1]) && m[1] !== "welcome" ? m[1] : "home";
+    if (next === "states") {
+      const stateName = m?.[2] in JETT_UI_STATES ? m[2] : "loading";
+      renderStateEvidence(stateName);
+      show("states", { silent: true, hash: `#/states/${stateName}` });
+      return;
+    }
     if (next === "rooms" && m?.[2] && renderDesignedRoom(m[2])) {
       show("rooms", { silent: true, hash: `#/rooms/${m[2]}` });
       return;
@@ -83,7 +90,11 @@ export function initShell(ctx) {
   addEventListener("hashchange", () => {
     const m = location.hash.match(/^#\/([a-z]+)(?:\/([a-z0-9-]+))?/);
     const target = m ? m[1] : "home";
-    if (target === "rooms" && m?.[2] && renderDesignedRoom(m[2])) {
+    if (target === "states") {
+      const stateName = m?.[2] in JETT_UI_STATES ? m[2] : "loading";
+      renderStateEvidence(stateName);
+      show("states", { hash: `#/states/${stateName}` });
+    } else if (target === "rooms" && m?.[2] && renderDesignedRoom(m[2])) {
       show("rooms", { hash: `#/rooms/${m[2]}` });
     } else if (target !== view || location.hash !== `#/${target}`) {
       show(target);
@@ -98,6 +109,12 @@ export function initShell(ctx) {
     if (v === "capabilities") {
       renderCapabilities($("capability-list"), verbRegistry, { openRoom });
     }
+  }
+
+  function renderStateEvidence(name) {
+    mountStateSurface($("state-evidence"), name, (event) => {
+      $("state-evidence-result").textContent = `Action: ${event.replaceAll("-", " ")}`;
+    });
   }
 
   function renderDesignedRoom(id) {

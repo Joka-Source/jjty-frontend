@@ -19,14 +19,18 @@
     "lab:drafts": "node labs/draft-delivery/run.mjs",
     "lab:drafts:backup": "node labs/draft-delivery/backup.mjs",
     "test:lab:drafts": "node --test --test-concurrency=1 labs/draft-delivery/test/*.test.mjs",
+    "storybook": "storybook dev -p 6006 --no-open",
+    "build:storybook": "storybook build --output-dir storybook-static",
     "check:vocabulary": "node scripts/check-vocabulary.mjs"
   },
   "devDependencies": {
+    "@storybook/html-vite": "^10.6.0",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
     "axe-core": "^4.13.0",
     "fake-indexeddb": "^6.2.4",
     "puppeteer-core": "^25.6.0",
+    "storybook": "^10.6.0",
     "tsx": "4.23.12",
     "vite": "8.2.1",
     "vitest": "^4.1.11",
