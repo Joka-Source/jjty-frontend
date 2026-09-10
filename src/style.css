@@ -1017,6 +1017,10 @@ body:not([data-view="read"]) .layout {
   font-size: 1.05rem;
 }
 
+.home-empty .jett-state {
+  margin: 1.5rem 0 1rem;
+}
+
 /* history surface */
 .history-all {
   list-style: none;
@@ -1794,6 +1798,8 @@ body:not([data-view="read"]) .layout {
   }
 }
 /* Shared system-state surface: production route and Storybook use this exact component. */
+[hidden] { display: none !important; }
+
 .visually-hidden {
   position: absolute !important;
   width: 1px;

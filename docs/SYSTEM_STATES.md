@@ -8,7 +8,9 @@ JETT now has one semantic component for six conditions that every persistent jou
 npm run dev
 ```
 
-Open `#/states/loading`, `#/states/empty`, `#/states/offline`, `#/states/permission`, `#/states/error` or `#/states/recovery`. These routes expose the component inside the real application shell. Their buttons emit named action events and announce them; product journeys must bind those events to their real operations before treating a state as integrated.
+Open `#/states/loading`, `#/states/empty`, `#/states/offline`, `#/states/permission`, `#/states/error` or `#/states/recovery`. These routes expose the component inside the real application shell. Their buttons emit named action events and announce them.
+
+The empty state is also integrated into the real document library. Its `open-document` action activates the accepted `.txt`, `.md` and `.pdf` file input; the ingestion pipeline persists the selected document, opens it for reading and removes the empty state on the next library render. The other five evidence-route events still need bindings to their real product operations.
 
 ```sh
 npm run storybook

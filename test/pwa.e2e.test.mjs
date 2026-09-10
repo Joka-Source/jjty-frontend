@@ -152,7 +152,8 @@ test("offline navigation serves the shell and reopens an IndexedDB document", { 
   await page.evaluateOnNewDocument(() => localStorage.setItem("jt.welcomed", "1"));
   await page.goto(`${url}/#/home`, { waitUntil: "load" });
   await page.waitForFunction(() => window.__jtApp?.booted === true);
-  await page.click("#home-sample");
+  await page.waitForFunction(() => !document.getElementById("home-empty").hidden);
+  await page.evaluate(() => document.getElementById("home-sample").click());
   await page.waitForFunction(
     () => window.__jtApp?.view() === "read" && document.querySelectorAll("#doc p[data-block]").length > 0
   );

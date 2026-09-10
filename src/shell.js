@@ -168,6 +168,11 @@ export function initShell(ctx) {
     const docs = (await ctx.getDocs()).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     $("home-empty").hidden = docs.length > 0;
     $("home-add-more").hidden = docs.length === 0;
+    if (docs.length === 0) {
+      mountStateSurface($("home-empty-state"), "empty", (event) => {
+        if (event === "open-document") $("home-file-input").click();
+      });
+    }
     const list = $("home-doc-list");
     list.textContent = "";
     const current = ctx.currentDoc();

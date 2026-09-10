@@ -34,4 +34,21 @@ test("production state route renders the requested state and emits its action", 
   assert.equal(await page.$eval("#state-evidence [data-state]", (node) => node.dataset.state), "offline");
   await page.click('[data-state-action="retry-connection"]');
   assert.equal(await page.$eval("#state-evidence-result", (node) => node.textContent), "Action: retry connection");
+
+  await page.goto("http://127.0.0.1:4964/#/home", { waitUntil: "load" });
+  await page.waitForFunction(() => window.__jtApp?.booted && window.__jtApp.view() === "home");
+  assert.equal(await page.$eval("#home-empty [data-state]", (node) => node.dataset.state), "empty");
+  assert.equal(await page.$eval("#home-add-more", (node) => getComputedStyle(node).display), "none");
+  await page.evaluate(() => {
+    const input = document.getElementById("home-file-input");
+    input.addEventListener("click", () => { window.__homeFilePickerOpened = true; });
+  });
+  await page.evaluate(() => document.querySelector('#home-empty [data-state-action="open-document"]').click());
+  assert.equal(await page.evaluate(() => window.__homeFilePickerOpened), true);
+  const input = await page.$("#home-file-input");
+  await input.uploadFile(path.join(root, "README.md"));
+  await page.waitForFunction(() => window.__jtApp.view() === "read");
+  await page.goto("http://127.0.0.1:4964/#/home", { waitUntil: "load" });
+  await page.waitForFunction(() => window.__jtApp?.booted && window.__jtApp.view() === "home");
+  assert.equal(await page.$eval("#home-empty", (node) => node.hidden), true);
 });

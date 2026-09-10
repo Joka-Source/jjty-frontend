@@ -1,0 +1,25 @@
+{
+  "generatedAt": "2026-09-11",
+  "source": "production Vite build",
+  "route": "#/home",
+  "state": "empty",
+  "integration": "open-document activates the accepted file input; ingestion persistence is covered by test/ui-state.e2e.test.mjs",
+  "files": [
+    {
+      "file": "home-empty-desktop.png",
+      "size": "desktop",
+      "width": 1280,
+      "height": 900,
+      "sha256": "74f15c0b72d65080d040df90be4055dea55ad1e8ce1be518b9e48a99c3ee80bd",
+      "violations": []
+    },
+    {
+      "file": "home-empty-phone.png",
+      "size": "phone",
+      "width": 375,
+      "height": 812,
+      "sha256": "062e8c1a72b277c4b46b6c1ebb4ff4aa96fc5073fedce3b9ae18dc0c2a3042d6",
+      "violations": []
+    }
+  ]
+}
