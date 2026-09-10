@@ -1707,7 +1707,7 @@ function startMic() {
     return;
   }
   const denied = () =>
-    setMicState("denied", "the microphone is blocked — allow it in the browser's site settings, then reload", false);
+    setMicState("denied", "the microphone is blocked — allow it in the browser's site settings, then try again", false);
   navigator.mediaDevices
     .getUserMedia({ audio: true })
     .then((stream) => {

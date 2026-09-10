@@ -747,10 +747,18 @@ export function initShell(ctx) {
       off: "voice is off. jt reads fine without it; speaking is the fast way.",
       listening: "listening now.",
       paused: "paused — resume from the top bar.",
-      denied: "the browser is blocking the microphone. allow it in site settings, then reload.",
+      denied: "the browser is blocking the microphone. allow it in site settings, then try again.",
       unavailable: "this browser cannot listen. reading and every record still work.",
     }[s] ?? "";
     $("set-voice-on").hidden = !(s === "off" || s === "paused");
+    $("voice-permission-state").hidden = s !== "denied";
+    if (s === "denied") {
+      mountStateSurface($("voice-permission-state"), "permission", (event) => {
+        if (event === "request-microphone") ctx.startMic();
+      });
+    } else {
+      $("voice-permission-state").textContent = "";
+    }
   }
 
   $("set-voice-on").addEventListener("click", () => {

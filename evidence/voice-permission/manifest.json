@@ -1,0 +1,25 @@
+{
+  "generatedAt": "2026-09-11",
+  "source": "production Vite build with synthetic getUserMedia denial",
+  "route": "#/settings",
+  "state": "permission",
+  "integration": "denied getUserMedia mounts the shared permission state; request-microphone retries the real startMic boundary",
+  "files": [
+    {
+      "file": "voice-permission-desktop.png",
+      "size": "desktop",
+      "width": 1280,
+      "height": 900,
+      "sha256": "48e7543dd68dd46b7acf9095f0f1d0a4ab9b50825bf39430eb3a029b554f66a0",
+      "violations": []
+    },
+    {
+      "file": "voice-permission-phone.png",
+      "size": "phone",
+      "width": 375,
+      "height": 812,
+      "sha256": "a4b0f0da68377dab1538c6885c84a753a9d652a2849c8e48e1e7bf6864efde2e",
+      "violations": []
+    }
+  ]
+}

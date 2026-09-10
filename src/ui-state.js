@@ -24,7 +24,7 @@ const DEFINITIONS = {
     eyebrow: "Voice is paused",
     title: "Microphone access is off",
     message: "Reading and touch still work. Turn on microphone access when you want to speak.",
-    action: { label: "Open voice settings", event: "open-voice-settings" },
+    action: { label: "Try microphone again", event: "request-microphone" },
     live: "polite",
   },
   error: {

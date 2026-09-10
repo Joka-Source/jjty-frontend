@@ -51,4 +51,20 @@ test("production state route renders the requested state and emits its action", 
   await page.goto("http://127.0.0.1:4964/#/home", { waitUntil: "load" });
   await page.waitForFunction(() => window.__jtApp?.booted && window.__jtApp.view() === "home");
   assert.equal(await page.$eval("#home-empty", (node) => node.hidden), true);
+
+  await page.evaluate(() => {
+    window.webkitSpeechRecognition = class {};
+    window.__micPermissionAttempts = 0;
+    navigator.mediaDevices.getUserMedia = async () => {
+      window.__micPermissionAttempts += 1;
+      throw new DOMException("blocked for test", "NotAllowedError");
+    };
+    window.__jtApp.showView("settings");
+  });
+  await page.click("#set-voice-on");
+  await page.waitForFunction(() => window.__jtApp.micState() === "denied");
+  assert.equal(await page.$eval("#voice-permission-state [data-state]", (node) => node.dataset.state), "permission");
+  await page.evaluate(() => document.querySelector('#voice-permission-state [data-state-action="request-microphone"]').click());
+  await page.waitForFunction(() => window.__micPermissionAttempts === 2);
+  assert.match(await page.$eval("#set-voice-state", (node) => node.textContent), /blocking the microphone/);
 });
