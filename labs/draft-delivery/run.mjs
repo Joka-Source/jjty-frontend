@@ -18,4 +18,3 @@ async function close() {
 }
 process.on('SIGINT', close);
 process.on('SIGTERM', close);
-
