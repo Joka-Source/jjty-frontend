@@ -28,7 +28,7 @@ import { IntentStream, toCommand, describeCandidate } from "./intents.js";
 import { createMatchEngine, blockForRange } from "./engine.js";
 import { createMarkerDriver, confirmRipple, returnToPlace } from "./motion.js";
 import { ingestText, ingestPaste, ingestPdfBrowser, shortDigest, fmtBytes } from "./ingest.js";
-import { codeFromSpoken, createSyncSurface, momentFromEntry } from "./sync.js";
+import { codeFromSpoken, createSyncSurface, momentFromEntry, stableDeviceId } from "./sync.js";
 import { createActEngine } from "./acts.js";
 import { domRangeForCharacters, measureTokenRange } from "./highlight.js";
 import {
@@ -1546,7 +1546,7 @@ function renderInbox() {
 
 const sync = createSyncSurface({
   relayUrl: RELAY_URL,
-  deviceId: rid("dev"),
+  deviceId: stableDeviceId(localStorage, () => rid("dev")),
   onArrive: async (item) => {
     inbox.push(item);
     renderInbox();

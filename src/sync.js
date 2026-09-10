@@ -6,12 +6,22 @@
 // the verified badge.
 
 import { MomentChannel } from "jt-sync/src/client.ts";
-import { MemoryLogStore } from "jt-sync/src/log.ts";
+import { IndexedDbLogStore } from "jt-sync/src/log-indexeddb.ts";
 import { isValidPairCode } from "jt-sync/src/pairing.ts";
 import { contentDigest } from "jt-connectors";
 import { verbRegistry } from "./registry/index.js";
 
 export { isValidPairCode };
+
+const DEVICE_ID_KEY = "jt.sync.deviceId";
+
+export function stableDeviceId(storage, createId) {
+  const stored = storage.getItem(DEVICE_ID_KEY);
+  if (stored) return stored;
+  const created = createId();
+  storage.setItem(DEVICE_ID_KEY, created);
+  return created;
+}
 
 /** Normalize spoken recipient words ("amber brook cedar") to a pair code. */
 export function codeFromSpoken(recipient) {
@@ -91,7 +101,7 @@ export function createSyncSurface({ relayUrl, deviceId, onArrive, onState }) {
     },
     /** Start sharing: open a channel, get the three words to speak. */
     async open() {
-      channel = await MomentChannel.create(relayUrl, deviceId, new MemoryLogStore());
+      channel = await MomentChannel.create(relayUrl, deviceId, new IndexedDbLogStore({ deviceId }));
       wireInbox(channel);
       emit();
       channel.waitForPeer(120000).then(emit, () => {});
@@ -101,7 +111,7 @@ export function createSyncSurface({ relayUrl, deviceId, onArrive, onState }) {
     async join(code) {
       const c = codeFromSpoken(code) ?? code;
       if (!isValidPairCode(c)) throw new Error("that does not sound like a share code");
-      channel = await MomentChannel.join(relayUrl, deviceId, c, new MemoryLogStore());
+      channel = await MomentChannel.join(relayUrl, deviceId, c, new IndexedDbLogStore({ deviceId }));
       wireInbox(channel);
       emit();
       return c;

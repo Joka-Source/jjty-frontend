@@ -3,7 +3,21 @@
 // never a bare file). Hashing runs the vendored canonical sha-256.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { codeFromSpoken, momentFromEntry } from "../src/sync.js";
+import { codeFromSpoken, momentFromEntry, stableDeviceId } from "../src/sync.js";
+
+test("the browser keeps one device identity across reloads", () => {
+  const values = new Map();
+  const storage = {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, value),
+  };
+
+  const first = stableDeviceId(storage, () => "dev-persistent");
+  const afterReload = stableDeviceId(storage, () => "dev-replaced");
+
+  assert.equal(first, "dev-persistent");
+  assert.equal(afterReload, "dev-persistent");
+});
 import { makeActEntry } from "../src/records.js";
 
 test("spoken recipient words become a valid pair code — or honestly nothing", () => {

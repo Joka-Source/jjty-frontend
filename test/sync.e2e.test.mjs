@@ -80,7 +80,9 @@ test("moment-send: pair two pages by spoken words, send a kept act, verify", { t
   console.error("[sync-e2e] browser ready");
 
   // Device A: run the sim so there are kept acts, with the relay wired.
-  const pageA = await browser.newPage();
+  const senderContext = await browser.createBrowserContext();
+  const receiverContext = await browser.createBrowserContext();
+  const pageA = await senderContext.newPage();
   await pageA.goto(
     `http://127.0.0.1:${PORT}/?sim=1&fast=1&relay=${encodeURIComponent(relayUrl)}`,
     { waitUntil: "load" }
@@ -89,12 +91,20 @@ test("moment-send: pair two pages by spoken words, send a kept act, verify", { t
   console.error("[sync-e2e] simulated sender ready");
 
   // Device B: a second, plain page on the same relay.
-  const pageB = await browser.newPage();
+  const pageB = await receiverContext.newPage();
   await pageB.goto(`http://127.0.0.1:${PORT}/?relay=${encodeURIComponent(relayUrl)}`, {
     waitUntil: "load",
   });
   await pageB.waitForFunction(() => !!window.__jtApp, { timeout: 20000 });
   console.error("[sync-e2e] receiver ready");
+
+  const [senderDeviceId, receiverDeviceId] = await Promise.all([
+    pageA.evaluate(() => localStorage.getItem("jt.sync.deviceId")),
+    pageB.evaluate(() => localStorage.getItem("jt.sync.deviceId")),
+  ]);
+  assert.ok(senderDeviceId);
+  assert.ok(receiverDeviceId);
+  assert.notEqual(senderDeviceId, receiverDeviceId, "separate devices must not share identity");
 
   // A opens sharing and gets the three spoken words.
   const code = await pageA.evaluate(() => window.__jtApp.syncOpen());
@@ -137,6 +147,29 @@ test("moment-send: pair two pages by spoken words, send a kept act, verify", { t
     spaceAction,
     /choose who you are in spaces before sending here/i,
     "an arrived moment should expose the same send-to-space action as a kept act",
+  );
+
+  const storedBeforeReload = await pageB.evaluate(async () => {
+    const open = indexedDB.open("jt-sync", 1);
+    const database = await new Promise((resolve, reject) => {
+      open.onsuccess = () => resolve(open.result);
+      open.onerror = () => reject(open.error);
+    });
+    const read = database.transaction("momentLog").objectStore("momentLog").getAll();
+    return new Promise((resolve, reject) => {
+      read.onsuccess = () => resolve(read.result);
+      read.onerror = () => reject(read.error);
+    });
+  });
+  assert.equal(storedBeforeReload.length, 1);
+  assert.equal(storedBeforeReload[0].contentHash, sent.localHash);
+
+  await pageB.reload({ waitUntil: "load" });
+  await pageB.waitForFunction(() => !!window.__jtApp, { timeout: 20000 });
+  assert.equal(
+    await pageB.evaluate(() => localStorage.getItem("jt.sync.deviceId")),
+    receiverDeviceId,
+    "receiver identity must survive reload so its delivery evidence remains addressable",
   );
   console.error("[sync-e2e] delivery verified");
 });
