@@ -17,6 +17,7 @@
     "test:e2e:sync": "node --test test/sync.e2e.test.mjs",
     "test:parity": "node --test test/parity.test.mjs",
     "lab:drafts": "node labs/draft-delivery/run.mjs",
+    "lab:drafts:backup": "node labs/draft-delivery/backup.mjs",
     "test:lab:drafts": "node --test --test-concurrency=1 labs/draft-delivery/test/*.test.mjs",
     "check:vocabulary": "node scripts/check-vocabulary.mjs"
   },

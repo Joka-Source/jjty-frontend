@@ -1,4 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
+import { createHash } from 'node:crypto';
 
 const PARTICIPANTS = new Set(['alex', 'sam']);
 const MAX_TEXT = 20_000;
@@ -31,6 +32,23 @@ function stableOperation(operation) {
     baseRevision: operation.baseRevision,
     text: operation.text,
   });
+}
+
+function backupDigest(payload) {
+  return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+}
+
+function assertBackup(backup) {
+  if (!backup || typeof backup !== 'object' || Array.isArray(backup)
+      || !backup.payload || typeof backup.payload !== 'object'
+      || backup.payload.format !== 'jett-draft-delivery-backup'
+      || backup.payload.version !== 1
+      || !['notes', 'entries', 'drafts', 'operations'].every(key => Array.isArray(backup.payload[key]))) {
+    throw failure('INVALID_BACKUP', 'Backup format is invalid');
+  }
+  if (typeof backup.sha256 !== 'string' || backupDigest(backup.payload) !== backup.sha256) {
+    throw failure('BACKUP_INTEGRITY_FAILED', 'Backup checksum does not match its payload');
+  }
 }
 
 export function createStore(path) {
@@ -82,6 +100,46 @@ export function createStore(path) {
   }
 
   return {
+    createBackup() {
+      const payload = {
+        format: 'jett-draft-delivery-backup',
+        version: 1,
+        notes: database.prepare('SELECT id, owner, revision FROM notes ORDER BY id').all(),
+        entries: database.prepare('SELECT note_id, revision, author, text, created_at FROM entries ORDER BY note_id, revision').all(),
+        drafts: database.prepare('SELECT participant, note_id, text, updated_at FROM drafts ORDER BY participant, note_id').all(),
+        operations: database.prepare('SELECT participant, operation_id, request_json, response_json FROM operations ORDER BY participant, operation_id').all(),
+      };
+      return { payload, sha256: backupDigest(payload) };
+    },
+
+    restoreBackup(backup) {
+      assertBackup(backup);
+      const populated = database.prepare(`
+        SELECT (SELECT count(*) FROM entries) + (SELECT count(*) FROM drafts)
+          + (SELECT count(*) FROM operations) + (SELECT count(*) FROM notes WHERE revision != 0) AS count
+      `).get().count;
+      if (populated !== 0) throw failure('RESTORE_DESTINATION_NOT_EMPTY', 'Restore requires an empty destination');
+
+      database.exec('BEGIN IMMEDIATE');
+      try {
+        database.exec('DELETE FROM notes');
+        const insertNote = database.prepare('INSERT INTO notes (id, owner, revision) VALUES (?, ?, ?)');
+        const insertEntry = database.prepare('INSERT INTO entries (note_id, revision, author, text, created_at) VALUES (?, ?, ?, ?, ?)');
+        const insertDraft = database.prepare('INSERT INTO drafts (participant, note_id, text, updated_at) VALUES (?, ?, ?, ?)');
+        const insertOperation = database.prepare('INSERT INTO operations (participant, operation_id, request_json, response_json) VALUES (?, ?, ?, ?)');
+        for (const row of backup.payload.notes) insertNote.run(row.id, row.owner, row.revision);
+        for (const row of backup.payload.entries) insertEntry.run(row.note_id, row.revision, row.author, row.text, row.created_at);
+        for (const row of backup.payload.drafts) insertDraft.run(row.participant, row.note_id, row.text, row.updated_at);
+        for (const row of backup.payload.operations) insertOperation.run(row.participant, row.operation_id, row.request_json, row.response_json);
+        database.exec('COMMIT');
+      } catch (error) {
+        database.exec('ROLLBACK');
+        if (error.code) throw error;
+        throw failure('INVALID_BACKUP', 'Backup contents violate the storage contract');
+      }
+      return { restored: true, sha256: backup.sha256 };
+    },
+
     getDraft(participant, noteId) {
       permittedNote(participant, noteId);
       const draft = draftFor.get(participant, noteId);

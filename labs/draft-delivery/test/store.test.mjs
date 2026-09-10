@@ -13,3 +13,29 @@ test('reusing an operation ID with different content fails closed',t=>{const {st
 test('an accepted operation cannot erase text typed while its response was in flight',t=>{const {store}=setup(t);store.saveDraft('alex','shared','newer draft');store.append('alex',op());assert.equal(store.getDraft('alex','shared').text,'newer draft');});
 test('accepted exact draft clears atomically but private notes cannot leak to another participant',t=>{const {store}=setup(t);store.saveDraft('alex','shared',op().text);store.append('alex',op());assert.equal(store.getDraft('alex','shared').text,'');assert.throws(()=>store.getNote('sam','alex-private'),e=>e.code==='NOT_FOUND');assert.throws(()=>store.saveDraft('sam','alex-private','no'),e=>e.code==='NOT_FOUND');assert.throws(()=>store.append('sam',op({noteId:'alex-private'})),e=>e.code==='NOT_FOUND');});
 test('invalid identities, lengths, revision and prototype-shaped payloads are rejected',t=>{const {store}=setup(t);assert.throws(()=>store.getNote('unknown','shared'));for(const item of [op({text:'  '}),op({text:'x'.repeat(20001)}),op({baseRevision:-1}),op({baseRevision:0.5}),op({operationId:''}),op({operationId:'x'.repeat(201)})])assert.throws(()=>store.append('alex',item),e=>e.code==='INVALID_INPUT');assert.throws(()=>store.saveDraft('alex','shared','x'.repeat(20001)),e=>e.code==='INVALID_INPUT');});
+
+test('a verified backup restores entries, drafts and retry identity into a fresh database',t=>{
+  const source=setup(t);
+  source.store.saveDraft('sam','shared','unfinished after backup');
+  const accepted=source.store.append('alex',op());
+  const backup=source.store.createBackup();
+  const targetDir=mkdtempSync(join(tmpdir(),'jett-lab-restore-'));
+  const targetPath=join(targetDir,'restored.sqlite');
+  const target=createStore(targetPath);
+  t.after(()=>{target.close();rmSync(targetDir,{recursive:true,force:true});});
+  target.restoreBackup(backup);
+  assert.deepEqual(target.getNote('sam','shared'),source.store.getNote('sam','shared'));
+  assert.equal(target.getDraft('sam','shared').text,'unfinished after backup');
+  assert.deepEqual(target.append('alex',op()),accepted);
+  assert.equal(target.getNote('alex','shared').entries.length,1);
+});
+
+test('restore rejects tampering and refuses to overwrite a non-empty destination',t=>{
+  const source=setup(t);
+  source.store.append('alex',op());
+  const backup=source.store.createBackup();
+  const tampered=structuredClone(backup);
+  tampered.payload.entries[0].text='changed after export';
+  assert.throws(()=>source.store.restoreBackup(tampered),e=>e.code==='BACKUP_INTEGRITY_FAILED');
+  assert.throws(()=>source.store.restoreBackup(backup),e=>e.code==='RESTORE_DESTINATION_NOT_EMPTY');
+});
