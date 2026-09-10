@@ -1,3 +1,7 @@
+Current engineering handoff: [architecture and contributor tree](https://github.com/Joka-Source/jjty-human/blob/codex/founder-ssot-workbench/ARCHITECTURE.md) · [team pickup and pause](https://github.com/Joka-Source/jjty-human/blob/codex/founder-ssot-workbench/TEAM_HANDOFF.md).
+
+> Current founder synthesis: [JETT SSOT](https://github.com/Joka-Source/jjty-human/blob/codex/founder-ssot-workbench/JETT_SSOT.md) is the shared entry point for current product direction and cross-repository status. Repository-specific engineering contracts, build instructions, and verification requirements remain below.
+
 # jt-web
 
 jt on the web: open your document, speak, and the thing you meant happens — with an inspectable, undoable record.
