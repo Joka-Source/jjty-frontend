@@ -59,9 +59,7 @@ async function waitFor(url, ms = 15000) {
 
 test("moment-send: pair two pages by spoken words, send a kept act, verify", { timeout: 120000 }, async (t) => {
   assert.ok(existsSync(CHROME), "Google Chrome required for headless e2e");
-  if (!existsSync(path.join(root, "dist", "index.html"))) {
-    execFileSync("npx", ["vite", "build"], { cwd: root, stdio: "inherit" });
-  }
+  execFileSync("npx", ["vite", "build"], { cwd: root, stdio: "inherit" });
   const relayDirectory = mkdtempSync(path.join(os.tmpdir(), "jett-browser-relay-"));
   const relaySessionFile = path.join(relayDirectory, "sessions.json");
   t.after(() => rmSync(relayDirectory, { recursive: true, force: true }));
@@ -121,6 +119,13 @@ test("moment-send: pair two pages by spoken words, send a kept act, verify", { t
   // B joins by "hearing" the words (spoken form, spaces not dashes).
   await pageB.evaluate((words) => window.__jtApp.syncJoin(words), code.split("-").join(" "));
   await pageA.waitForFunction(() => window.__jtApp.syncState().paired, { timeout: 10000 });
+  const [senderResumeToken, receiverResumeToken] = await Promise.all([
+    pageA.evaluate(() => localStorage.getItem("jt.sync.resumeToken")),
+    pageB.evaluate(() => localStorage.getItem("jt.sync.resumeToken")),
+  ]);
+  assert.match(senderResumeToken, /^[A-Za-z0-9_-]{40,}$/);
+  assert.match(receiverResumeToken, /^[A-Za-z0-9_-]{40,}$/);
+  assert.notEqual(senderResumeToken, receiverResumeToken, "each device must receive a different resume credential");
   console.error("[sync-e2e] pages paired");
 
   // A sends its latest kept act as a moment.

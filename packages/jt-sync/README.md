@@ -49,11 +49,13 @@ memory. `npm run relay -- 8787 /private/path/sessions.json 86400000` enables an
 atomic mode-0600 JSON session file and a bounded TTL. The restart test proves
 that fresh clients can resume both sides after the relay OS process is replaced;
 expired pairings are rejected in both loaded and long-running processes. The
-file contains pairing codes and device IDs and must remain outside Git and
-team-shared documents.
+file contains pairing codes, device IDs and SHA-256 resume-token digests and
+must remain outside Git and team-shared documents. Each device receives a
+different random 256-bit resume token. The spoken code and device ID alone are
+rejected on resume; raw resume tokens are never written to the relay file.
 
 Browser reload restores the paired device and rebuilds send/receive sequence
 counters from its durable log before resuming. A deployed relay still needs
-authenticated, revocable resume credentials, encrypted server-side custody,
+account-bound, revocable resume credentials, encrypted server-side custody,
 durable multi-instance coordination and production deployment tests. This
 local file is a reliability proof, not production identity or authorization.

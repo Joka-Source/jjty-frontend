@@ -16,6 +16,7 @@ export { isValidPairCode };
 
 const DEVICE_ID_KEY = "jt.sync.deviceId";
 const PAIR_CODE_KEY = "jt.sync.pairCode";
+const RESUME_TOKEN_KEY = "jt.sync.resumeToken";
 
 export function stableDeviceId(storage, createId) {
   const stored = storage.getItem(DEVICE_ID_KEY);
@@ -79,7 +80,7 @@ export function createSyncSurface({ relayUrl, deviceId, onArrive, onState, stora
   let flushing = null;
   const activeSends = new Set();
   const outbox = new IndexedDbOutboxStore({ deviceId });
-  let restoring = isValidPairCode(storage?.getItem(PAIR_CODE_KEY) ?? "");
+  let restoring = isValidPairCode(storage?.getItem(PAIR_CODE_KEY) ?? "") && !!storage?.getItem(RESUME_TOKEN_KEY);
   let restoreError = "";
 
   const state = () => ({
@@ -145,9 +146,10 @@ export function createSyncSurface({ relayUrl, deviceId, onArrive, onState, stora
 
   const ready = (async () => {
     const savedCode = storage?.getItem(PAIR_CODE_KEY) ?? "";
-    if (!isValidPairCode(savedCode)) { restoring = false; return false; }
+    const savedResumeToken = storage?.getItem(RESUME_TOKEN_KEY) ?? "";
+    if (!isValidPairCode(savedCode) || !savedResumeToken) { restoring = false; return false; }
     try {
-      channel = await MomentChannel.resume(relayUrl, deviceId, savedCode, new IndexedDbLogStore({ deviceId }));
+      channel = await MomentChannel.resume(relayUrl, deviceId, savedCode, savedResumeToken, new IndexedDbLogStore({ deviceId }));
       attach(channel);
       return true;
     } catch (error) {
@@ -170,6 +172,7 @@ export function createSyncSurface({ relayUrl, deviceId, onArrive, onState, stora
       channel = await MomentChannel.create(relayUrl, deviceId, new IndexedDbLogStore({ deviceId }));
       restoreError = "";
       storage?.setItem(PAIR_CODE_KEY, channel.pairCode);
+      storage?.setItem(RESUME_TOKEN_KEY, channel.resumeToken);
       attach(channel);
       emit();
       channel.waitForPeer(120000).then(emit, () => {});
@@ -184,6 +187,7 @@ export function createSyncSurface({ relayUrl, deviceId, onArrive, onState, stora
       channel = await MomentChannel.join(relayUrl, deviceId, c, new IndexedDbLogStore({ deviceId }));
       restoreError = "";
       storage?.setItem(PAIR_CODE_KEY, c);
+      storage?.setItem(RESUME_TOKEN_KEY, channel.resumeToken);
       attach(channel);
       emit();
       return c;

@@ -46,7 +46,7 @@ test("paired devices recover both a socket loss and a new client instance", { ti
   assert.equal((await b.log.entries()).length, 1);
 
   b.close();
-  b = await MomentChannel.resume(relayUrl, "reconnect-b", a.pairCode, storeB);
+  b = await MomentChannel.resume(relayUrl, "reconnect-b", a.pairCode, b.resumeToken, storeB);
   assert.equal(b.channelId, a.channelId);
   const afterReload = new Promise<void>((resolve) => b.onMoment((record) => {
     if (record.momentId === "mom-reconnect-a-1" && record.status === "verified") resolve();

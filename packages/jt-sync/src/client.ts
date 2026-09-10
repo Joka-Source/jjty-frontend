@@ -27,6 +27,7 @@ interface PendingDelivery {
 export class MomentChannel {
   readonly log: MomentLog;
   pairCode = "";
+  resumeToken = "";
   channelId = "";
   peerDeviceId = "";
   private ws!: WebSocket;
@@ -53,7 +54,9 @@ export class MomentChannel {
     const ch = new MomentChannel(deviceId, store);
     await ch.restoreCounters();
     await ch.connect(relayUrl);
-    ch.pairCode = await ch.request({ t: "create", deviceId }, "code").then((f) => (f as { code: string }).code);
+    const created = await ch.request({ t: "create", deviceId }, "code") as { code: string; resumeToken: string };
+    ch.pairCode = created.code;
+    ch.resumeToken = created.resumeToken;
     ch.markConnected();
     return ch;
   }
@@ -67,23 +70,29 @@ export class MomentChannel {
     const paired = (await ch.request({ t: "join", deviceId, code }, "paired")) as {
       channelId: string;
       peerDeviceId: string;
+      resumeToken: string;
     };
     ch.channelId = paired.channelId;
     ch.peerDeviceId = paired.peerDeviceId;
+    ch.resumeToken = paired.resumeToken;
     ch.markConnected();
     return ch;
   }
 
   /** Restore a previously paired browser/device instance after page reload. */
-  static async resume(relayUrl: string, deviceId: string, code: string, store: LogStore): Promise<MomentChannel> {
+  static async resume(relayUrl: string, deviceId: string, code: string, resumeToken: string, store: LogStore): Promise<MomentChannel> {
     const ch = new MomentChannel(deviceId, store);
     ch.pairCode = code;
+    ch.resumeToken = resumeToken;
     await ch.restoreCounters();
     await ch.connect(relayUrl);
-    const paired = await ch.request({ t: "resume", deviceId, code }, "paired") as {
-      channelId: string;
-      peerDeviceId: string;
-    };
+    let paired: { channelId: string; peerDeviceId: string };
+    try {
+      paired = await ch.request({ t: "resume", deviceId, code, resumeToken }, "paired") as typeof paired;
+    } catch (error) {
+      ch.close();
+      throw error;
+    }
     ch.channelId = paired.channelId;
     ch.peerDeviceId = paired.peerDeviceId;
     ch.markConnected();
@@ -147,7 +156,7 @@ export class MomentChannel {
         await new Promise((resolve) => setTimeout(resolve, delayMs));
         try {
           await this.connect(this.relayUrl);
-          const paired = await this.request({ t: "resume", deviceId: this.deviceId, code: this.pairCode }, "paired") as { channelId: string; peerDeviceId: string };
+          const paired = await this.request({ t: "resume", deviceId: this.deviceId, code: this.pairCode, resumeToken: this.resumeToken }, "paired") as { channelId: string; peerDeviceId: string };
           this.channelId = paired.channelId;
           this.peerDeviceId = paired.peerDeviceId;
           this.markConnected();
@@ -178,9 +187,31 @@ export class MomentChannel {
   }
 
   private request(frame: ClientFrame, replyType: RelayFrame["t"]): Promise<RelayFrame> {
-    const reply = this.waitFrame(replyType);
-    this.ws.send(JSON.stringify(frame));
-    return reply;
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const remove = (type: RelayFrame["t"], waiter: (f: RelayFrame) => void) => {
+        const list = this.frameWaiters.get(type);
+        if (list) this.frameWaiters.set(type, list.filter((candidate) => candidate !== waiter));
+      };
+      const finish = () => {
+        if (settled) return false;
+        settled = true;
+        clearTimeout(timer);
+        remove(replyType, onReply);
+        remove("error", onError);
+        return true;
+      };
+      const onReply = (reply: RelayFrame) => { if (finish()) resolve(reply); };
+      const onError = (reply: RelayFrame) => {
+        if (finish()) reject(new Error(reply.t === "error" ? reply.message : "relay request failed"));
+      };
+      const timer = setTimeout(() => {
+        if (finish()) reject(new Error(`timed out waiting for '${replyType}' frame`));
+      }, 10_000);
+      this.frameWaiters.set(replyType, [...(this.frameWaiters.get(replyType) ?? []), onReply]);
+      this.frameWaiters.set("error", [...(this.frameWaiters.get("error") ?? []), onError]);
+      this.ws.send(JSON.stringify(frame));
+    });
   }
 
   private async onFrame(text: string): Promise<void> {

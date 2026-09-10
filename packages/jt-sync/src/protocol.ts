@@ -10,14 +10,14 @@ import type { DeliveryRecord, Moment } from "./envelope.js";
 export type ClientFrame =
   | { t: "create"; deviceId: string }
   | { t: "join"; deviceId: string; code: string }
-  | { t: "resume"; deviceId: string; code: string }
+  | { t: "resume"; deviceId: string; code: string; resumeToken: string }
   | { t: "moment"; envelope: Moment; hash: string }
   | { t: "delivery"; record: DeliveryRecord };
 
 /** Relay -> client */
 export type RelayFrame =
-  | { t: "code"; code: string }
-  | { t: "paired"; channelId: string; peerDeviceId: string }
+  | { t: "code"; code: string; resumeToken: string }
+  | { t: "paired"; channelId: string; peerDeviceId: string; resumeToken?: string }
   | { t: "moment"; envelope: Moment; hash: string }
   | { t: "delivery"; record: DeliveryRecord }
   | { t: "error"; message: string };

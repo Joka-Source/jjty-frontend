@@ -48,6 +48,8 @@ test("paired devices resume and deliver after the relay process restarts", { tim
     b = await MomentChannel.join(initial.url, "restart-b", a.pairCode, storeB);
     await a.waitForPeer();
     const code = a.pairCode;
+    const tokenA = a.resumeToken;
+    const tokenB = b.resumeToken;
     a.close(); b.close();
     await stopRelay(first); first = undefined;
 
@@ -56,12 +58,14 @@ test("paired devices resume and deliver after the relay process restarts", { tim
     assert.equal(persisted.sessions[0].code, code);
     assert.equal(persisted.sessions[0].aDeviceId, "restart-a");
     assert.equal(persisted.sessions[0].bDeviceId, "restart-b");
+    assert.equal(JSON.stringify(persisted).includes(tokenA), false, "raw A token must not be persisted");
+    assert.equal(JSON.stringify(persisted).includes(tokenB), false, "raw B token must not be persisted");
 
     const restarted = await startRelay(sessionFile);
     second = restarted.process;
     [a, b] = await Promise.all([
-      MomentChannel.resume(restarted.url, "restart-a", code, storeA),
-      MomentChannel.resume(restarted.url, "restart-b", code, storeB),
+      MomentChannel.resume(restarted.url, "restart-a", code, tokenA, storeA),
+      MomentChannel.resume(restarted.url, "restart-b", code, tokenB, storeB),
     ]);
     const result = await a.sendMoment(makeMoment(0));
     assert.equal(result.delivery.status, "verified");

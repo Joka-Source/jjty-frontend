@@ -6,6 +6,7 @@
  */
 
 import { createServer, type Server } from "node:http";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { chmodSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { WebSocketServer, WebSocket } from "ws";
@@ -18,8 +19,10 @@ interface Session {
   expiresAt: number;
   a?: WebSocket;
   aDeviceId: string;
+  aResumeTokenHash: string;
   b?: WebSocket;
   bDeviceId?: string;
+  bResumeTokenHash?: string;
 }
 
 export interface RelayOptions {
@@ -29,8 +32,17 @@ export interface RelayOptions {
 }
 
 interface PersistedSessions {
-  schema: "jt-sync-relay-sessions/1";
-  sessions: Array<Pick<Session, "code" | "aDeviceId" | "bDeviceId" | "createdAt" | "expiresAt">>;
+  schema: "jt-sync-relay-sessions/2";
+  sessions: Array<Pick<Session, "code" | "aDeviceId" | "aResumeTokenHash" | "bDeviceId" | "bResumeTokenHash" | "createdAt" | "expiresAt">>;
+}
+
+function issueResumeToken(): string { return randomBytes(32).toString("base64url"); }
+function tokenHash(token: string): string { return createHash("sha256").update(token).digest("hex"); }
+function tokenMatches(token: string, expectedHash: string | undefined): boolean {
+  if (!expectedHash) return false;
+  const actual = Buffer.from(tokenHash(token), "hex");
+  const expected = Buffer.from(expectedHash, "hex");
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
 export class Relay {
@@ -75,11 +87,12 @@ export class Relay {
           let code = generatePairCode();
           while (this.sessions.has(code)) code = generatePairCode();
           const createdAt = this.now();
-          const session = { code, createdAt, expiresAt: createdAt + this.sessionTtlMs, a: ws, aDeviceId: frame.deviceId };
+          const resumeToken = issueResumeToken();
+          const session = { code, createdAt, expiresAt: createdAt + this.sessionTtlMs, a: ws, aDeviceId: frame.deviceId, aResumeTokenHash: tokenHash(resumeToken) };
           this.sessions.set(code, session);
           this.persistSessions();
           this.memberships.set(ws, { session, side: "a" });
-          this.send(ws, { t: "code", code });
+          this.send(ws, { t: "code", code, resumeToken });
           break;
         }
         case "join": {
@@ -90,9 +103,11 @@ export class Relay {
           }
           session.b = ws;
           session.bDeviceId = frame.deviceId;
+          const resumeToken = issueResumeToken();
+          session.bResumeTokenHash = tokenHash(resumeToken);
           this.persistSessions();
           this.memberships.set(ws, { session, side: "b" });
-          this.pairOpenSockets(session);
+          this.pairOpenSockets(session, resumeToken);
           break;
         }
         case "resume": {
@@ -100,6 +115,11 @@ export class Relay {
           const side = session?.aDeviceId === frame.deviceId ? "a" : session?.bDeviceId === frame.deviceId ? "b" : null;
           if (!session || !side) {
             this.send(ws, { t: "error", message: "pairing session cannot be resumed" });
+            return;
+          }
+          const expectedHash = side === "a" ? session.aResumeTokenHash : session.bResumeTokenHash;
+          if (!tokenMatches(frame.resumeToken, expectedHash)) {
+            this.send(ws, { t: "error", message: "resume credential is invalid" });
             return;
           }
           const current = session[side];
@@ -165,13 +185,14 @@ export class Relay {
       throw error;
     }
     const stored = JSON.parse(raw) as PersistedSessions;
-    if (stored.schema !== "jt-sync-relay-sessions/1" || !Array.isArray(stored.sessions)) {
+    if (stored.schema !== "jt-sync-relay-sessions/2" || !Array.isArray(stored.sessions)) {
       throw new Error("invalid relay session store");
     }
     for (const row of stored.sessions) {
       if (
-        typeof row.code === "string" && typeof row.aDeviceId === "string" &&
+        typeof row.code === "string" && typeof row.aDeviceId === "string" && typeof row.aResumeTokenHash === "string" &&
         (row.bDeviceId === undefined || typeof row.bDeviceId === "string") &&
+        (row.bResumeTokenHash === undefined || typeof row.bResumeTokenHash === "string") &&
         Number.isFinite(row.createdAt) && Number.isFinite(row.expiresAt) && row.expiresAt > this.now()
       ) this.sessions.set(row.code, { ...row });
     }
@@ -182,8 +203,8 @@ export class Relay {
     if (!this.sessionFile) return;
     const sessions = [...this.sessions.values()]
       .filter((session) => session.expiresAt > this.now())
-      .map(({ code, aDeviceId, bDeviceId, createdAt, expiresAt }) => ({ code, aDeviceId, bDeviceId, createdAt, expiresAt }));
-    const payload: PersistedSessions = { schema: "jt-sync-relay-sessions/1", sessions };
+      .map(({ code, aDeviceId, aResumeTokenHash, bDeviceId, bResumeTokenHash, createdAt, expiresAt }) => ({ code, aDeviceId, aResumeTokenHash, bDeviceId, bResumeTokenHash, createdAt, expiresAt }));
+    const payload: PersistedSessions = { schema: "jt-sync-relay-sessions/2", sessions };
     mkdirSync(dirname(this.sessionFile), { recursive: true });
     const temporary = `${this.sessionFile}.${process.pid}.tmp`;
     writeFileSync(temporary, JSON.stringify(payload, null, 2) + "\n", { mode: 0o600 });
@@ -191,13 +212,13 @@ export class Relay {
     chmodSync(this.sessionFile, 0o600);
   }
 
-  private pairOpenSockets(session: Session): void {
+  private pairOpenSockets(session: Session, joiningResumeToken?: string): void {
     if (!session.a || !session.b || session.a.readyState !== WebSocket.OPEN || session.b.readyState !== WebSocket.OPEN) return;
     this.peers.set(session.a, session.b);
     this.peers.set(session.b, session.a);
     const channelId = `ch-${session.code}`;
     this.send(session.a, { t: "paired", channelId, peerDeviceId: session.bDeviceId! });
-    this.send(session.b, { t: "paired", channelId, peerDeviceId: session.aDeviceId });
+    this.send(session.b, { t: "paired", channelId, peerDeviceId: session.aDeviceId, ...(joiningResumeToken ? { resumeToken: joiningResumeToken } : {}) });
   }
 
   listen(port: number): Promise<number> {
