@@ -7,7 +7,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import puppeteer from "puppeteer-core";
@@ -228,5 +228,16 @@ test("moment-send: pair two pages by spoken words, send a kept act, verify", { t
   const afterReload = await pageA.evaluate(() => window.__jtApp.syncSendLatest());
   assert.equal(afterReload.delivered, true, "a reloaded peer should receive without pairing again");
   await pageB.waitForFunction(() => window.__jtApp.inbox().length === 3, { timeout: 10000 });
+
+  await pageA.evaluate(() => window.__jtApp.showView("share"));
+  await pageA.waitForSelector("#share-forget:not([hidden])", { visible: true });
+  pageA.once("dialog", (dialog) => dialog.accept());
+  await pageA.click("#share-forget");
+  await Promise.all([
+    pageA.waitForFunction(() => !window.__jtApp.syncState().paired && !localStorage.getItem("jt.sync.resumeToken"), { timeout: 10000 }),
+    pageB.waitForFunction(() => !window.__jtApp.syncState().paired && !localStorage.getItem("jt.sync.resumeToken"), { timeout: 10000 }),
+  ]);
+  assert.equal(JSON.parse(readFileSync(relaySessionFile, "utf8")).sessions.length, 0, "revocation must leave no durable relay session");
+  assert.equal(await pageB.evaluate(() => window.__jtApp.inbox().length), 3, "forgetting pairing must preserve arrived moments");
   console.error("[sync-e2e] delivery verified");
 });

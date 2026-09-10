@@ -3,7 +3,7 @@
 Baseline copied from TrueKrishna/jt-sync at
 `ae117a81f279e51175dbfd58254264a11a0e7e19`.
 
-The vendored relay runner now carries the same token-authenticated reconnect,
+The vendored relay runner now carries the same token-authenticated reconnect and revocation,
 idempotent moment, protocol and bounded session-file changes as
 `packages/jt-sync/src`. They are kept byte-for-
 byte equal and tested from the production bundle because CI cannot assume a

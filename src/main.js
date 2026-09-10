@@ -89,6 +89,7 @@ const askOptions = document.getElementById("ask-options");
 const shareStart = document.getElementById("share-start");
 const shareCode = document.getElementById("share-code");
 const shareState = document.getElementById("share-state");
+const shareForget = document.getElementById("share-forget");
 const joinCode = document.getElementById("join-code");
 const joinBtn = document.getElementById("join-btn");
 const inboxList = document.getElementById("inbox-list");
@@ -1558,6 +1559,7 @@ const sync = createSyncSurface({
     setStatus(true, `a moment arrived${item.verified ? " — verified" : " — could not be verified"}`);
   },
   onState: (s) => {
+    shareForget.hidden = !s.code;
     shareState.textContent = s.pending
       ? `${s.pending} moment${s.pending === 1 ? "" : "s"} waiting in the outbox${s.connected ? " — retrying…" : ""}`
       : s.restoring
@@ -1572,6 +1574,18 @@ const sync = createSyncSurface({
         ? "waiting for the other device…"
         : "";
   },
+});
+
+shareForget.addEventListener("click", async () => {
+  if (!confirm("Forget this pairing on both devices? Arrived moments and saved outbox items stay on this device.")) return;
+  try {
+    await sync.forget();
+    shareCode.hidden = true;
+    joinCode.value = "";
+    setStatus(true, "pairing forgotten on both devices");
+  } catch (err) {
+    setStatus(true, `pairing could not be forgotten: ${err?.message ?? err}`);
+  }
 });
 
 shareStart.addEventListener("click", async () => {
@@ -1879,6 +1893,7 @@ window.__jtApp = {
   inbox: () => inbox,
   syncOpen: () => sync.open(),
   syncJoin: (code) => sync.join(code),
+  syncForget: () => sync.forget(),
   syncSendLatest: () => {
     const latest = [...engine.entries].reverse().find((e) => e.kind === "act" && !e.undone);
     return latest ? sendEntry(latest.id) : null;

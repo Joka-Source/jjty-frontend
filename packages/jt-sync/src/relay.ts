@@ -132,6 +132,27 @@ export class Relay {
           this.pairOpenSockets(session);
           break;
         }
+        case "revoke": {
+          const session = this.liveSession(frame.code);
+          const side = session?.aDeviceId === frame.deviceId ? "a" : session?.bDeviceId === frame.deviceId ? "b" : null;
+          const expectedHash = side === "a" ? session?.aResumeTokenHash : side === "b" ? session?.bResumeTokenHash : undefined;
+          if (!session || !side || !tokenMatches(frame.resumeToken, expectedHash)) {
+            this.send(ws, { t: "error", message: "revocation credential is invalid" });
+            return;
+          }
+          const peerSide = side === "a" ? "b" : "a";
+          const peer = session[peerSide];
+          this.sessions.delete(session.code);
+          for (const socket of [session.a, session.b]) {
+            if (!socket) continue;
+            this.memberships.delete(socket);
+            this.peers.delete(socket);
+          }
+          this.persistSessions();
+          this.send(ws, { t: "revoked", reason: "requested" });
+          if (peer && peer !== ws && peer.readyState === WebSocket.OPEN) this.send(peer, { t: "revoked", reason: "peer" });
+          break;
+        }
         case "moment":
         case "delivery": {
           const peer = this.peers.get(ws);

@@ -41,6 +41,7 @@ export class MomentChannel {
   private lastReceivedSeq = -1;
   private pendingDeliveries = new Map<string, PendingDelivery>();
   private momentListeners: Array<(record: DeliveryRecord, moment: Moment) => void> = [];
+  private revokedListeners: Array<() => void> = [];
 
   private constructor(
     public readonly deviceId: string,
@@ -244,6 +245,9 @@ export class MomentChannel {
         }
         break;
       }
+      case "revoked":
+        this.markRevoked();
+        break;
       case "error":
         for (const [, p] of this.pendingDeliveries) p.reject(new Error(frame.message));
         this.pendingDeliveries.clear();
@@ -282,6 +286,26 @@ export class MomentChannel {
   /** Subscribe to arriving moments (verified and rejected). */
   onMoment(fn: (record: DeliveryRecord, moment: Moment) => void): void {
     this.momentListeners.push(fn);
+  }
+
+  onRevoked(fn: () => void): void { this.revokedListeners.push(fn); }
+
+  async revoke(): Promise<void> {
+    if (!this.pairCode || !this.resumeToken) return;
+    await this.request({ t: "revoke", deviceId: this.deviceId, code: this.pairCode, resumeToken: this.resumeToken }, "revoked");
+    this.markRevoked();
+  }
+
+  private markRevoked(): void {
+    this.manuallyClosed = true;
+    this.sessionReady = false;
+    this.channelId = "";
+    this.peerDeviceId = "";
+    this.pairCode = "";
+    this.resumeToken = "";
+    this.emitConnection(false);
+    for (const listener of this.revokedListeners) listener();
+    this.ws.close();
   }
 
   /**

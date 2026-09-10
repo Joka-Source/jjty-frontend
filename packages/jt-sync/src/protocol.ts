@@ -11,6 +11,7 @@ export type ClientFrame =
   | { t: "create"; deviceId: string }
   | { t: "join"; deviceId: string; code: string }
   | { t: "resume"; deviceId: string; code: string; resumeToken: string }
+  | { t: "revoke"; deviceId: string; code: string; resumeToken: string }
   | { t: "moment"; envelope: Moment; hash: string }
   | { t: "delivery"; record: DeliveryRecord };
 
@@ -18,6 +19,7 @@ export type ClientFrame =
 export type RelayFrame =
   | { t: "code"; code: string; resumeToken: string }
   | { t: "paired"; channelId: string; peerDeviceId: string; resumeToken?: string }
+  | { t: "revoked"; reason: "requested" | "peer" }
   | { t: "moment"; envelope: Moment; hash: string }
   | { t: "delivery"; record: DeliveryRecord }
   | { t: "error"; message: string };

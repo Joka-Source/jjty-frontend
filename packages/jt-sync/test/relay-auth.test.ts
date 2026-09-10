@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import WebSocket from "ws";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { MomentChannel } from "../src/client.js";
 import { MemoryLogStore } from "../src/log.js";
 import { Relay } from "../src/relay.js";
@@ -70,5 +73,34 @@ test("the client surfaces an invalid resume credential without waiting for timeo
   } finally {
     a?.close(); b?.close();
     await relay.close();
+  }
+});
+
+test("revoking one side invalidates both resume credentials", { timeout: 2_000 }, async () => {
+  const directory = await mkdtemp(join(tmpdir(), "jt-sync-revoke-"));
+  const sessionFile = join(directory, "sessions.json");
+  const relay = new Relay({ sessionFile });
+  const port = await relay.listen(0);
+  const url = `ws://127.0.0.1:${port}`;
+  let a: MomentChannel | undefined;
+  let b: MomentChannel | undefined;
+  try {
+    a = await MomentChannel.create(url, "revoke-a", new MemoryLogStore());
+    b = await MomentChannel.join(url, "revoke-b", a.pairCode, new MemoryLogStore());
+    await a.waitForPeer();
+    const code = a.pairCode;
+    const tokenA = a.resumeToken;
+    const tokenB = b.resumeToken;
+    const peerWasNotified = new Promise<void>((resolve) => b!.onRevoked(resolve));
+    await a.revoke();
+    await peerWasNotified;
+    assert.deepEqual(JSON.parse(await readFile(sessionFile, "utf8")).sessions, []);
+
+    await assert.rejects(MomentChannel.resume(url, "revoke-a", code, tokenA, new MemoryLogStore()), /cannot be resumed/i);
+    await assert.rejects(MomentChannel.resume(url, "revoke-b", code, tokenB, new MemoryLogStore()), /cannot be resumed/i);
+  } finally {
+    a?.close(); b?.close();
+    await relay.close();
+    await rm(directory, { recursive: true, force: true });
   }
 });

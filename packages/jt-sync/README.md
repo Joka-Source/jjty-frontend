@@ -53,9 +53,13 @@ file contains pairing codes, device IDs and SHA-256 resume-token digests and
 must remain outside Git and team-shared documents. Each device receives a
 different random 256-bit resume token. The spoken code and device ID alone are
 rejected on resume; raw resume tokens are never written to the relay file.
+Either authenticated device can revoke the pairing. Revocation removes the
+durable relay record, notifies the connected peer, stops automatic reconnect
+and invalidates both tokens. The browser's “forget pairing” action confirms
+that arrived moments and saved outbox items remain local before doing this.
 
 Browser reload restores the paired device and rebuilds send/receive sequence
 counters from its durable log before resuming. A deployed relay still needs
-account-bound, revocable resume credentials, encrypted server-side custody,
+account-bound credentials, encrypted server-side custody,
 durable multi-instance coordination and production deployment tests. This
 local file is a reliability proof, not production identity or authorization.

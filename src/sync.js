@@ -141,6 +141,13 @@ export function createSyncSurface({ relayUrl, deviceId, onArrive, onState, stora
   function attach(ch) {
     wireInbox(ch);
     ch.onConnectionState((connected) => { emit(); if (connected) void flushOutbox(); });
+    ch.onRevoked(() => {
+      storage?.removeItem(PAIR_CODE_KEY);
+      storage?.removeItem(RESUME_TOKEN_KEY);
+      if (channel === ch) channel = null;
+      restoreError = "the other device ended this connection";
+      emit();
+    });
     void refreshPending().then(() => flushOutbox());
   }
 
@@ -212,6 +219,16 @@ export function createSyncSurface({ relayUrl, deviceId, onArrive, onState, stora
       } finally { activeSends.delete(item.id); }
     },
     retryPending: flushOutbox,
+    async forget() {
+      await ready;
+      const active = channel;
+      if (active?.pairCode && active?.resumeToken) await active.revoke();
+      storage?.removeItem(PAIR_CODE_KEY);
+      storage?.removeItem(RESUME_TOKEN_KEY);
+      if (channel === active) channel = null;
+      restoreError = "";
+      emit();
+    },
     disconnectForTest: () => channel?._dropTransport(),
     restorePairing: () => ready,
   };
