@@ -35,3 +35,16 @@ The round-trip test boots the relay in a separate OS process, pairs two
 clients over localhost, sends three moments (one with a full cursor
 lifecycle), and proves hash verification, ordering, intention-record
 reconstruction, and tamper rejection.
+## Reconnect and delivery boundary
+
+Paired clients resume an in-process relay session after an unplanned WebSocket
+loss using the same device identity and spoken pairing code. A prepared moment
+keeps one ID, sequence and hash across retries, and duplicate delivery is
+idempotent. The web application persists prepared moments in a device-
+partitioned IndexedDB outbox before transport and removes them only after the
+receiver returns a matching verified delivery record.
+
+The relay is localhost-only and keeps sessions only in memory. Browser reload
+preserves the outbox but does not yet restore pairing automatically. A deployed
+relay still needs authenticated resume credentials, bounded session expiry,
+durable relay coordination and multi-instance tests.

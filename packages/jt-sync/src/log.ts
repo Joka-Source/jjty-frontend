@@ -68,6 +68,14 @@ export class MomentLog {
         reason: `content hash mismatch: sender asserted ${expectedHash}, receiver computed ${contentHash}`,
       };
     }
+    const existing = (await this.store.readAll()).find(
+      (entry) => entry.moment.transport.momentId === moment.transport.momentId,
+    );
+    if (existing) {
+      return existing.contentHash === contentHash
+        ? { momentId: moment.transport.momentId, contentHash, logSeq: existing.logSeq, receivedAt, deviceId: this.deviceId, status: "verified" }
+        : { momentId: moment.transport.momentId, contentHash, logSeq: -1, receivedAt, deviceId: this.deviceId, status: "rejected", reason: "moment id was reused with different content" };
+    }
     const logSeq = await this.store.nextSeq();
     await this.store.append({
       logSeq,

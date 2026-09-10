@@ -10,6 +10,7 @@ import type { DeliveryRecord, Moment } from "./envelope.js";
 export type ClientFrame =
   | { t: "create"; deviceId: string }
   | { t: "join"; deviceId: string; code: string }
+  | { t: "resume"; deviceId: string; code: string }
   | { t: "moment"; envelope: Moment; hash: string }
   | { t: "delivery"; record: DeliveryRecord };
 

@@ -12,7 +12,7 @@ import type { ClientFrame, RelayFrame } from "./protocol.js";
 
 interface Session {
   code: string;
-  a: WebSocket;
+  a?: WebSocket;
   aDeviceId: string;
   b?: WebSocket;
   bDeviceId?: string;
@@ -21,8 +21,9 @@ interface Session {
 export class Relay {
   private http: Server;
   private wss: WebSocketServer;
-  private pending = new Map<string, Session>(); // code -> waiting session
+  private sessions = new Map<string, Session>(); // code -> durable-in-process pairing session
   private peers = new Map<WebSocket, WebSocket>(); // paired socket -> its peer
+  private memberships = new Map<WebSocket, { session: Session; side: "a" | "b" }>();
 
   constructor() {
     this.http = createServer((_req, res) => {
@@ -49,25 +50,40 @@ export class Relay {
       switch (frame.t) {
         case "create": {
           let code = generatePairCode();
-          while (this.pending.has(code)) code = generatePairCode();
-          this.pending.set(code, { code, a: ws, aDeviceId: frame.deviceId });
+          while (this.sessions.has(code)) code = generatePairCode();
+          const session = { code, a: ws, aDeviceId: frame.deviceId };
+          this.sessions.set(code, session);
+          this.memberships.set(ws, { session, side: "a" });
           this.send(ws, { t: "code", code });
           break;
         }
         case "join": {
-          const session = this.pending.get(frame.code);
-          if (!session) {
+          const session = this.sessions.get(frame.code);
+          if (!session || session.bDeviceId) {
             this.send(ws, { t: "error", message: `no pairing session for code '${frame.code}'` });
             return;
           }
-          this.pending.delete(frame.code);
           session.b = ws;
           session.bDeviceId = frame.deviceId;
-          this.peers.set(session.a, ws);
-          this.peers.set(ws, session.a);
-          const channelId = `ch-${frame.code}`;
-          this.send(session.a, { t: "paired", channelId, peerDeviceId: frame.deviceId });
-          this.send(ws, { t: "paired", channelId, peerDeviceId: session.aDeviceId });
+          this.memberships.set(ws, { session, side: "b" });
+          this.pairOpenSockets(session);
+          break;
+        }
+        case "resume": {
+          const session = this.sessions.get(frame.code);
+          const side = session?.aDeviceId === frame.deviceId ? "a" : session?.bDeviceId === frame.deviceId ? "b" : null;
+          if (!session || !side) {
+            this.send(ws, { t: "error", message: "pairing session cannot be resumed" });
+            return;
+          }
+          const current = session[side];
+          if (current && current !== ws && current.readyState === WebSocket.OPEN) {
+            this.send(ws, { t: "error", message: "device is already connected" });
+            return;
+          }
+          session[side] = ws;
+          this.memberships.set(ws, { session, side });
+          this.pairOpenSockets(session);
           break;
         }
         case "moment":
@@ -87,9 +103,23 @@ export class Relay {
       if (peer) {
         this.peers.delete(ws);
         this.peers.delete(peer);
+        if (peer.readyState === WebSocket.OPEN) peer.close(1012, "peer disconnected");
       }
-      for (const [code, s] of this.pending) if (s.a === ws) this.pending.delete(code);
+      const membership = this.memberships.get(ws);
+      if (membership) {
+        this.memberships.delete(ws);
+        if (membership.session[membership.side] === ws) membership.session[membership.side] = undefined;
+      }
     });
+  }
+
+  private pairOpenSockets(session: Session): void {
+    if (!session.a || !session.b || session.a.readyState !== WebSocket.OPEN || session.b.readyState !== WebSocket.OPEN) return;
+    this.peers.set(session.a, session.b);
+    this.peers.set(session.b, session.a);
+    const channelId = `ch-${session.code}`;
+    this.send(session.a, { t: "paired", channelId, peerDeviceId: session.bDeviceId! });
+    this.send(session.b, { t: "paired", channelId, peerDeviceId: session.aDeviceId });
   }
 
   listen(port: number): Promise<number> {

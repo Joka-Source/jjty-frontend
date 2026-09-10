@@ -164,6 +164,30 @@ test("moment-send: pair two pages by spoken words, send a kept act, verify", { t
   assert.equal(storedBeforeReload.length, 1);
   assert.equal(storedBeforeReload[0].contentHash, sent.localHash);
 
+  // An unplanned socket loss closes both peer transports. A send begun in
+  // that gap is first durable in the sender outbox, then automatically
+  // resumes with the same pairing and drains exactly once.
+  await pageB.evaluate(() => window.__jtApp.syncDropTransport());
+  await pageA.waitForFunction(() => !window.__jtApp.syncState().connected, { timeout: 10000 });
+  const resentPromise = pageA.evaluate(() => window.__jtApp.syncSendLatest());
+  await pageA.waitForFunction(async () => {
+    const open = indexedDB.open("jt-sync-outbox", 1);
+    const db = await new Promise((resolve, reject) => {
+      open.onsuccess = () => resolve(open.result);
+      open.onerror = () => reject(open.error);
+    });
+    const request = db.transaction("momentOutbox").objectStore("momentOutbox").getAll();
+    const rows = await new Promise((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    return rows.length === 1;
+  }, { timeout: 10000 });
+  const resent = await resentPromise;
+  assert.equal(resent.queued, true, "the caller should get an honest durable-queue receipt during the outage");
+  await pageB.waitForFunction(() => window.__jtApp.inbox().length === 2, { timeout: 10000 });
+  assert.equal(await pageA.evaluate(() => window.__jtApp.syncState().pending), 0);
+
   await pageB.reload({ waitUntil: "load" });
   await pageB.waitForFunction(() => !!window.__jtApp, { timeout: 20000 });
   assert.equal(

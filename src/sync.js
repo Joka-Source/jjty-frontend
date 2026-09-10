@@ -7,6 +7,7 @@
 
 import { MomentChannel } from "jt-sync/src/client.ts";
 import { IndexedDbLogStore } from "jt-sync/src/log-indexeddb.ts";
+import { IndexedDbOutboxStore } from "jt-sync/src/outbox-indexeddb.ts";
 import { isValidPairCode } from "jt-sync/src/pairing.ts";
 import { contentDigest } from "jt-connectors";
 import { verbRegistry } from "./registry/index.js";
@@ -73,14 +74,50 @@ export async function momentFromEntry(entry, doc, blockTexts) {
  */
 export function createSyncSurface({ relayUrl, deviceId, onArrive, onState }) {
   let channel = null;
+  let pending = 0;
+  let flushing = null;
+  const activeSends = new Set();
+  const outbox = new IndexedDbOutboxStore({ deviceId });
 
   const state = () => ({
-    connected: !!channel,
+    connected: !!channel?.connected,
     paired: !!channel?.channelId,
     code: channel?.pairCode ?? "",
     peer: channel?.peerDeviceId ?? "",
+    pending,
   });
   const emit = () => onState?.(state());
+
+  async function refreshPending() {
+    pending = (await outbox.readAll()).length;
+    emit();
+  }
+
+  async function deliverQueued(item) {
+    const { delivery, localHash } = await channel.sendPreparedMoment(item.moment);
+    if (delivery.status !== "verified" || delivery.contentHash !== localHash) {
+      throw new Error(delivery.reason ?? "the other device could not verify delivery");
+    }
+    await outbox.remove(item.id);
+    await refreshPending();
+    return { delivered: true, hashMatch: true, delivery, localHash, queued: false };
+  }
+
+  async function flushOutbox() {
+    if (flushing || !channel?.connected || !channel?.channelId) return flushing;
+    flushing = (async () => {
+      for (const item of await outbox.readAll()) {
+        if (activeSends.has(item.id)) continue;
+        try { await deliverQueued(item); }
+        catch (error) {
+          await outbox.recordFailure(item.id, String(error?.message ?? error));
+          await refreshPending();
+          break;
+        }
+      }
+    })().finally(() => { flushing = null; });
+    return flushing;
+  }
 
   function wireInbox(ch) {
     ch.onMoment((record, moment) => {
@@ -95,6 +132,12 @@ export function createSyncSurface({ relayUrl, deviceId, onArrive, onState }) {
     });
   }
 
+  function attach(ch) {
+    wireInbox(ch);
+    ch.onConnectionState((connected) => { emit(); if (connected) void flushOutbox(); });
+    void refreshPending().then(() => flushOutbox());
+  }
+
   return {
     get state() {
       return state();
@@ -102,7 +145,7 @@ export function createSyncSurface({ relayUrl, deviceId, onArrive, onState }) {
     /** Start sharing: open a channel, get the three words to speak. */
     async open() {
       channel = await MomentChannel.create(relayUrl, deviceId, new IndexedDbLogStore({ deviceId }));
-      wireInbox(channel);
+      attach(channel);
       emit();
       channel.waitForPeer(120000).then(emit, () => {});
       return channel.pairCode;
@@ -112,7 +155,7 @@ export function createSyncSurface({ relayUrl, deviceId, onArrive, onState }) {
       const c = codeFromSpoken(code) ?? code;
       if (!isValidPairCode(c)) throw new Error("that does not sound like a share code");
       channel = await MomentChannel.join(relayUrl, deviceId, c, new IndexedDbLogStore({ deviceId }));
-      wireInbox(channel);
+      attach(channel);
       emit();
       return c;
     },
@@ -120,13 +163,21 @@ export function createSyncSurface({ relayUrl, deviceId, onArrive, onState }) {
     async send(entry, doc, blockTexts) {
       if (!channel?.channelId) throw new Error("not connected to another device yet");
       const moment = await momentFromEntry(entry, doc, blockTexts);
-      const { delivery, localHash } = await channel.sendMoment(moment);
-      return {
-        delivered: delivery.status === "verified",
-        hashMatch: delivery.contentHash === localHash,
-        delivery,
-        localHash,
-      };
+      const prepared = channel.prepareMoment(moment);
+      const item = { id: prepared.transport.momentId, createdAt: new Date().toISOString(), attemptCount: 0, lastError: null, moment: prepared };
+      await outbox.put(item);
+      await refreshPending();
+      if (!channel.connected) return { delivered: false, hashMatch: false, queued: true, error: "connection unavailable" };
+      activeSends.add(item.id);
+      try { return await deliverQueued(item); }
+      catch (error) {
+        await outbox.recordFailure(item.id, String(error?.message ?? error));
+        await refreshPending();
+        setTimeout(() => void flushOutbox(), 0);
+        return { delivered: false, hashMatch: false, queued: true, error: String(error?.message ?? error) };
+      } finally { activeSends.delete(item.id); }
     },
+    retryPending: flushOutbox,
+    disconnectForTest: () => channel?._dropTransport(),
   };
 }

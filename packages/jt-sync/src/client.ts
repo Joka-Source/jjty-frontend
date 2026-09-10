@@ -30,6 +30,12 @@ export class MomentChannel {
   channelId = "";
   peerDeviceId = "";
   private ws!: WebSocket;
+  private relayUrl = "";
+  private manuallyClosed = false;
+  private reconnecting?: Promise<void>;
+  private connectionWaiters: Array<() => void> = [];
+  private connectionListeners: Array<(connected: boolean) => void> = [];
+  private sessionReady = false;
   private sendSeq = 0;
   private lastReceivedSeq = -1;
   private pendingDeliveries = new Map<string, PendingDelivery>();
@@ -47,6 +53,7 @@ export class MomentChannel {
     const ch = new MomentChannel(deviceId, store);
     await ch.connect(relayUrl);
     ch.pairCode = await ch.request({ t: "create", deviceId }, "code").then((f) => (f as { code: string }).code);
+    ch.markConnected();
     return ch;
   }
 
@@ -61,6 +68,7 @@ export class MomentChannel {
     };
     ch.channelId = paired.channelId;
     ch.peerDeviceId = paired.peerDeviceId;
+    ch.markConnected();
     return ch;
   }
 
@@ -75,12 +83,55 @@ export class MomentChannel {
   }
 
   private connect(relayUrl: string): Promise<void> {
+    this.relayUrl = relayUrl;
     return new Promise((resolve, reject) => {
       this.ws = new WebSocket(relayUrl);
       this.ws.onopen = () => resolve();
       this.ws.onerror = () => reject(new Error(`could not connect to relay ${relayUrl}`));
       this.ws.onmessage = (ev: MessageEvent) => this.onFrame(String(ev.data));
+      this.ws.onclose = () => { this.sessionReady = false; this.emitConnection(false); if (!this.manuallyClosed && this.pairCode) void this.reconnect(); };
     });
+  }
+
+  get connected(): boolean { return this.ws?.readyState === WebSocket.OPEN && this.sessionReady; }
+
+  waitUntilConnected(timeoutMs = 10_000): Promise<void> {
+    if (this.connected) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`not reconnected within ${timeoutMs}ms`)), timeoutMs);
+      this.connectionWaiters.push(() => { clearTimeout(timer); resolve(); });
+    });
+  }
+
+  private releaseConnectionWaiters(): void {
+    const waiters = this.connectionWaiters.splice(0);
+    for (const resolve of waiters) resolve();
+  }
+
+  private markConnected(): void { this.sessionReady = true; this.releaseConnectionWaiters(); this.emitConnection(true); }
+
+  onConnectionState(listener: (connected: boolean) => void): void { this.connectionListeners.push(listener); }
+  private emitConnection(connected: boolean): void { for (const listener of this.connectionListeners) listener(connected); }
+
+  private reconnect(): Promise<void> {
+    if (this.reconnecting) return this.reconnecting;
+    this.reconnecting = (async () => {
+      let delayMs = 100;
+      while (!this.manuallyClosed) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        try {
+          await this.connect(this.relayUrl);
+          const paired = await this.request({ t: "resume", deviceId: this.deviceId, code: this.pairCode }, "paired") as { channelId: string; peerDeviceId: string };
+          this.channelId = paired.channelId;
+          this.peerDeviceId = paired.peerDeviceId;
+          this.markConnected();
+          return;
+        } catch {
+          delayMs = Math.min(delayMs * 2, 2_000);
+        }
+      }
+    })().finally(() => { this.reconnecting = undefined; });
+    return this.reconnecting;
   }
 
   private frameWaiters = new Map<string, Array<(f: RelayFrame) => void>>();
@@ -144,6 +195,12 @@ export class MomentChannel {
   }
 
   private async receiveMoment(envelope: Moment, assertedHash: string): Promise<void> {
+    const existing = (await this.log.entries()).find((entry) => entry.moment.transport.momentId === envelope.transport.momentId);
+    if (existing) {
+      const record = await this.log.append(envelope, assertedHash);
+      this.ws.send(JSON.stringify({ t: "delivery", record } satisfies ClientFrame));
+      return;
+    }
     // Ordering discipline: sender seq must be strictly increasing.
     let record: DeliveryRecord;
     if (envelope.transport.seq <= this.lastReceivedSeq) {
@@ -180,18 +237,27 @@ export class MomentChannel {
     moment: Omit<Moment, "transport"> & { transport?: Partial<Moment["transport"]> },
     timeoutMs = 10_000,
   ): Promise<{ delivery: DeliveryRecord; localHash: string }> {
-    const seq = this.sendSeq++;
-    const envelope: Moment = {
+    return this.sendPreparedMoment(this.prepareMoment(moment), timeoutMs);
+  }
+
+  prepareMoment(moment: Omit<Moment, "transport"> & { transport?: Partial<Moment["transport"]> }): Moment {
+    const seq = moment.transport?.seq ?? this.sendSeq++;
+    this.sendSeq = Math.max(this.sendSeq, seq + 1);
+    return {
       ...moment,
       transport: {
         momentId: moment.transport?.momentId ?? `mom-${this.deviceId}-${seq}`,
         fromDeviceId: this.deviceId,
-        toDeviceId: this.peerDeviceId || undefined,
-        sentAt: new Date().toISOString(),
+        toDeviceId: moment.transport?.toDeviceId ?? (this.peerDeviceId || undefined),
+        sentAt: moment.transport?.sentAt ?? new Date().toISOString(),
         seq,
-        protocol: "jt-sync/0",
+        protocol: moment.transport?.protocol ?? "jt-sync/0",
       },
     } as Moment;
+  }
+
+  async sendPreparedMoment(envelope: Moment, timeoutMs = 10_000): Promise<{ delivery: DeliveryRecord; localHash: string }> {
+    await this.waitUntilConnected(timeoutMs);
     const local = await this.log.append(envelope);
     const localHash = local.contentHash;
     const delivery = new Promise<DeliveryRecord>((resolve, reject) => {
@@ -219,7 +285,11 @@ export class MomentChannel {
     this.ws.send(JSON.stringify(frame));
   }
 
+  /** Test hook: simulate an unplanned transport loss while preserving pairing identity. */
+  _dropTransport(): void { this.ws.close(); }
+
   close(): void {
+    this.manuallyClosed = true;
     this.ws.close();
   }
 }

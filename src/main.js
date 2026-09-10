@@ -1558,9 +1558,13 @@ const sync = createSyncSurface({
     setStatus(true, `a moment arrived${item.verified ? " — verified" : " — could not be verified"}`);
   },
   onState: (s) => {
-    shareState.textContent = s.paired
-      ? "connected — kept acts can travel now"
-      : s.connected
+    shareState.textContent = s.pending
+      ? `${s.pending} moment${s.pending === 1 ? "" : "s"} waiting in the outbox${s.connected ? " — retrying…" : ""}`
+      : s.paired && s.connected
+        ? "connected — kept acts can travel now"
+        : s.paired
+          ? "connection lost — saved moments will retry automatically"
+          : s.connected
         ? "waiting for the other device…"
         : "";
   },
@@ -1592,9 +1596,11 @@ async function sendEntry(entryId) {
     const out = await sync.send(entry, state.doc, state.blockTexts);
     setStatus(
       true,
-      out.delivered && out.hashMatch
-        ? "sent — the other device verified it arrived intact"
-        : "sent, but the other device could not verify it"
+      out.queued
+        ? "saved to outbox — jt will retry when the other device reconnects"
+        : out.delivered && out.hashMatch
+          ? "sent — the other device verified it arrived intact"
+          : "sent, but the other device could not verify it"
     );
     return out;
   } catch (err) {
@@ -1874,6 +1880,7 @@ window.__jtApp = {
     return latest ? sendEntry(latest.id) : null;
   },
   syncState: () => sync.state,
+  syncDropTransport: () => sync.disconnectForTest(),
   engineKind: () => state.engineKind,
   sheet: () => currentSheet(),
   setSheet,

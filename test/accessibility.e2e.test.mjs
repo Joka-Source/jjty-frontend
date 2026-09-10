@@ -42,7 +42,8 @@ test("first-run production UI has no axe violations at desktop or phone widths",
   const axeSource = await readFile(path.join(root, "node_modules", "axe-core", "axe.min.js"), "utf8");
 
   for (const width of [1280, 375]) {
-    const page = await browser.newPage();
+    const context = await browser.createBrowserContext();
+    const page = await context.newPage();
     await page.setViewport({ width, height: 900 });
     await page.goto(url, { waitUntil: "load" });
     await page.waitForFunction(() => !!window.__jtApp, { timeout: 20_000 });
@@ -53,7 +54,7 @@ test("first-run production UI has no axe violations at desktop or phone widths",
         id, impact, help, targets: nodes.map((node) => node.target),
       }));
     });
-    await page.close();
+    await context.close();
     assert.deepEqual(violations, [], `axe violations at ${width}px:\n${JSON.stringify(violations, null, 2)}`);
   }
 });
