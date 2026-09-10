@@ -33,10 +33,12 @@
       </span>
     </header>
 
+    <main id="app-main">
+
     <!-- first run: one screen of plain words, then the one mic question -->
     <section class="view view-welcome" id="view-welcome" hidden>
       <div class="welcome-step" id="welcome-step-1">
-        <p class="welcome-brand">jt</p>
+        <h1 class="welcome-brand">jt</h1>
         <p class="welcome-lede">
           you open a page and read it aloud. the page follows your voice, and
           when you say what you want &mdash; &ldquo;highlight this&rdquo;,
@@ -283,7 +285,7 @@
           <p class="hint">you can also add a .txt, .md or .pdf file anywhere on this page</p>
         </div>
       </aside>
-      <main>
+      <div class="reading-main">
         <div id="ask" class="ask" hidden role="alertdialog" aria-live="assertive">
           <p id="ask-title">did you mean&hellip;</p>
           <div id="ask-options"></div>
@@ -351,7 +353,7 @@
           &ldquo;highlight this&rdquo;, &ldquo;mark this important&rdquo;,
           &ldquo;note that &hellip;&rdquo;, &ldquo;math mode&rdquo; or &ldquo;undo&rdquo;.
         </p>
-      </main>
+      </div>
       <aside class="panel history" id="history-panel">
         <h2>what happened</h2>
         <p class="hint">every act leaves a record you can inspect and undo.</p>
@@ -375,6 +377,7 @@
       <button id="tab-history" aria-expanded="false" aria-controls="history-panel">what happened</button>
       <button id="tab-more" aria-expanded="false" aria-controls="more-panel">more</button>
     </nav>
+    </main>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

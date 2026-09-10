@@ -1,22 +1,24 @@
 /* jt — restrained, liquid, one accent. Adapted from the voice demo. */
 
 :root {
-  --accent: #4c9be8;
-  --warm: #e8a44c;
+  --accent: #1769aa;
+  --warm: #955900;
   --bg: #fbfbf9;
   --panel: #f3f3ef;
   --ink: #23282d;
-  --ink-dim: #8a9199;
+  --ink-dim: #626a72;
   --line: #e3e3dd;
   --bar-bg: color-mix(in srgb, var(--bg) 82%, transparent);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
+    --accent: #72b8ff;
+    --warm: #f3b35b;
     --bg: #101317;
     --panel: #171b20;
     --ink: #d7dce1;
-    --ink-dim: #6c757e;
+    --ink-dim: #9aa4ad;
     --line: #232930;
   }
 }
@@ -126,6 +128,10 @@ body {
 }
 
 main {
+  min-width: 0;
+}
+
+.reading-main {
   min-width: 0;
 }
 
