@@ -6,16 +6,31 @@
  */
 
 import { createServer, type Server } from "node:http";
+import { chmodSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { WebSocketServer, WebSocket } from "ws";
 import { generatePairCode } from "./pairing.js";
 import type { ClientFrame, RelayFrame } from "./protocol.js";
 
 interface Session {
   code: string;
+  createdAt: number;
+  expiresAt: number;
   a?: WebSocket;
   aDeviceId: string;
   b?: WebSocket;
   bDeviceId?: string;
+}
+
+export interface RelayOptions {
+  sessionFile?: string;
+  sessionTtlMs?: number;
+  now?: () => number;
+}
+
+interface PersistedSessions {
+  schema: "jt-sync-relay-sessions/1";
+  sessions: Array<Pick<Session, "code" | "aDeviceId" | "bDeviceId" | "createdAt" | "expiresAt">>;
 }
 
 export class Relay {
@@ -24,8 +39,16 @@ export class Relay {
   private sessions = new Map<string, Session>(); // code -> durable-in-process pairing session
   private peers = new Map<WebSocket, WebSocket>(); // paired socket -> its peer
   private memberships = new Map<WebSocket, { session: Session; side: "a" | "b" }>();
+  private sessionFile?: string;
+  private sessionTtlMs: number;
+  private now: () => number;
 
-  constructor() {
+  constructor(options: RelayOptions = {}) {
+    this.sessionFile = options.sessionFile;
+    this.sessionTtlMs = options.sessionTtlMs ?? 24 * 60 * 60 * 1_000;
+    if (!Number.isFinite(this.sessionTtlMs) || this.sessionTtlMs <= 0) throw new Error("sessionTtlMs must be positive");
+    this.now = options.now ?? Date.now;
+    this.loadSessions();
     this.http = createServer((_req, res) => {
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ ok: true, service: "jt-sync-relay", protocol: "jt-sync/0" }));
@@ -51,26 +74,29 @@ export class Relay {
         case "create": {
           let code = generatePairCode();
           while (this.sessions.has(code)) code = generatePairCode();
-          const session = { code, a: ws, aDeviceId: frame.deviceId };
+          const createdAt = this.now();
+          const session = { code, createdAt, expiresAt: createdAt + this.sessionTtlMs, a: ws, aDeviceId: frame.deviceId };
           this.sessions.set(code, session);
+          this.persistSessions();
           this.memberships.set(ws, { session, side: "a" });
           this.send(ws, { t: "code", code });
           break;
         }
         case "join": {
-          const session = this.sessions.get(frame.code);
+          const session = this.liveSession(frame.code);
           if (!session || session.bDeviceId) {
             this.send(ws, { t: "error", message: `no pairing session for code '${frame.code}'` });
             return;
           }
           session.b = ws;
           session.bDeviceId = frame.deviceId;
+          this.persistSessions();
           this.memberships.set(ws, { session, side: "b" });
           this.pairOpenSockets(session);
           break;
         }
         case "resume": {
-          const session = this.sessions.get(frame.code);
+          const session = this.liveSession(frame.code);
           const side = session?.aDeviceId === frame.deviceId ? "a" : session?.bDeviceId === frame.deviceId ? "b" : null;
           if (!session || !side) {
             this.send(ws, { t: "error", message: "pairing session cannot be resumed" });
@@ -111,6 +137,58 @@ export class Relay {
         if (membership.session[membership.side] === ws) membership.session[membership.side] = undefined;
       }
     });
+  }
+
+  private liveSession(code: string): Session | undefined {
+    const session = this.sessions.get(code);
+    if (!session || session.expiresAt > this.now()) return session;
+    this.sessions.delete(code);
+    for (const socket of [session.a, session.b]) {
+      if (!socket) continue;
+      this.memberships.delete(socket);
+      const peer = this.peers.get(socket);
+      this.peers.delete(socket);
+      if (peer) this.peers.delete(peer);
+      if (socket.readyState === WebSocket.OPEN) socket.close(1008, "pairing expired");
+    }
+    this.persistSessions();
+    return undefined;
+  }
+
+  private loadSessions(): void {
+    if (!this.sessionFile) return;
+    let raw: string;
+    try {
+      raw = readFileSync(this.sessionFile, "utf8");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+      throw error;
+    }
+    const stored = JSON.parse(raw) as PersistedSessions;
+    if (stored.schema !== "jt-sync-relay-sessions/1" || !Array.isArray(stored.sessions)) {
+      throw new Error("invalid relay session store");
+    }
+    for (const row of stored.sessions) {
+      if (
+        typeof row.code === "string" && typeof row.aDeviceId === "string" &&
+        (row.bDeviceId === undefined || typeof row.bDeviceId === "string") &&
+        Number.isFinite(row.createdAt) && Number.isFinite(row.expiresAt) && row.expiresAt > this.now()
+      ) this.sessions.set(row.code, { ...row });
+    }
+    if (this.sessions.size !== stored.sessions.length) this.persistSessions();
+  }
+
+  private persistSessions(): void {
+    if (!this.sessionFile) return;
+    const sessions = [...this.sessions.values()]
+      .filter((session) => session.expiresAt > this.now())
+      .map(({ code, aDeviceId, bDeviceId, createdAt, expiresAt }) => ({ code, aDeviceId, bDeviceId, createdAt, expiresAt }));
+    const payload: PersistedSessions = { schema: "jt-sync-relay-sessions/1", sessions };
+    mkdirSync(dirname(this.sessionFile), { recursive: true });
+    const temporary = `${this.sessionFile}.${process.pid}.tmp`;
+    writeFileSync(temporary, JSON.stringify(payload, null, 2) + "\n", { mode: 0o600 });
+    renameSync(temporary, this.sessionFile);
+    chmodSync(this.sessionFile, 0o600);
   }
 
   private pairOpenSockets(session: Session): void {

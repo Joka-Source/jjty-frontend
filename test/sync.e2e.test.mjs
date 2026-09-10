@@ -7,7 +7,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import puppeteer from "puppeteer-core";
 import { validateCursor, validateReceipt, errorsOf, root } from "./validate.mjs";
@@ -16,12 +17,14 @@ const CHROME = process.env.CHROME_PATH ?? "/Applications/Google Chrome.app/Conte
 const PORT = 4934;
 const SYNC_REPO = process.env.JT_SYNC_REPO ?? path.join(root, "vendor", "jt-sync-runner");
 
-function startRelay(t) {
+function startRelay(t, sessionFile, port = 0) {
   return new Promise((resolve, reject) => {
     const relay = spawn(process.execPath, [
       path.join(root, "node_modules", "tsx", "dist", "cli.mjs"),
       path.join(SYNC_REPO, "src", "relay-main.ts"),
-      "0",
+      String(port),
+      sessionFile,
+      "60000",
     ], {
       cwd: SYNC_REPO,
       stdio: ["ignore", "pipe", "inherit"],
@@ -34,7 +37,7 @@ function startRelay(t) {
       const m = buf.match(/listening ws:\/\/127\.0\.0\.1:(\d+)/);
       if (m) {
         clearTimeout(timer);
-        resolve(`ws://127.0.0.1:${m[1]}`);
+        resolve({ process: relay, port: Number(m[1]), url: `ws://127.0.0.1:${m[1]}` });
       }
     });
   });
@@ -59,7 +62,11 @@ test("moment-send: pair two pages by spoken words, send a kept act, verify", { t
   if (!existsSync(path.join(root, "dist", "index.html"))) {
     execFileSync("npx", ["vite", "build"], { cwd: root, stdio: "inherit" });
   }
-  const relayUrl = await startRelay(t);
+  const relayDirectory = mkdtempSync(path.join(os.tmpdir(), "jett-browser-relay-"));
+  const relaySessionFile = path.join(relayDirectory, "sessions.json");
+  t.after(() => rmSync(relayDirectory, { recursive: true, force: true }));
+  let relay = await startRelay(t, relaySessionFile);
+  const relayUrl = relay.url;
   console.error(`[sync-e2e] relay ready ${relayUrl}`);
 
   const server = spawn(
@@ -187,6 +194,19 @@ test("moment-send: pair two pages by spoken words, send a kept act, verify", { t
   assert.equal(resent.queued, true, "the caller should get an honest durable-queue receipt during the outage");
   await pageB.waitForFunction(() => window.__jtApp.inbox().length === 2, { timeout: 10000 });
   assert.equal(await pageA.evaluate(() => window.__jtApp.syncState().pending), 0);
+
+  // The relay process itself can restart on the same endpoint. Both browser
+  // clients reconnect using the persisted pairing record; no new words are
+  // created or entered.
+  relay.process.kill("SIGTERM");
+  await new Promise((resolve) => relay.process.once("exit", resolve));
+  await pageA.waitForFunction(() => !window.__jtApp.syncState().connected, { timeout: 10000 });
+  relay = await startRelay(t, relaySessionFile, relay.port);
+  assert.equal(relay.url, relayUrl);
+  await Promise.all([
+    pageA.waitForFunction(() => window.__jtApp.syncState().connected && window.__jtApp.syncState().paired, { timeout: 20000 }),
+    pageB.waitForFunction(() => window.__jtApp.syncState().connected && window.__jtApp.syncState().paired, { timeout: 20000 }),
+  ]);
 
   await pageB.reload({ waitUntil: "load" });
   await pageB.waitForFunction(() => !!window.__jtApp, { timeout: 20000 });

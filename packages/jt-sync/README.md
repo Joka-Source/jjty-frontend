@@ -44,8 +44,16 @@ idempotent. The web application persists prepared moments in a device-
 partitioned IndexedDB outbox before transport and removes them only after the
 receiver returns a matching verified delivery record.
 
-The relay is localhost-only and keeps sessions only in memory. Browser reload
-restores the paired device when that same relay process still owns the session;
-the client rebuilds send/receive sequence counters from its durable log before
-resuming. A deployed relay still needs authenticated resume credentials,
-bounded session expiry, durable relay coordination and multi-instance tests.
+The relay is localhost-only. With no session-file argument it keeps sessions in
+memory. `npm run relay -- 8787 /private/path/sessions.json 86400000` enables an
+atomic mode-0600 JSON session file and a bounded TTL. The restart test proves
+that fresh clients can resume both sides after the relay OS process is replaced;
+expired pairings are rejected in both loaded and long-running processes. The
+file contains pairing codes and device IDs and must remain outside Git and
+team-shared documents.
+
+Browser reload restores the paired device and rebuilds send/receive sequence
+counters from its durable log before resuming. A deployed relay still needs
+authenticated, revocable resume credentials, encrypted server-side custody,
+durable multi-instance coordination and production deployment tests. This
+local file is a reliability proof, not production identity or authorization.
