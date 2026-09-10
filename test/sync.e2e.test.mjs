@@ -195,5 +195,13 @@ test("moment-send: pair two pages by spoken words, send a kept act, verify", { t
     receiverDeviceId,
     "receiver identity must survive reload so its delivery evidence remains addressable",
   );
+  await pageB.waitForFunction(
+    () => window.__jtApp.syncState().connected && window.__jtApp.syncState().paired,
+    { timeout: 20000 },
+  );
+  await pageB.waitForFunction(() => window.__jtApp.inbox().length === 2, { timeout: 20000 });
+  const afterReload = await pageA.evaluate(() => window.__jtApp.syncSendLatest());
+  assert.equal(afterReload.delivered, true, "a reloaded peer should receive without pairing again");
+  await pageB.waitForFunction(() => window.__jtApp.inbox().length === 3, { timeout: 10000 });
   console.error("[sync-e2e] delivery verified");
 });

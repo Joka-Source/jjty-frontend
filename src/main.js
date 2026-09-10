@@ -1560,6 +1560,10 @@ const sync = createSyncSurface({
   onState: (s) => {
     shareState.textContent = s.pending
       ? `${s.pending} moment${s.pending === 1 ? "" : "s"} waiting in the outbox${s.connected ? " — retrying…" : ""}`
+      : s.restoring
+        ? "restoring the last device connection…"
+      : s.restoreError
+        ? "last connection could not be restored — start or join again"
       : s.paired && s.connected
         ? "connected — kept acts can travel now"
         : s.paired

@@ -10,6 +10,7 @@ let relayProc: ChildProcess;
 let relayUrl = "";
 let a: MomentChannel;
 let b: MomentChannel;
+const storeB = new MemoryLogStore();
 
 before(async () => {
   relayProc = spawn(process.execPath, ["--import", "tsx", "src/relay-main.ts", "0"], {
@@ -24,13 +25,13 @@ before(async () => {
     });
   });
   a = await MomentChannel.create(relayUrl, "reconnect-a", new MemoryLogStore());
-  b = await MomentChannel.join(relayUrl, "reconnect-b", a.pairCode, new MemoryLogStore());
+  b = await MomentChannel.join(relayUrl, "reconnect-b", a.pairCode, storeB);
   await a.waitForPeer();
 });
 
 after(() => { a?.close(); b?.close(); relayProc?.kill(); });
 
-test("a paired device resumes its channel after the socket disappears", { timeout: 30_000 }, async () => {
+test("paired devices recover both a socket loss and a new client instance", { timeout: 30_000 }, async () => {
   b._dropTransport();
   await b.waitUntilConnected(10_000);
   assert.equal(b.channelId, a.channelId);
@@ -43,4 +44,15 @@ test("a paired device resumes its channel after the socket disappears", { timeou
   await arrived;
   assert.equal(result.delivery.status, "verified");
   assert.equal((await b.log.entries()).length, 1);
+
+  b.close();
+  b = await MomentChannel.resume(relayUrl, "reconnect-b", a.pairCode, storeB);
+  assert.equal(b.channelId, a.channelId);
+  const afterReload = new Promise<void>((resolve) => b.onMoment((record) => {
+    if (record.momentId === "mom-reconnect-a-1" && record.status === "verified") resolve();
+  }));
+  const second = await a.sendMoment(makeMoment(1));
+  await afterReload;
+  assert.equal(second.delivery.status, "verified");
+  assert.deepEqual((await b.log.entries()).map((entry) => entry.moment.transport.seq), [0, 1]);
 });

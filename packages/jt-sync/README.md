@@ -45,6 +45,7 @@ partitioned IndexedDB outbox before transport and removes them only after the
 receiver returns a matching verified delivery record.
 
 The relay is localhost-only and keeps sessions only in memory. Browser reload
-preserves the outbox but does not yet restore pairing automatically. A deployed
-relay still needs authenticated resume credentials, bounded session expiry,
-durable relay coordination and multi-instance tests.
+restores the paired device when that same relay process still owns the session;
+the client rebuilds send/receive sequence counters from its durable log before
+resuming. A deployed relay still needs authenticated resume credentials,
+bounded session expiry, durable relay coordination and multi-instance tests.

@@ -51,6 +51,7 @@ export class MomentChannel {
   /** Device A: open a channel and get a spoken pair code. */
   static async create(relayUrl: string, deviceId: string, store: LogStore): Promise<MomentChannel> {
     const ch = new MomentChannel(deviceId, store);
+    await ch.restoreCounters();
     await ch.connect(relayUrl);
     ch.pairCode = await ch.request({ t: "create", deviceId }, "code").then((f) => (f as { code: string }).code);
     ch.markConnected();
@@ -60,6 +61,7 @@ export class MomentChannel {
   /** Device B: join with the code spoken by device A. */
   static async join(relayUrl: string, deviceId: string, code: string, store: LogStore): Promise<MomentChannel> {
     const ch = new MomentChannel(deviceId, store);
+    await ch.restoreCounters();
     await ch.connect(relayUrl);
     ch.pairCode = code;
     const paired = (await ch.request({ t: "join", deviceId, code }, "paired")) as {
@@ -70,6 +72,30 @@ export class MomentChannel {
     ch.peerDeviceId = paired.peerDeviceId;
     ch.markConnected();
     return ch;
+  }
+
+  /** Restore a previously paired browser/device instance after page reload. */
+  static async resume(relayUrl: string, deviceId: string, code: string, store: LogStore): Promise<MomentChannel> {
+    const ch = new MomentChannel(deviceId, store);
+    ch.pairCode = code;
+    await ch.restoreCounters();
+    await ch.connect(relayUrl);
+    const paired = await ch.request({ t: "resume", deviceId, code }, "paired") as {
+      channelId: string;
+      peerDeviceId: string;
+    };
+    ch.channelId = paired.channelId;
+    ch.peerDeviceId = paired.peerDeviceId;
+    ch.markConnected();
+    return ch;
+  }
+
+  private async restoreCounters(): Promise<void> {
+    for (const entry of await this.log.entries()) {
+      const { fromDeviceId, seq } = entry.moment.transport;
+      if (fromDeviceId === this.deviceId) this.sendSeq = Math.max(this.sendSeq, seq + 1);
+      else this.lastReceivedSeq = Math.max(this.lastReceivedSeq, seq);
+    }
   }
 
   /** Resolves on device A when device B has joined. */

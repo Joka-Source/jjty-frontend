@@ -15,6 +15,7 @@ import { verbRegistry } from "./registry/index.js";
 export { isValidPairCode };
 
 const DEVICE_ID_KEY = "jt.sync.deviceId";
+const PAIR_CODE_KEY = "jt.sync.pairCode";
 
 export function stableDeviceId(storage, createId) {
   const stored = storage.getItem(DEVICE_ID_KEY);
@@ -72,12 +73,14 @@ export async function momentFromEntry(entry, doc, blockTexts) {
  * The app's sync surface. One channel at a time (v0), inbox listeners,
  * spoken-word pairing both directions.
  */
-export function createSyncSurface({ relayUrl, deviceId, onArrive, onState }) {
+export function createSyncSurface({ relayUrl, deviceId, onArrive, onState, storage = globalThis.localStorage }) {
   let channel = null;
   let pending = 0;
   let flushing = null;
   const activeSends = new Set();
   const outbox = new IndexedDbOutboxStore({ deviceId });
+  let restoring = isValidPairCode(storage?.getItem(PAIR_CODE_KEY) ?? "");
+  let restoreError = "";
 
   const state = () => ({
     connected: !!channel?.connected,
@@ -85,6 +88,8 @@ export function createSyncSurface({ relayUrl, deviceId, onArrive, onState }) {
     code: channel?.pairCode ?? "",
     peer: channel?.peerDeviceId ?? "",
     pending,
+    restoring,
+    restoreError,
   });
   const emit = () => onState?.(state());
 
@@ -138,13 +143,33 @@ export function createSyncSurface({ relayUrl, deviceId, onArrive, onState }) {
     void refreshPending().then(() => flushOutbox());
   }
 
+  const ready = (async () => {
+    const savedCode = storage?.getItem(PAIR_CODE_KEY) ?? "";
+    if (!isValidPairCode(savedCode)) { restoring = false; return false; }
+    try {
+      channel = await MomentChannel.resume(relayUrl, deviceId, savedCode, new IndexedDbLogStore({ deviceId }));
+      attach(channel);
+      return true;
+    } catch (error) {
+      restoreError = String(error?.message ?? error);
+      return false;
+    } finally {
+      restoring = false;
+      emit();
+    }
+  })();
+
   return {
     get state() {
       return state();
     },
     /** Start sharing: open a channel, get the three words to speak. */
     async open() {
+      await ready;
+      channel?.close();
       channel = await MomentChannel.create(relayUrl, deviceId, new IndexedDbLogStore({ deviceId }));
+      restoreError = "";
+      storage?.setItem(PAIR_CODE_KEY, channel.pairCode);
       attach(channel);
       emit();
       channel.waitForPeer(120000).then(emit, () => {});
@@ -152,15 +177,20 @@ export function createSyncSurface({ relayUrl, deviceId, onArrive, onState }) {
     },
     /** Join with the three words spoken on the other device. */
     async join(code) {
+      await ready;
       const c = codeFromSpoken(code) ?? code;
       if (!isValidPairCode(c)) throw new Error("that does not sound like a share code");
+      channel?.close();
       channel = await MomentChannel.join(relayUrl, deviceId, c, new IndexedDbLogStore({ deviceId }));
+      restoreError = "";
+      storage?.setItem(PAIR_CODE_KEY, c);
       attach(channel);
       emit();
       return c;
     },
     /** Send a kept act as a moment. Resolves with the receiver's proof. */
     async send(entry, doc, blockTexts) {
+      await ready;
       if (!channel?.channelId) throw new Error("not connected to another device yet");
       const moment = await momentFromEntry(entry, doc, blockTexts);
       const prepared = channel.prepareMoment(moment);
@@ -179,5 +209,6 @@ export function createSyncSurface({ relayUrl, deviceId, onArrive, onState }) {
     },
     retryPending: flushOutbox,
     disconnectForTest: () => channel?._dropTransport(),
+    restorePairing: () => ready,
   };
 }
