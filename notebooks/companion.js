@@ -20,7 +20,7 @@ export function installCompanion(host) {
   }
   button.onclick = () => {
     const editor = host.inEditor();
-    host.panel('Your workspace', `<p class="dialog-intro">${editor ? 'Keep your place. Choose what comes next.' : 'Start something or learn your way around.'}</p><div class="menu-actions"><button data-helper="create">Create or import<small>Start with paper or a PDF</small></button><button data-helper="guide">Getting started<small>A four-step guide you can replay</small></button>${editor ? '<button data-helper="voice">Voice cursor<small>Find a phrase, then highlight it</small></button><button data-helper="export">Export notebook<small>Keep an independent copy</small></button>' : ''}<button data-helper="settings">Workspace settings<small>Paper, spacing and reduced motion</small></button></div>`);
+    host.panel('Your workspace', `<p class="dialog-intro">${editor ? 'Keep your place. Choose what comes next.' : 'Start something or learn your way around.'}</p><div class="menu-actions"><a href="/workspace/index.html">Open unified workspace</a><button data-helper="create">Create or import<small>Start with paper or a PDF</small></button><button data-helper="guide">Getting started<small>A four-step guide you can replay</small></button>${editor ? '<button data-helper="voice">Voice cursor<small>Find a phrase, then highlight it</small></button><button data-helper="export">Export notebook<small>Keep an independent copy</small></button>' : ''}<button data-helper="settings">Workspace settings<small>Paper, spacing and reduced motion</small></button></div>`);
     host.dialog.querySelectorAll('[data-helper]').forEach(control => {
       control.onclick = () => {
         host.dialog.close();

@@ -297,3 +297,14 @@ test('offline notebook navigation retains its own app and saved notebook', {time
   assert.equal(await page.$eval('#title',n=>n.value),'Offline notebook fixture');
   assert.equal(await page.title(),'JETT · Notebooks');
 });
+
+test('offline unified workspace retains the correct shell and draft', {timeout:60000}, async t=>{
+ const {page,url}=await bootPwa(t,4988);
+ await page.goto(`${url}/workspace/index.html`);
+ await page.waitForSelector('textarea');await page.type('textarea','Offline communication draft');
+ await page.evaluate(()=>navigator.serviceWorker.ready);
+ await page.waitForFunction(()=>navigator.serviceWorker.controller!==null);
+ await page.setOfflineMode(true);await page.reload();await page.waitForSelector('textarea');
+ assert.equal(await page.title(),'JJTY workspace');
+ assert.equal(await page.$eval('textarea',n=>n.value),'Offline communication draft');
+});
