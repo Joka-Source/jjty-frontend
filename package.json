@@ -16,7 +16,8 @@
     "test:e2e": "node --test --test-concurrency=1 test/capabilities.e2e.test.mjs test/e2e.test.mjs test/mobile.e2e.test.mjs test/pwa.e2e.test.mjs test/return.e2e.test.mjs test/shell.e2e.test.mjs test/spaces.e2e.test.mjs",
     "test:e2e:sync": "node --test test/sync.e2e.test.mjs",
     "test:parity": "node --test test/parity.test.mjs",
-    "check:vocabulary": "node scripts/check-vocabulary.mjs"
+    "check:vocabulary": "node scripts/check-vocabulary.mjs",
+    "test:notebooks": "node --test --test-concurrency=1 --test-force-exit test/notebook-model.test.mjs test/notebook-product-ui.e2e.test.mjs test/notebook-workspace.e2e.test.mjs"
   },
   "devDependencies": {
     "ajv": "^8.17.1",

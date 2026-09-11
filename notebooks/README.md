@@ -27,6 +27,6 @@ Local browser storage is not cloud synchronization or a backup. Export before ch
 
 ## Verification
 
-Run `node --test test/notebook-model.test.mjs test/notebook-workspace.e2e.test.mjs test/notebook-product-ui.e2e.test.mjs`, `npm run build`, and the repository regression suite `npm test`. Browser evidence and the dated status are in `docs/evidence/notebooks/verification.md`.
+Run `npm run test:notebooks` (isolated browser workers exit after their tests complete), `npm run build`, and the repository regression suite `npm test`. Browser evidence and the dated status are in `docs/evidence/notebooks/verification.md`.
 
 Reference: Goodnotes atlas in `Joka-Source/jjty-human`. Slack research informs persistent navigation; it does not establish notebook parity. Test artifacts use synthetic content only.
