@@ -28,6 +28,7 @@ import pkg from "../package.json" with { type: "json" };
 import { renderCapabilities } from "./capabilities.js";
 import { verbRegistry } from "./registry/index.js";
 import { JETT_UI_STATES, mountStateSurface } from "./ui-state.js";
+import { parseBackup } from "./backup.js";
 
 const VIEWS = ["welcome", "home", "read", "history", "share", "spaces", "settings", "capabilities", "states", "rooms"];
 
@@ -850,6 +851,54 @@ export function initShell(ctx) {
     a.download = `jt-export-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
+  });
+
+  let pendingBackup = null;
+  $("restore-file").addEventListener("change", async (event) => {
+    const state = $("restore-state");
+    pendingBackup = null;
+    $("restore-btn").disabled = true;
+    try {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      const backup = parseBackup(await file.text());
+      const restoredOrg = OrgStore.fromJSON(backup.spaces);
+      pendingBackup = { backup, restoredOrg };
+      $("restore-btn").disabled = false;
+      state.textContent = `ready to restore ${backup.documents.length} documents, ${backup.records.length} records and ${backup.arrived.length} arrivals. existing data on this device will be replaced.`;
+    } catch (error) {
+      state.textContent = `this backup cannot be restored: ${error.message}`;
+    }
+  });
+
+  $("restore-btn").addEventListener("click", async () => {
+    if (!pendingBackup) return;
+    const state = $("restore-state");
+    const { backup, restoredOrg } = pendingBackup;
+    $("restore-btn").disabled = true;
+    state.textContent = "restoring the backup…";
+    const prior = {
+      org: localStorage.getItem("jt.org"),
+      lang: settings.lang,
+      motion: settings.motion,
+      engine: settings.engine,
+    };
+    try {
+      restoredOrg.save(localStorage);
+      settings.set("lang", backup.settings.lang);
+      settings.set("motion", backup.settings.motion);
+      settings.set("engine", backup.settings.engine);
+      await ctx.replaceAllData(backup);
+      location.reload();
+    } catch (error) {
+      if (prior.org === null) localStorage.removeItem("jt.org");
+      else localStorage.setItem("jt.org", prior.org);
+      settings.set("lang", prior.lang);
+      settings.set("motion", prior.motion);
+      settings.set("engine", prior.engine);
+      $("restore-btn").disabled = false;
+      state.textContent = `restore failed; the previous settings were kept. ${error.message}`;
+    }
   });
 
   // delete-all: two explicit presses, then a clean slate

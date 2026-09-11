@@ -220,8 +220,14 @@
       </div>
       <div class="setting">
         <h2>your data</h2>
-        <button id="export-btn">download everything as JSON</button>
-        <p class="hint">documents, records, arrivals, spaces, space feeds, settings &mdash; one file, yours.</p>
+        <button id="export-btn">download saved data as JSON</button>
+        <p class="hint">documents, records, reading places, arrivals, spaces, space feeds and settings &mdash; one file, yours. pairing credentials and queued sends stay on this device.</p>
+        <label class="filebtn">
+          choose a jt backup
+          <input id="restore-file" type="file" accept="application/json,.json" hidden />
+        </label>
+        <button id="restore-btn" disabled>restore this backup</button>
+        <p class="hint" id="restore-state" aria-live="polite"></p>
         <button id="delete-btn" class="danger">delete everything on this device</button>
         <p class="hint" id="delete-state"></p>
       </div>

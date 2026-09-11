@@ -165,3 +165,19 @@ export async function getRecords(docId) {
     req.onerror = () => reject(req.error);
   });
 }
+
+export async function replaceAllData({ documents, records, positions, arrived, spaceFeeds }) {
+  const db = await openDb();
+  const collections = { docs: documents, records, positions, inbox: arrived, spaceFeed: spaceFeeds };
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(Object.keys(collections), "readwrite");
+    for (const [name, rows] of Object.entries(collections)) {
+      const store = transaction.objectStore(name);
+      store.clear();
+      for (const row of rows) store.put(row);
+    }
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
+}

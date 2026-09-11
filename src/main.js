@@ -50,6 +50,7 @@ import {
   putPosition,
   getPosition,
   getPositions,
+  replaceAllData,
 } from "./db.js";
 import { rid, nowIso, makeActEntry } from "./records.js";
 import { loadSettings, MOTION_PARAMS } from "./settings.js";
@@ -1985,6 +1986,7 @@ async function boot() {
     putDoc,
     getRecords,
     getPositions,
+    replaceAllData,
     positionForDoc,
     relativeReadTime,
     getInbox: () => inbox,

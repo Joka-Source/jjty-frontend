@@ -180,11 +180,32 @@ test("desktop shell walk: first-run once, every surface, settings persist, expor
   assert.equal(data.format, "jt-export");
   assert.ok(data.documents.length >= 1, "export missing documents");
   assert.ok(data.records.length >= 2, "export missing records (act + undo)");
+  assert.ok(Array.isArray(data.arrived), "export must resolve arrived moments before serialization");
   assert.equal(data.spaces.institutions[0].name, "A Small College");
   assert.equal(data.settings.lang, "en-IN");
   assert.equal(data.settings.motion, "calm");
 
-  // 9. Reload: everything persisted — settings, spaces, engine choice live.
+  // 9. Restore is staged before mutation, then replaces the device data and reloads.
+  await page.evaluate((text) => {
+    const input = document.getElementById("restore-file");
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([text], "jt-backup.json", { type: "application/json" }));
+    input.files = transfer.files;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  }, exported);
+  await page.waitForFunction(() => !document.getElementById("restore-btn").disabled);
+  assert.match(await page.$eval("#restore-state", (node) => node.textContent), /ready to restore/);
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: "load" }),
+    page.click("#restore-btn"),
+  ]);
+  await page.waitForFunction(() => window.__jtApp?.booted === true, { timeout: 30000 });
+  const restored = JSON.parse(await page.evaluate(() => window.__jtApp.exportData()));
+  assert.deepEqual(restored.documents.map((doc) => doc.id).sort(), data.documents.map((doc) => doc.id).sort());
+  assert.deepEqual(restored.records.map((record) => record.id).sort(), data.records.map((record) => record.id).sort());
+  assert.deepEqual(restored.arrived, data.arrived);
+
+  // 10. Reload: everything persisted — settings, spaces, engine choice live.
   // The hash deep-link is honored too: we reload while on #/settings.
   await page.reload({ waitUntil: "load" });
   await page.waitForFunction(() => window.__jtApp?.booted === true, { timeout: 30000 });
