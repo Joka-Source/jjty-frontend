@@ -1,22 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { preview } from 'vite';
 import path from 'node:path';
 import puppeteer from 'puppeteer-core';
 import { root } from './validate.mjs';
 
 test('voice toggle owns one recognizer and ignores speech delivered after cancellation', {timeout:60000}, async t => {
-  const server=spawn(process.execPath,[path.join(root,'node_modules/vite/bin/vite.js'),'preview','--host','127.0.0.1','--port','4960','--strictPort'],{cwd:root,stdio:'ignore'});
-  t.after(()=>server.kill('SIGTERM'));
-  const url='http://127.0.0.1:4960/';
-  let ready=false;
-  for(let i=0;i<100;i++) {
-    try { if((await fetch(url)).ok){ready=true;break;} } catch {}
-    await new Promise(resolve=>setTimeout(resolve,100));
-  }
-  assert.ok(ready,'preview must start');
+  const server = await preview({root, configFile:path.join(root,'vite.config.js'), preview:{host:'127.0.0.1',port:0,strictPort:true}});
+  t.after(()=>new Promise(resolve=>{server.httpServer.closeAllConnections();server.httpServer.close(resolve);}));
+  const url=`http://127.0.0.1:${server.httpServer.address().port}/`;
   const browser=await puppeteer.launch({executablePath:process.env.CHROME_PATH??'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true,args:['--no-first-run']});
-  t.after(()=>browser.close());
+  t.after(async()=>{const timer=setTimeout(()=>browser.process()?.kill('SIGKILL'),5000);try{await browser.close();}finally{clearTimeout(timer);}});
   const page=await browser.newPage();
   await page.setViewport({width:1280,height:900});
   await page.evaluateOnNewDocument(()=>{

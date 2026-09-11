@@ -1,4 +1,6 @@
 import "../src/pwa.js";
+import { pageBackground } from "./paper.js";
+import { toolIcon } from "./icons.js";
 import { notebook, validate, appendItem, VERSION } from "./model.js";
 import { loadWorkspace, saveWorkspace } from "./storage.js";
 import { selectItems, moveItems } from "./selection.js";
@@ -213,7 +215,9 @@ function svgItems(items) {
 }
 function editor() {
   const n = book();
-  page = Math.min(page, n.pages.length - 1);
+  page = Number.isInteger(page)
+    ? Math.max(0, Math.min(page, n.pages.length - 1))
+    : 0;
   app.innerHTML = `<div class="editor"><div class="tabbar"><button id="home" aria-label="Back to library">⌂</button><input id="title" aria-label="Notebook title" value="${esc(n.title)}" maxlength="100"><span style="margin-left:auto;font-size:12px">JETT</span></div><div class="toolbar"><button id="sidebar" aria-label="Toggle pages">▤</button><button id="find" aria-label="Find text">⌕</button><div class="tools">${[
     ["lasso", "⌁", "Lasso selection"],
     ["pen", "✎", "Pen"],
@@ -228,7 +232,7 @@ function editor() {
   ]
     .map(
       ([id, icon, label]) =>
-        `<button data-tool="${id}" aria-label="${label}" title="${label}" aria-pressed="${tool === id}" class="${tool === id ? "selected" : ""}">${icon}</button>`,
+        `<button data-tool="${id}" aria-label="${label}" title="${label}" aria-pressed="${tool === id}" class="${tool === id ? "selected" : ""}">${toolIcon(id)}</button>`,
     )
     .join(
       "",
@@ -245,7 +249,7 @@ function editor() {
     )
     .join(
       "",
-    )}</select><button id="undo" aria-label="Undo" ${!undo.length ? "disabled" : ""}>↶</button><button id="redo" aria-label="Redo" ${!redo.length ? "disabled" : ""}>↷</button><button id="add" aria-label="Add page">＋</button><button id="export" aria-label="Export notebook">↥</button><button id="page-options" aria-label="Page options">⋯</button></div><div class="desk">${sidebar ? `<aside class="pages"><h3>Pages <span style="color:#8a96a5">${n.pages.length}</span></h3>${n.pages.some((p) => p.outline) ? `<nav aria-label="Document outline">${n.pages.map((p, i) => (p.outline ? `<button data-page="${i}" style="display:block;text-align:left">${esc(p.outline)}</button>` : "")).join("")}</nav>` : ""}${n.pages.map((p, i) => `<button data-page="${i}" class="thumb ${i === page ? "active" : ""}" aria-label="Page ${i + 1}"><svg viewBox="0 0 720 960" width="100%" height="85%">${pageBackground(p)}${svgItems(p.items)}</svg>${i + 1}</button>`).join("")}<button id="add-side" aria-label="Add another page">＋ Add page</button></aside>` : ""}<main class="canvas-wrap"><div style="width:${zoom ? `${720 * zoom}px` : "min(720px, 100%)"}" class="paper ${n.pages[page].paper || n.paper} ${tool === "read" ? "read" : ""}"><svg id="ink" viewBox="0 0 720 960" role="img" aria-label="Notebook page ${page + 1}">${pageBackground(n.pages[page])}${svgItems(n.pages[page].items)}</svg></div></main></div><div class="footer"><span>${page + 1} of ${n.pages.length} · ${tool === "read" ? "Read only" : tool === "eraser" ? "Click near a stroke to erase" : tool === "text" ? "Click the paper to add text" : "Draw on the paper"}</span><span>${saved ? "Saved on this browser" : "Unsaved — export a backup"}</span></div></div>`;
+    )}</select><button id="undo" aria-label="Undo" ${!undo.length ? "disabled" : ""}>↶</button><button id="redo" aria-label="Redo" ${!redo.length ? "disabled" : ""}>↷</button><button id="add" aria-label="Add page">＋</button><button id="export" aria-label="Export notebook">↥</button><button id="page-options" aria-label="Page options">⋯</button></div><div class="desk">${sidebar ? `<aside class="pages"><h3>Pages <span style="color:#8a96a5">${n.pages.length}</span></h3>${n.pages.some((p) => p.outline) ? `<nav aria-label="Document outline">${n.pages.map((p, i) => (p.outline ? `<button data-page="${i}" style="display:block;text-align:left">${esc(p.outline)}</button>` : "")).join("")}</nav>` : ""}${n.pages.map((p, i) => `<button data-page="${i}" class="thumb ${i === page ? "active" : ""}" aria-label="Page ${i + 1}"><svg viewBox="0 0 720 960" width="100%" height="85%">${pageBackground(p, n.paper)}${svgItems(p.items)}</svg>${i + 1}</button>`).join("")}<button id="add-side" aria-label="Add another page">＋ Add page</button></aside>` : ""}<main class="canvas-wrap"><div style="width:${zoom ? `${720 * zoom}px` : "min(720px, 100%)"}" class="paper ${n.pages[page].paper || n.paper} ${tool === "read" ? "read" : ""}"><svg id="ink" viewBox="0 0 720 960" role="img" aria-label="Notebook page ${page + 1}">${pageBackground(n.pages[page], n.paper)}${svgItems(n.pages[page].items)}</svg></div></main></div><div class="footer"><span>${page + 1} of ${n.pages.length} · ${tool === "read" ? "Read only" : tool === "eraser" ? "Click near a stroke to erase" : tool === "text" ? "Click the paper to add text" : "Draw on the paper"}</span><span>${saved ? "Saved on this browser" : "Unsaved — export a backup"}</span></div></div>`;
   app.querySelector("#home").onclick = () => {
     current = null;
     render();
@@ -435,8 +439,6 @@ document.querySelector("#restore").onchange = async (e) => {
   const file = e.target.files[0];
   if (!file) return;
   try {
-    if (file.size > 20 * 1024 * 1024)
-      throw Error("Backup exceeds the 20 MB import limit.");
     const incoming = validate(JSON.parse(await file.text()));
     for (const n of incoming.notebooks) {
       n.id = crypto.randomUUID();
@@ -476,7 +478,7 @@ if (storageError) notify(storageError);
 function pageOptions() {
   modal(
     "Page options",
-    `<label>Paper<select name="paper">${["grid", "ruled", "dots", "blank"].map((p) => `<option value="${p}" ${(book().pages[page].paper || book().paper) === p ? "selected" : ""}>${p}</option>`).join("")}</select></label><label>Go to page<input name="destination" type="number" min="1" max="${book().pages.length}" value="${page + 1}"></label><label>Outline title<input name="outline" maxlength="100" value="${esc(book().pages[page].outline || "")}" placeholder="Add this page to outline"></label><label>Action<select name="action"><option value="none">Keep current page</option><option value="duplicate">Duplicate current page</option><option value="earlier">Move page earlier</option><option value="later">Move page later</option><option value="remove">Remove current page (undo available)</option></select></label>`,
+    `<label>Paper<select name="paper">${["grid", "ruled", "dots", "blank"].map((p) => `<option value="${p}" ${(book().pages[page].paper || book().paper) === p ? "selected" : ""}>${p}</option>`).join("")}</select></label><label>Go to page<input name="destination" type="number" required min="1" max="${book().pages.length}" value="${page + 1}"></label><label>Outline title<input name="outline" maxlength="100" value="${esc(book().pages[page].outline || "")}" placeholder="Add this page to outline"></label><label>Action<select name="action"><option value="none">Keep current page</option><option value="duplicate">Duplicate current page</option><option value="earlier">Move page earlier</option><option value="later">Move page later</option><option value="remove">Remove current page (undo available)</option></select></label>`,
     (f) => {
       const next = structuredClone(book());
       next.pages[page].paper = f.get("paper");
@@ -507,7 +509,14 @@ function pageOptions() {
         next.pages.splice(page, 1);
         page = Math.min(page, next.pages.length - 1);
       }
-      if (f.get("action") === "none") page = Number(f.get("destination")) - 1;
+      if (f.get("action") === "none")
+        page = Math.max(
+          0,
+          Math.min(
+            next.pages.length - 1,
+            (Number(f.get("destination")) || 1) - 1,
+          ),
+        );
       change(next);
     },
   );
@@ -559,7 +568,7 @@ function exportNotebook() {
         return;
       }
       const n = book(),
-        doc = `<!doctype html><html lang="en"><meta charset="utf-8"><title>${esc(n.title)}</title><style>body{margin:0;background:#eee}section{width:720px;height:960px;background:#fffdf3;margin:24px auto;break-after:page}svg{width:100%;height:100%}@media print{body{background:white}section{margin:0;width:100%;height:auto;aspect-ratio:3/4}@page{size:A4;margin:10mm}}</style>${n.pages.map((p) => `<section><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 960" aria-label="Notebook page">${pageBackground(p)}${svgItems(p.items)}</svg></section>`).join("")}</html>`;
+        doc = `<!doctype html><html lang="en"><meta charset="utf-8"><title>${esc(n.title)}</title><style>body{margin:0;background:#eee}section{width:720px;height:960px;background:#fffdf3;margin:24px auto;break-after:page}svg{width:100%;height:100%}@media print{body{background:white}section{margin:0;width:100%;height:auto;aspect-ratio:3/4}@page{size:A4;margin:10mm}}</style>${n.pages.map((p) => `<section><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 960" aria-label="Notebook page">${pageBackground(p, n.paper)}${svgItems(p.items)}</svg></section>`).join("")}</html>`;
       const url = URL.createObjectURL(new Blob([doc], { type: "text/html" })),
         a = document.createElement("a");
       a.href = url;
@@ -571,22 +580,6 @@ function exportNotebook() {
   );
 }
 
-function pageBackground(p) {
-  return p.background
-    ? `<image href="${p.background}" width="720" height="960" preserveAspectRatio="xMidYMid meet"/>`
-    : paperBackground(p.paper || book().paper);
-}
-function paperBackground(paper) {
-  const mark =
-    paper === "grid"
-      ? '<path d="M 24 0 H 0 V 24" fill="none" stroke="#aeb4a3" stroke-opacity=".15"/>'
-      : paper === "ruled"
-        ? '<path d="M 0 0 H 720" stroke="#9ea9bf" stroke-opacity=".25"/>'
-        : paper === "dots"
-          ? '<circle cx="12" cy="12" r="1" fill="#99a3af" fill-opacity=".4"/>'
-          : "";
-  return `<defs><pattern id="paper-pattern-${paper}" width="${paper === "ruled" ? 720 : 24}" height="${paper === "ruled" ? 32 : 24}" patternUnits="userSpaceOnUse">${mark}</pattern></defs><rect width="720" height="960" fill="#fffdf3"/><rect width="720" height="960" fill="url(#paper-pattern-${paper})"/>`;
-}
 let importing = false;
 document.querySelector("#pdf-file").onchange = async (e) => {
   const file = e.target.files[0];
@@ -701,7 +694,7 @@ async function exportFlattened() {
     const { exportPagePdf } = await import("./pdf-export.js");
     const svgs = n.pages.map(
       (p) =>
-        `<svg xmlns="http://www.w3.org/2000/svg" width="720" height="960" viewBox="0 0 720 960">${pageBackground(p)}${svgItems(p.items)}</svg>`,
+        `<svg xmlns="http://www.w3.org/2000/svg" width="720" height="960" viewBox="0 0 720 960">${pageBackground(p, n.paper)}${svgItems(p.items)}</svg>`,
     );
     const bytes = await exportPagePdf(svgs),
       url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" })),

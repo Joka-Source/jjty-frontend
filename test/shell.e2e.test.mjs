@@ -488,12 +488,12 @@ test('images retain original bytes, render after restart and release their view 
   await (await page.$('#home-file-input')).uploadFile(file);
   await page.waitForSelector('.image-document img', { visible: true });
   assert.deepEqual(await page.$eval('.image-document img', el => [el.naturalWidth, el.naturalHeight]), [960,480]);
-  await page.screenshot({path:'/Users/sunlight/Documents/ChatGPT/JJTY/jett-image-desktop.png',fullPage:true});
+  await page.screenshot({path:path.join(dir,'jett-image-desktop.png'),fullPage:true});
   await page.setViewport({width:390,height:844});
   await page.waitForFunction(()=>getComputedStyle(document.getElementById("library-panel")).visibility === "hidden" && getComputedStyle(document.getElementById("history-panel")).visibility === "hidden");
   await assertNoOverflow(page);
   assert.ok(await page.evaluate(()=>{const title=document.querySelector('#reader-tabs [aria-selected="true"]'),r=title.getBoundingClientRect();return title.textContent.includes('field-notes')&&r.width>0&&r.height>0&&r.top>=document.querySelector('.bar').getBoundingClientRect().bottom;}), 'active document title remains visible below the fixed header');
-  await page.screenshot({path:'/Users/sunlight/Documents/ChatGPT/JJTY/jett-image-phone.png',fullPage:true});
+  await page.screenshot({path:path.join(dir,'jett-image-phone.png'),fullPage:true});
   await page.setViewport({width:1280,height:900});
   await page.locator('.image-controls button').click();
   assert.equal(await page.$eval('.image-controls button', el => el.getAttribute('aria-pressed')), 'true');

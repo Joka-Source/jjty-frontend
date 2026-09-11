@@ -4,7 +4,7 @@ Route: `/notebooks/index.html`. Engineering branch: `feat/slack-learning-lab`; o
 
 ## Current observed passes
 
-- Production Vite build; automated notebook browser test (import, reload, reorder, outline, zoom, narrow layout); production offline notebook reload test; seven model tests covering immutable history, backup validation, source preservation and lasso movement.
+- Production Vite build; automated notebook browser test (import, reload, reorder, outline, zoom, narrow layout); production offline notebook reload test; eight model tests covering immutable history, backup validation, source preservation and lasso movement.
 - In-app browser: create, pointer ink, typed text, add/duplicate pages, undo/redo, reload recovery, search, validated additive backup restore; folders and Trash/restore.
 - Imported synthetic `test/fixtures/jett-fillable.pdf`: two pages render, extracted text search works, annotations survive reload.
 - Image insertion, sticky note, rectangle, temporary laser (no persistent object), lasso text edit/move and undo.
@@ -15,6 +15,8 @@ Route: `/notebooks/index.html`. Engineering branch: `feat/slack-learning-lab`; o
 
 ## Regression history and gate
 
-The previous run was incomplete/red. This turn diagnosed and fixed its two observed failures: command-journal screenshot used an absent directory; exact resolved anchors lost original metadata during reload. Both focused browser tests now pass. A fresh complete `npm test` is running; final result will replace this pending status. Do not treat this as a full-suite pass yet.
+The previous run was incomplete/red. This turn diagnosed and fixed its two observed failures: command-journal screenshot used an absent directory; exact resolved anchors lost original metadata during reload. Both focused browser tests now pass. The complete `npm test` run finished: 480 cases, 478 passed, two failed, none cancelled (1,812 seconds). The image-view failure was another machine-specific screenshot path; the voice test hit port 4960 owned by a different checkout. Fixed image screenshots to the test temporary directory and made the voice test use its own preview server address. Both failing tests subsequently pass in focused reruns. The full 480-case suite was not repeated after these test-harness corrections; retain the original red result as history.
+
+Final focused checks: nine notebook model/browser tests pass, including a 21 MiB additive restore and rejection of a blank page destination; all six production PWA tests pass; fresh build passes. Independent review found three notebook issues (restore size mismatch, asynchronous export reading live paper state, empty destination crash); all fixed and rereviewed without remaining findings in that scope. Editor controls now use original vector icons and compact reference-based chrome.
 
 No deployment, physical-device, multiplayer or exact Goodnotes visual/behavioral parity claim. Source PDFs are retained unchanged; notebook edits and flattened exports are separate derivatives. Tests use synthetic content.

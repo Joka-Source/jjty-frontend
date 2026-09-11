@@ -210,7 +210,8 @@ a {
   flex-direction: column;
 }
 .tabbar {
-  height: 45px;
+  height: 40px;
+  flex-shrink: 0;
   background: #2b4d7a;
   color: white;
   display: flex;
@@ -228,12 +229,12 @@ a {
   font-weight: 600;
 }
 .toolbar {
-  min-height: 53px;
+  min-height: 44px;
   background: #355f96;
   color: white;
   display: flex;
   align-items: center;
-  padding: 6px 12px;
+  padding: 4px 8px;
   gap: 4px;
   flex-wrap: wrap;
 }
@@ -295,7 +296,7 @@ a {
   min-width: 0;
   overflow: auto;
   padding: 38px 40px;
-  background: #e9edf1;
+  background: #f4f4f4;
   text-align: center;
 }
 .paper {
@@ -459,4 +460,16 @@ dialog menu {
 
 .paper.read {
   touch-action: pan-x pan-y;
+}
+
+.toolbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px;
+  min-width: 32px;
+  min-height: 32px;
+}
+.toolbar button:focus-visible {
+  outline-color: #fff;
 }

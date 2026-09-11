@@ -88,3 +88,10 @@ test("lasso selects enclosed objects and movement preserves unselected content",
     [20, 20],
   ]);
 });
+
+test('page backgrounds use the captured notebook template without live UI state', async () => {
+  const {pageBackground}=await import('../notebooks/paper.js');
+  const snapshot={paper:'ruled',pages:[{items:[]}]};
+  assert.match(pageBackground(snapshot.pages[0],snapshot.paper),/paper-pattern-ruled/);
+  assert.match(pageBackground({paper:'dots'},snapshot.paper),/paper-pattern-dots/);
+});
