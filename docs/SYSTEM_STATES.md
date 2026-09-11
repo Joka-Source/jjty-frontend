@@ -8,7 +8,7 @@ JETT now has one semantic component for six conditions that every persistent jou
 npm run dev
 ```
 
-Open `#/states/loading`, `#/states/empty`, `#/states/offline`, `#/states/permission`, `#/states/error` or `#/states/recovery`. These routes expose the component inside the real application shell. Their buttons emit named action events and announce them.
+Open `#/states/loading`, `#/states/empty`, `#/states/offline`, `#/states/permission`, `#/states/error` or `#/states/recovery`. These routes expose the component inside the real application shell. Recoverable conditions expose named actions; passive loading announces progress without presenting an action that the product cannot perform.
 
 The empty state is also integrated into the real document library. Its `open-document` action activates the accepted `.txt`, `.md` and `.pdf` file input; the ingestion pipeline persists the selected document, opens it for reading and removes the empty state on the next library render.
 
@@ -18,7 +18,7 @@ The offline state is integrated into device sharing. When a paired relay session
 
 The recovery state is integrated with the home paste editor. Input is retained locally while unfinished; after a reload, Restore draft returns it to the editor, and the retained copy is removed only after document ingestion succeeds.
 
-The loading state now covers the real asynchronous boot interval while JETT restores its local stores and document state. Incomplete application surfaces stay hidden until boot settles. Its Work offline action remains unbound because current boot does not wait on a network dependency.
+The loading state now covers the real asynchronous boot interval while JETT restores its local stores and document state. Incomplete application surfaces stay hidden until boot settles. Loading is passive because current boot does not wait on a network dependency.
 
 The error state is integrated with home file ingestion. If a file read throws, JETT retains that in-memory File, leaves existing documents unchanged and offers Try again. A successful retry persists and opens the document before clearing the error state.
 
@@ -31,7 +31,7 @@ Storybook exposes the same six states under **JETT / System states**. The static
 
 ## Evidence
 
-`evidence/system-states/manifest.json` binds desktop and phone captures to SHA-256 hashes and records the axe result for every state and viewport. `evidence/home-empty`, `evidence/voice-permission`, `evidence/share-offline`, `evidence/home-recovery` and `evidence/home-ingest-error` record the production integrations. The remaining gallery captures are review evidence, not a claim that the loading action is integrated end to end.
+`evidence/system-states/manifest.json` binds desktop and phone captures to SHA-256 hashes and records the axe result for every state and viewport. `evidence/home-empty`, `evidence/voice-permission`, `evidence/share-offline`, `evidence/home-recovery` and `evidence/home-ingest-error` record the production integrations.
 
 Regenerate the real offline evidence from a stopped local relay with:
 

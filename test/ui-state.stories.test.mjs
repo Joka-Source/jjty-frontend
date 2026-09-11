@@ -9,6 +9,7 @@ test("Storybook exposes every shared semantic state", () => {
   for (const name of EXPECTED) {
     const html = stories[name].render();
     assert.match(html, new RegExp(`data-state="${name.toLowerCase()}"`));
-    assert.match(html, /data-state-action=/);
+    if (name === "Loading") assert.doesNotMatch(html, /data-state-action=/);
+    else assert.match(html, /data-state-action=/);
   }
 });

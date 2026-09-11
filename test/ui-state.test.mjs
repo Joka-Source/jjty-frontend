@@ -13,15 +13,19 @@ test("the shared surface defines every recoverable product state", () => {
   ]);
 });
 
-test("each state exposes one named next action and live-region policy", () => {
+test("recoverable states expose one action while passive loading only announces progress", () => {
   for (const name of Object.keys(JETT_UI_STATES)) {
     const state = stateViewModel(name);
     assert.ok(state.title);
     assert.ok(state.message);
-    assert.ok(state.action.label);
-    assert.ok(state.action.event);
+    if (name === "loading") assert.equal(state.action, null);
+    else {
+      assert.ok(state.action.label);
+      assert.ok(state.action.event);
+    }
     assert.match(state.live, /^(polite|assertive)$/);
   }
+  assert.doesNotMatch(renderStateSurface("loading"), /<button/);
 });
 
 test("unknown state names fail closed", () => {
