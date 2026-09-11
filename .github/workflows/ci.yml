@@ -45,6 +45,11 @@ jobs:
       - name: Production build
         run: npm run build
 
+      - name: Playground and dependency installation checks
+        run: node --test test/playground-state.test.mjs test/playground.e2e.test.mjs test/local-dependency-install.test.mjs
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+
       - name: Headless Chrome e2e suites
         run: npm run test:e2e
         env:

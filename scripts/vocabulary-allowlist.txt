@@ -9,3 +9,12 @@ src/registry/index.js|drop|./verbs/cross-device-drop.js
 
 # Registry identifier; this existing internal verb ID is not rendered as copy.
 src/registry/verbs/cross-device-drop.js|drop|cross-device-drop
+
+# Diagnostic enum; the persisted verb identifier is not rendered as copy.
+src/command-journal.js|drop|cross-device-drop
+
+# Backup record schema field list; these persisted keys are not rendered as copy.
+src/library-backup.js|receipt|id docId kind act verbId blockIndex blockEnd modality evidence confidence matchedText anchor rangeAnchor arrival targetChoice noteText undone undoes createdAt cursor receipt mathSpeech mathLatex mathUnparsed migration markupColor
+
+# Backup validation schema key; the persisted field name is not rendered as copy.
+src/library-backup.js|receipt|receipt

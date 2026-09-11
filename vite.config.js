@@ -57,7 +57,8 @@ async function networkFirstNavigation(request) {
     const requested = new URL(request.url);
     const notebookShell = new URL("./notebooks/index.html", self.registration.scope).pathname;
     const workspaceShell = new URL("./workspace/index.html", self.registration.scope).pathname;
-    const fallback = requested.pathname === workspaceShell || requested.pathname === workspaceShell.replace("index.html", "") ? workspaceShell : requested.pathname === notebookShell || requested.pathname === notebookShell.replace("index.html", "") ? notebookShell : SHELL_URL;
+    const playgroundShell = new URL("./playground/index.html", self.registration.scope).pathname;
+    const fallback = [workspaceShell, notebookShell, playgroundShell].find(shell => requested.pathname === shell || requested.pathname === shell.replace("index.html", "")) || SHELL_URL;
     return (await caches.match(fallback)) || Response.error();
   }
 }
@@ -102,5 +103,5 @@ function emitVersionedServiceWorker() {
 
 export default defineConfig({
   plugins: [emitVersionedServiceWorker()],
-  build: { rollupOptions: { input: { workspace: path.join(root,"workspace/index.html"), main: path.join(root,"index.html"), notebooks: path.join(root,"notebooks/index.html") } } },
+  build: { rollupOptions: { input: { playground: path.join(root,"playground/index.html"), workspace: path.join(root,"workspace/index.html"), main: path.join(root,"index.html"), notebooks: path.join(root,"notebooks/index.html") } } },
 });

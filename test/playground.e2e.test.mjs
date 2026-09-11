@@ -1,0 +1,33 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {preview} from 'vite';
+import puppeteer from 'puppeteer-core';
+import {root} from './validate.mjs';
+import {mkdtemp,readFile,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import path from 'node:path';
+test('playground supports discovery, review persistence, source inspection and live editor across viewports', {timeout:90000}, async t=>{
+ const server=await preview({root,preview:{host:'127.0.0.1',port:0}});t.after(()=>new Promise(resolve=>server.httpServer.close(resolve)));
+ const browser=await puppeteer.launch({executablePath:process.env.CHROME_PATH??'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true});t.after(async()=>{const timer=setTimeout(()=>browser.process()?.kill('SIGKILL'),5000);try{await browser.close();}finally{clearTimeout(timer);}});
+ const page=await browser.newPage();const downloads=await mkdtemp(path.join(tmpdir(),'jjty-playground-export-'));t.after(()=>rm(downloads,{recursive:true,force:true}));const cdp=await page.createCDPSession();await cdp.send('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:downloads});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.setViewport({width:1440,height:1000});await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/playground/index.html`);await page.waitForSelector('.journey-card');
+ await page.screenshot({path:'/tmp/jjty-playground-desktop.png',fullPage:true});
+ await page.type('#global-search','zznomatch');assert.equal(await page.$$('.journey-card').then(x=>x.length),0);assert.equal(await page.$eval('.nav-link.active',n=>n.hash),'#Journeys');
+ await page.click('#clear-filters');assert.equal(await page.$$('.journey-card').then(x=>x.length),27);
+ await page.click('.favorite');await page.click('#saved-journeys');assert.equal(await page.$$('.journey-card').then(x=>x.length),1);
+ await page.click('.journey-open');await page.waitForSelector('#review-note');await page.type('#review-note','Synthetic review: keep originals.');
+ await page.type('#specimen-note',' Retain this sentence.');await page.click('[data-state=error]');await page.click('#retry-state');assert.ok(await page.$('.notice.success'));assert.match(await page.$eval('#specimen-note',n=>n.value),/Retain this sentence/);
+ await page.click('#next-step');assert.match(await page.$eval('.device-toolbar',n=>n.textContent),/Step 2/);
+ await page.click('[data-code]');await page.waitForSelector('dialog pre code');assert.ok((await page.$eval('dialog pre code',n=>n.textContent)).length>100);await page.keyboard.press('Escape');
+ await page.reload();await page.waitForSelector('#review-note');assert.equal(await page.$eval('#review-note',n=>n.value),'Synthetic review: keep originals.');
+ await page.click('#export');let exported;for(let i=0;i<50;i++){try{exported=JSON.parse(await readFile(path.join(downloads,'jjty-product-inventory.json'),'utf8'));break;}catch{await new Promise(r=>setTimeout(r,100));}}assert.equal(exported.journeys.length,27);assert.equal(Object.values(exported.review.notes)[0],'Synthetic review: keep originals.');
+ await page.click('#theme');assert.equal(await page.$eval('html',n=>n.dataset.theme),'dark');await page.reload();await page.waitForSelector('#theme');assert.equal(await page.$eval('html',n=>n.dataset.theme),'dark');await page.click('#theme');
+ await page.click('#live-mode');await page.waitForSelector('#preview-frame');await page.waitForFunction(()=>document.querySelector('iframe').contentDocument?.body?.textContent.length>100);
+ await page.click('a[href="#References"]');await page.waitForSelector('#reference-search');await page.type('#reference-search','Notion Mail');assert.ok((await page.$$('.reference-card')).length>0);
+ await page.click('a[href="#Foundations"]');await page.waitForSelector('.token-swatch');await page.click('.token-swatch');await page.waitForSelector('dialog[open] input');await page.keyboard.press('Escape');
+ await page.evaluate(()=>location.hash='Journeys/scan');await page.waitForSelector('#live-mode[disabled]');assert.ok(await page.$('[data-state=capturing]'));await page.setViewport({width:390,height:844});
+ for(const view of ['Overview','Journeys','Components','Foundations','References','Readiness']){await page.evaluate(v=>location.hash=v,view);await page.waitForFunction(v=>document.querySelector('.nav-link.active')?.hash==='#'+v,{},view);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,view+' must fit mobile viewport');}
+ await page.evaluate(()=>location.hash='Journeys');await page.waitForSelector('.journey-open');await page.click('.journey-open');await page.waitForSelector('#review-note');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'detail fits mobile');await page.screenshot({path:'/tmp/jjty-playground-mobile.png',fullPage:true});
+ await page.evaluate(async()=>{await navigator.serviceWorker.ready;});await page.waitForFunction(()=>!!navigator.serviceWorker.controller);await page.setOfflineMode(true);await page.reload();await page.waitForSelector('#review-note');assert.equal(await page.$eval('#review-note',n=>n.value),'Synthetic review: keep originals.');await page.setOfflineMode(false);
+ assert.deepEqual(errors,[]);
+});
