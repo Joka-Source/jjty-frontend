@@ -173,6 +173,14 @@ test("desktop shell walk: first-run once, every surface, settings persist, expor
   await page.select("#set-lang", "en-IN");
   await page.click('#set-motion .choice[data-value="calm"]');
   await page.click('#set-engine .choice[data-value="js"]');
+  assert.equal(await page.$eval("#export-btn", (button) => button.disabled), true);
+  await page.type("#backup-passphrase", "a long backup phrase");
+  await page.type("#backup-passphrase-confirm", "a different phrase");
+  assert.equal(await page.$eval("#export-btn", (button) => button.disabled), true);
+  assert.match(await page.$eval("#backup-state", (node) => node.textContent), /do not match/);
+  await page.$eval("#backup-passphrase-confirm", (input) => { input.value = ""; });
+  await page.type("#backup-passphrase-confirm", "a long backup phrase");
+  assert.equal(await page.$eval("#export-btn", (button) => button.disabled), false);
 
   await page.evaluate(async () => {
     const deviceId = localStorage.getItem("jt.sync.deviceId");
@@ -200,7 +208,7 @@ test("desktop shell walk: first-run once, every surface, settings persist, expor
 
   // 8. Export: one valid JSON file of everything on the device.
   const exported = await page.evaluate(() => window.__jtApp.exportData());
-  const data = JSON.parse(exported); // throws if not valid JSON
+  const data = JSON.parse(exported); // internal test hook exposes the validated payload
   assert.equal(data.format, "jt-export");
   assert.ok(data.documents.length >= 1, "export missing documents");
   assert.ok(data.records.length >= 2, "export missing records (act + undo)");
@@ -213,13 +221,23 @@ test("desktop shell walk: first-run once, every surface, settings persist, expor
   assert.equal(data.settings.motion, "calm");
 
   // 9. Restore is staged before mutation, then replaces the device data and reloads.
+  const encrypted = await page.evaluate(() => window.__jtApp.exportEncryptedData("test backup passphrase"));
+  assert.doesNotMatch(encrypted, new RegExp(data.documents[0].text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   await page.evaluate((text) => {
     const input = document.getElementById("restore-file");
     const transfer = new DataTransfer();
-    transfer.items.add(new File([text], "jt-backup.json", { type: "application/json" }));
+    transfer.items.add(new File([text], "jt-encrypted-backup.json", { type: "application/json" }));
     input.files = transfer.files;
     input.dispatchEvent(new Event("change", { bubbles: true }));
-  }, exported);
+  }, encrypted);
+  await page.waitForFunction(() => !document.getElementById("restore-unlock").hidden);
+  await page.type("#restore-passphrase", "wrong backup passphrase");
+  await page.click("#unlock-backup-btn");
+  await page.waitForFunction(() => document.getElementById("restore-state").textContent.includes("could not be decrypted"));
+  assert.equal(await page.$eval("#restore-btn", (button) => button.disabled), true);
+  await page.$eval("#restore-passphrase", (input) => { input.value = ""; });
+  await page.type("#restore-passphrase", "test backup passphrase");
+  await page.click("#unlock-backup-btn");
   await page.waitForFunction(() => !document.getElementById("restore-btn").disabled);
   assert.match(await page.$eval("#restore-state", (node) => node.textContent), /ready to restore/);
   await Promise.all([

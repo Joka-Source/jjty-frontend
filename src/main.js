@@ -1933,6 +1933,7 @@ window.__jtApp = {
   currentDoc: () => state.doc,
   micState: () => mic.state,
   exportData: () => shell?.exportData(),
+  exportEncryptedData: (passphrase) => shell?.exportEncryptedData(passphrase),
   voiceSegment: (text) => onFinalSegment(text),
   follow: (text) => onInterim(text),
   perform: (act, blockIndex, opts) => {

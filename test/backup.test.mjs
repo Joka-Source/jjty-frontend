@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { BackupError, parseBackup } from "../src/backup.js";
+import { BackupError, decryptBackup, encryptBackup, parseBackup } from "../src/backup.js";
 
 const valid = () => ({
   format: "jt-export",
@@ -40,4 +40,31 @@ test("records and reading places cannot restore without their document", () => {
   assert.throws(() => parseBackup(JSON.stringify(orphanRecord)), /record without its document/);
   const orphanPosition = valid(); orphanPosition.positions[0].docId = "missing";
   assert.throws(() => parseBackup(JSON.stringify(orphanPosition)), /reading place without its document/);
+});
+
+test("encrypted exports round-trip without exposing document text or passphrase", async () => {
+  const plaintext = JSON.stringify(valid());
+  const encrypted = await encryptBackup(plaintext, "a memorable long passphrase");
+  assert.doesNotMatch(encrypted, /kept words|memorable long passphrase/);
+  const envelope = JSON.parse(encrypted);
+  assert.equal(envelope.format, "jt-encrypted-export");
+  assert.equal(envelope.version, 1);
+  assert.equal(envelope.kdf.name, "PBKDF2");
+  assert.equal(envelope.kdf.iterations, 310000);
+  assert.equal(envelope.cipher.name, "AES-GCM");
+  assert.deepEqual(parseBackup(await decryptBackup(encrypted, "a memorable long passphrase")), { ...valid(), transport: { deviceId: null, queued: [] } });
+});
+
+test("encrypted exports reject short, wrong and tampered credentials", async () => {
+  await assert.rejects(() => encryptBackup(JSON.stringify(valid()), "too short"), /at least 12 characters/);
+  const encrypted = await encryptBackup(JSON.stringify(valid()), "correct horse battery");
+  await assert.rejects(() => decryptBackup(encrypted, "incorrect horse battery"), /could not be decrypted/);
+  const tampered = JSON.parse(encrypted);
+  tampered.ciphertext = `${tampered.ciphertext.slice(0, -2)}AA`;
+  await assert.rejects(() => decryptBackup(JSON.stringify(tampered), "correct horse battery"), /could not be decrypted/);
+});
+
+test("encrypted envelope validation fails before key derivation", async () => {
+  await assert.rejects(() => decryptBackup(JSON.stringify({ format: "other" }), "a sufficiently long passphrase"), /not an encrypted jt export/);
+  await assert.rejects(() => decryptBackup(JSON.stringify({ format: "jt-encrypted-export", version: 2 }), "a sufficiently long passphrase"), /unsupported encrypted jt export/);
 });

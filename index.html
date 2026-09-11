@@ -220,12 +220,19 @@
       </div>
       <div class="setting">
         <h2>your data</h2>
-        <button id="export-btn">download saved data as JSON</button>
-        <p class="hint">documents, records, reading places, arrivals, spaces, space feeds, settings and queued sends &mdash; one file, yours. queued sends restore only to the device that created them; pairing credentials stay on this device.</p>
+        <label class="field"><span>backup passphrase</span><input id="backup-passphrase" type="password" minlength="12" autocomplete="new-password" aria-describedby="backup-state" /></label>
+        <label class="field"><span>confirm backup passphrase</span><input id="backup-passphrase-confirm" type="password" minlength="12" autocomplete="new-password" aria-describedby="backup-state" /></label>
+        <button id="export-btn" disabled>download encrypted backup</button>
+        <p class="hint" id="backup-state" aria-live="polite">use at least 12 characters. the passphrase never leaves this device and cannot be recovered by jt.</p>
+        <p class="hint">documents, records, reading places, arrivals, spaces, space feeds, settings and queued sends &mdash; one encrypted file, yours. queued sends restore only to the device that created them; pairing credentials stay on this device.</p>
         <label class="filebtn">
           choose a jt backup
           <input id="restore-file" type="file" accept="application/json,.json" hidden />
         </label>
+        <div id="restore-unlock" hidden>
+          <label class="field"><span>backup passphrase</span><input id="restore-passphrase" type="password" minlength="12" autocomplete="current-password" aria-describedby="restore-state" /></label>
+          <button id="unlock-backup-btn">unlock and inspect backup</button>
+        </div>
         <button id="restore-btn" disabled>restore this backup</button>
         <p class="hint" id="restore-state" aria-live="polite"></p>
         <button id="delete-btn" class="danger">delete everything on this device</button>

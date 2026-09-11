@@ -28,7 +28,7 @@ import pkg from "../package.json" with { type: "json" };
 import { renderCapabilities } from "./capabilities.js";
 import { verbRegistry } from "./registry/index.js";
 import { JETT_UI_STATES, mountStateSurface } from "./ui-state.js";
-import { parseBackup } from "./backup.js";
+import { decryptBackup, encryptBackup, isEncryptedBackup, parseBackup } from "./backup.js";
 
 const VIEWS = ["welcome", "home", "read", "history", "share", "spaces", "settings", "capabilities", "states", "rooms"];
 
@@ -848,36 +848,97 @@ export function initShell(ctx) {
     );
   }
 
+  async function exportEncryptedData(passphrase) {
+    return encryptBackup(await exportData(), passphrase);
+  }
+
+  function updateBackupPassphraseState() {
+    const passphrase = $("backup-passphrase").value;
+    const confirmation = $("backup-passphrase-confirm").value;
+    const state = $("backup-state");
+    const ready = passphrase.length >= 12 && passphrase === confirmation;
+    $("export-btn").disabled = !ready;
+    if (!passphrase && !confirmation) state.textContent = "use at least 12 characters. the passphrase never leaves this device and cannot be recovered by jt.";
+    else if (passphrase.length < 12) state.textContent = "the backup passphrase needs at least 12 characters.";
+    else if (passphrase !== confirmation) state.textContent = "the two backup passphrases do not match.";
+    else state.textContent = "passphrases match. jt will encrypt the backup before it is downloaded.";
+  }
+  $("backup-passphrase").addEventListener("input", updateBackupPassphraseState);
+  $("backup-passphrase-confirm").addEventListener("input", updateBackupPassphraseState);
+
   $("export-btn").addEventListener("click", async () => {
-    const blob = new Blob([await exportData()], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `jt-export-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(a.href);
+    const state = $("backup-state");
+    $("export-btn").disabled = true;
+    state.textContent = "encrypting your backup on this device…";
+    try {
+      const blob = new Blob([await exportEncryptedData($("backup-passphrase").value)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `jt-encrypted-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      state.textContent = "encrypted backup downloaded. keep its passphrase separately; jt cannot recover it.";
+      $("backup-passphrase").value = "";
+      $("backup-passphrase-confirm").value = "";
+    } catch (error) {
+      state.textContent = `backup failed: ${error.message}`;
+    } finally {
+      const passphrase = $("backup-passphrase").value;
+      $("export-btn").disabled = passphrase.length < 12 || passphrase !== $("backup-passphrase-confirm").value;
+    }
   });
 
   let pendingBackup = null;
+  let selectedBackupText = null;
+  function stageBackup(backup, encrypted) {
+    const restoredOrg = OrgStore.fromJSON(backup.spaces);
+    const restoreQueued = backup.transport.deviceId === ctx.syncDeviceId;
+    pendingBackup = { backup, restoredOrg, restoreQueued };
+    $("restore-btn").disabled = false;
+    const queued = restoreQueued
+      ? ` ${backup.transport.queued.length} queued sends will also be restored for this device.`
+      : backup.transport.queued.length
+        ? " queued sends belong to another device and will not be replayed here."
+        : "";
+    const legacy = encrypted ? "" : " this is a legacy unencrypted backup; restore is supported, but make the next backup encrypted.";
+    $("restore-state").textContent = `ready to restore ${backup.documents.length} documents, ${backup.records.length} records and ${backup.arrived.length} arrivals.${queued}${legacy} existing data on this device will be replaced.`;
+  }
+
   $("restore-file").addEventListener("change", async (event) => {
     const state = $("restore-state");
     pendingBackup = null;
+    selectedBackupText = null;
     $("restore-btn").disabled = true;
+    $("restore-unlock").hidden = true;
+    $("restore-passphrase").value = "";
     try {
       const file = event.target.files?.[0];
       if (!file) return;
-      const backup = parseBackup(await file.text());
-      const restoredOrg = OrgStore.fromJSON(backup.spaces);
-      const restoreQueued = backup.transport.deviceId === ctx.syncDeviceId;
-      pendingBackup = { backup, restoredOrg, restoreQueued };
-      $("restore-btn").disabled = false;
-      const queued = restoreQueued
-        ? ` ${backup.transport.queued.length} queued sends will also be restored for this device.`
-        : backup.transport.queued.length
-          ? " queued sends belong to another device and will not be replayed here."
-          : "";
-      state.textContent = `ready to restore ${backup.documents.length} documents, ${backup.records.length} records and ${backup.arrived.length} arrivals.${queued} existing data on this device will be replaced.`;
+      selectedBackupText = await file.text();
+      if (isEncryptedBackup(selectedBackupText)) {
+        $("restore-unlock").hidden = false;
+        state.textContent = "encrypted backup selected. enter its passphrase to inspect it before restoring.";
+      } else {
+        stageBackup(parseBackup(selectedBackupText), false);
+      }
     } catch (error) {
       state.textContent = `this backup cannot be restored: ${error.message}`;
+    }
+  });
+
+  $("unlock-backup-btn").addEventListener("click", async () => {
+    const state = $("restore-state");
+    pendingBackup = null;
+    $("restore-btn").disabled = true;
+    $("unlock-backup-btn").disabled = true;
+    state.textContent = "unlocking and validating the backup on this device…";
+    try {
+      const plaintext = await decryptBackup(selectedBackupText, $("restore-passphrase").value);
+      stageBackup(parseBackup(plaintext), true);
+    } catch (error) {
+      state.textContent = `this backup cannot be unlocked: ${error.message}`;
+    } finally {
+      $("unlock-backup-btn").disabled = false;
     }
   });
 
@@ -977,6 +1038,7 @@ export function initShell(ctx) {
     route,
     openRoom,
     exportData,
+    exportEncryptedData,
     async loadSpaceFeed() {
       feed = await ctx.getSpaceFeed();
       feed.sort((a, b) => a.arrivedAt.localeCompare(b.arrivedAt) || a.id.localeCompare(b.id));
