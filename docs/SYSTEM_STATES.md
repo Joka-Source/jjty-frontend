@@ -12,7 +12,9 @@ Open `#/states/loading`, `#/states/empty`, `#/states/offline`, `#/states/permiss
 
 The empty state is also integrated into the real document library. Its `open-document` action activates the accepted `.txt`, `.md` and `.pdf` file input; the ingestion pipeline persists the selected document, opens it for reading and removes the empty state on the next library render.
 
-The permission state is integrated into voice settings. A rejected `getUserMedia` request moves the real microphone state machine to `denied`, mounts the shared permission surface, keeps reading and touch available, and exposes `request-microphone` to retry the same browser permission boundary after the person changes site settings. The other four evidence-route events still need bindings to their real product operations.
+The permission state is integrated into voice settings. A rejected `getUserMedia` request moves the real microphone state machine to `denied`, mounts the shared permission surface, keeps reading and touch available, and exposes `request-microphone` to retry the same browser permission boundary after the person changes site settings.
+
+The offline state is integrated into device sharing. When a paired relay session drops, kept moments remain in the IndexedDB outbox and the sharing screen mounts the shared offline surface. Its `retry-connection` action waits for the same authenticated pairing to resume and then drains that durable outbox. The loading, error and recovery evidence-route events still need bindings to their real product operations.
 
 ```sh
 npm run storybook
@@ -23,4 +25,10 @@ Storybook exposes the same six states under **JETT / System states**. The static
 
 ## Evidence
 
-`evidence/system-states/manifest.json` binds desktop and phone captures to SHA-256 hashes and records the axe result for every state and viewport. The checked-in captures are review evidence, not a claim that offline transport, microphone permission repair, retry or draft restoration is integrated end to end.
+`evidence/system-states/manifest.json` binds desktop and phone captures to SHA-256 hashes and records the axe result for every state and viewport. `evidence/home-empty`, `evidence/voice-permission` and `evidence/share-offline` record the production integrations. The remaining gallery captures are review evidence, not a claim that loading, general retry or draft restoration is integrated end to end.
+
+Regenerate the real offline evidence from a stopped local relay with:
+
+```sh
+CAPTURE_OFFLINE_EVIDENCE=1 npm run test:e2e:sync
+```

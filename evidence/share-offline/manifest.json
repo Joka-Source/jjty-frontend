@@ -1,0 +1,25 @@
+{
+  "generatedAt": "2026-09-11",
+  "source": "production Vite build with a real stopped jt-sync relay and durable IndexedDB outbox item",
+  "route": "#/share",
+  "state": "offline",
+  "integration": "retry-connection waits for authenticated MomentChannel resume and then drains the durable outbox",
+  "files": [
+    {
+      "file": "share-offline-desktop.png",
+      "size": "desktop",
+      "width": 1280,
+      "height": 900,
+      "sha256": "e1d4cd20a0632ab7389ce1345b305704b24cb63952536cddd7b57a12d4292fbe",
+      "violations": []
+    },
+    {
+      "file": "share-offline-phone.png",
+      "size": "phone",
+      "width": 375,
+      "height": 812,
+      "sha256": "e76c06ddca53836c2f4c4dc618930affbb88a3a196d1688496cfbfecb4cf6447",
+      "violations": []
+    }
+  ]
+}

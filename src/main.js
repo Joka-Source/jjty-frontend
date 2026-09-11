@@ -74,6 +74,7 @@ import {
 } from "./registry/index.js";
 import { emitGlass } from "./glass-tap.js";
 import { mountGlassDevRoute } from "./glass-route.js";
+import { mountStateSurface } from "./ui-state.js";
 
 const article = document.getElementById("doc");
 const marker = document.getElementById("marker");
@@ -89,6 +90,7 @@ const askOptions = document.getElementById("ask-options");
 const shareStart = document.getElementById("share-start");
 const shareCode = document.getElementById("share-code");
 const shareState = document.getElementById("share-state");
+const shareOfflineState = document.getElementById("share-offline-state");
 const shareForget = document.getElementById("share-forget");
 const joinCode = document.getElementById("join-code");
 const joinBtn = document.getElementById("join-btn");
@@ -1573,6 +1575,23 @@ const sync = createSyncSurface({
           : s.connected
         ? "waiting for the other device…"
         : "";
+    const showOffline = s.paired && !s.connected;
+    shareOfflineState.hidden = !showOffline;
+    if (showOffline && !shareOfflineState.querySelector(".jett-state--offline")) {
+      mountStateSurface(shareOfflineState, "offline", async (event) => {
+        if (event !== "retry-connection") return;
+        const action = shareOfflineState.querySelector("[data-state-action]");
+        if (action) action.disabled = true;
+        try {
+          await sync.retryPending();
+          setStatus(true, "connection restored — saved moments sent");
+        } catch (error) {
+          setStatus(true, `connection is still unavailable: ${error?.message ?? error}`);
+        } finally {
+          if (action) action.disabled = false;
+        }
+      });
+    }
   },
 });
 

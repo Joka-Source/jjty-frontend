@@ -218,7 +218,13 @@ export function createSyncSurface({ relayUrl, deviceId, onArrive, onState, stora
         return { delivered: false, hashMatch: false, queued: true, error: String(error?.message ?? error) };
       } finally { activeSends.delete(item.id); }
     },
-    retryPending: flushOutbox,
+    async retryPending(timeoutMs = 20_000) {
+      await ready;
+      if (!channel?.channelId) throw new Error("not connected to another device yet");
+      await channel.waitUntilConnected(timeoutMs);
+      await flushOutbox();
+      return state();
+    },
     async forget() {
       await ready;
       const active = channel;

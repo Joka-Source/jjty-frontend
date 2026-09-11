@@ -7,7 +7,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import puppeteer from "puppeteer-core";
@@ -206,6 +207,50 @@ test("moment-send: pair two pages by spoken words, send a kept act, verify", { t
   relay.process.kill("SIGTERM");
   await new Promise((resolve) => relay.process.once("exit", resolve));
   await pageA.waitForFunction(() => !window.__jtApp.syncState().connected, { timeout: 10000 });
+
+  const restartQueued = await pageA.evaluate(() => window.__jtApp.syncSendLatest());
+  assert.equal(restartQueued.queued, true, "a relay outage should leave the moment in the durable outbox");
+  await pageA.evaluate(() => window.__jtApp.showView("share"));
+  await pageA.waitForSelector("#share-offline-state .jett-state--offline", { visible: true });
+  await pageA.waitForFunction(() => document.getElementById("view-share").style.opacity === "", { timeout: 5000 });
+  assert.match(
+    await pageA.$eval("#share-offline-state", (node) => node.textContent),
+    /keep working offline/i,
+  );
+  if (process.env.CAPTURE_OFFLINE_EVIDENCE === "1") {
+    const evidenceDirectory = path.join(root, "evidence", "share-offline");
+    const axeSource = readFileSync(path.join(root, "node_modules", "axe-core", "axe.min.js"), "utf8");
+    mkdirSync(evidenceDirectory, { recursive: true });
+    const files = [];
+    for (const viewport of [
+      { size: "desktop", width: 1280, height: 900 },
+      { size: "phone", width: 375, height: 812 },
+    ]) {
+      await pageA.setViewport({ width: viewport.width, height: viewport.height });
+      await pageA.addScriptTag({ content: axeSource });
+      const violations = await pageA.evaluate(async () => {
+        const result = await axe.run(document, { resultTypes: ["violations"] });
+        return result.violations.map(({ id, impact, help, nodes }) => ({
+          id, impact, help, targets: nodes.map((node) => node.target),
+        }));
+      });
+      assert.deepEqual(violations, [], `offline share axe violations at ${viewport.width}px`);
+      const file = `share-offline-${viewport.size}.png`;
+      await pageA.screenshot({ path: path.join(evidenceDirectory, file), fullPage: true });
+      const sha256 = createHash("sha256").update(readFileSync(path.join(evidenceDirectory, file))).digest("hex");
+      files.push({ file, ...viewport, sha256, violations });
+    }
+    writeFileSync(path.join(evidenceDirectory, "manifest.json"), `${JSON.stringify({
+      generatedAt: "2026-09-11",
+      source: "production Vite build with a real stopped jt-sync relay and durable IndexedDB outbox item",
+      route: "#/share",
+      state: "offline",
+      integration: "retry-connection waits for authenticated MomentChannel resume and then drains the durable outbox",
+      files,
+    }, null, 2)}\n`);
+  }
+  await pageA.click('#share-offline-state [data-state-action="retry-connection"]');
+
   relay = await startRelay(t, relaySessionFile, relay.port);
   assert.equal(relay.url, relayUrl);
   await Promise.all([
@@ -224,10 +269,11 @@ test("moment-send: pair two pages by spoken words, send a kept act, verify", { t
     () => window.__jtApp.syncState().connected && window.__jtApp.syncState().paired,
     { timeout: 20000 },
   );
-  await pageB.waitForFunction(() => window.__jtApp.inbox().length === 2, { timeout: 20000 });
+  await pageB.waitForFunction(() => window.__jtApp.inbox().length === 3, { timeout: 20000 });
+  assert.equal(await pageA.evaluate(() => window.__jtApp.syncState().pending), 0);
   const afterReload = await pageA.evaluate(() => window.__jtApp.syncSendLatest());
   assert.equal(afterReload.delivered, true, "a reloaded peer should receive without pairing again");
-  await pageB.waitForFunction(() => window.__jtApp.inbox().length === 3, { timeout: 10000 });
+  await pageB.waitForFunction(() => window.__jtApp.inbox().length === 4, { timeout: 10000 });
 
   await pageA.evaluate(() => window.__jtApp.showView("share"));
   await pageA.waitForSelector("#share-forget:not([hidden])", { visible: true });
@@ -238,6 +284,6 @@ test("moment-send: pair two pages by spoken words, send a kept act, verify", { t
     pageB.waitForFunction(() => !window.__jtApp.syncState().paired && !localStorage.getItem("jt.sync.resumeToken"), { timeout: 10000 }),
   ]);
   assert.equal(JSON.parse(readFileSync(relaySessionFile, "utf8")).sessions.length, 0, "revocation must leave no durable relay session");
-  assert.equal(await pageB.evaluate(() => window.__jtApp.inbox().length), 3, "forgetting pairing must preserve arrived moments");
+  assert.equal(await pageB.evaluate(() => window.__jtApp.inbox().length), 4, "forgetting pairing must preserve arrived moments");
   console.error("[sync-e2e] delivery verified");
 });
