@@ -11,6 +11,8 @@ Primary references:
 - [Digital Asset Links for a TWA](https://developer.chrome.com/docs/android/trusted-web-activity/android-for-web-devs)
 - [Google Play target API requirements](https://developer.android.com/google/play/requirements/target-sdk)
 
+Every clean `main` CI run retains `jt-pwa-<git-sha>` for 30 days. Its `build-receipt.json` binds every PWA file to its byte count and SHA-256 plus one aggregate hash. A local dirty build labels its source `WORKING_TREE`; it cannot masquerade as a committed revision. This is a deployable web artifact, not an APK, AAB, HTTPS deployment or device proof.
+
 ## 1. Founder-controlled inputs
 
 Do not guess, generate, commit, or paste any secret value into this repository.

@@ -43,7 +43,7 @@ jobs:
         run: npm run check:vocabulary
 
       - name: Production build
-        run: npm run build
+        run: npm run build:pilot
 
       - name: Headless Chrome e2e suites
         run: npm run test:e2e
@@ -55,3 +55,11 @@ jobs:
         env:
           CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
           JT_SYNC_REPO: ${{ github.workspace }}/vendor/jt-sync-runner
+
+      - name: Retain exact PWA pilot artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: jt-pwa-${{ github.sha }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
