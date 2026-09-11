@@ -91,6 +91,7 @@ const shareStart = document.getElementById("share-start");
 const shareCode = document.getElementById("share-code");
 const shareState = document.getElementById("share-state");
 const shareOfflineState = document.getElementById("share-offline-state");
+const appLoading = document.getElementById("app-loading");
 const shareForget = document.getElementById("share-forget");
 const joinCode = document.getElementById("join-code");
 const joinBtn = document.getElementById("join-btn");
@@ -115,6 +116,8 @@ const mathLatex = document.getElementById("math-latex");
 const mathUnparsed = document.getElementById("math-unparsed");
 const mathKeep = document.getElementById("math-keep");
 const mathSession = document.getElementById("math-session");
+
+mountStateSurface(appLoading, "loading");
 const mathSessionList = document.getElementById("math-session-list");
 const pdfTools = document.getElementById("pdf-tools");
 const pdfZoomOut = document.getElementById("pdf-zoom-out");
@@ -2052,4 +2055,7 @@ async function boot() {
   window.__jtApp.booted = true;
 }
 
-boot();
+boot().finally(() => {
+  appLoading.hidden = true;
+  document.body.removeAttribute("data-booting");
+});

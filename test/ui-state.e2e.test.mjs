@@ -29,9 +29,17 @@ test("production state route renders the requested state and emits its action", 
   const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
   t.after(() => browser.close());
   const page = await browser.newPage();
-  await page.evaluateOnNewDocument(() => localStorage.setItem("jt.welcomed", "1"));
+  await page.evaluateOnNewDocument(() => {
+    localStorage.setItem("jt.welcomed", "1");
+    window.__sawBootLoading = false;
+    new MutationObserver(() => {
+      if (document.querySelector('#app-loading [data-state="loading"]')) window.__sawBootLoading = true;
+    }).observe(document, { subtree: true, childList: true });
+  });
   await page.goto(url, { waitUntil: "load" });
   await page.waitForFunction(() => window.__jtApp?.booted);
+  assert.equal(await page.evaluate(() => window.__sawBootLoading), true);
+  assert.equal(await page.$eval("#app-loading", (node) => node.hidden), true);
   assert.equal(await page.$eval("#state-evidence [data-state]", (node) => node.dataset.state), "offline");
   await page.click('[data-state-action="retry-connection"]');
   assert.equal(await page.$eval("#state-evidence-result", (node) => node.textContent), "Action: retry connection");

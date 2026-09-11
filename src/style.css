@@ -131,6 +131,11 @@ main {
   min-width: 0;
 }
 
+body[data-booting="true"] #app-main > :not(#app-loading) { visibility: hidden !important; }
+#app-loading { position: fixed; inset: 0; z-index: 20; overflow: auto; min-height: 100vh; padding: 6rem 1rem 3rem; background: var(--bg); }
+#app-loading .jett-state { margin: 0 auto; }
+#app-loading[hidden] { display: none; }
+
 .reading-main {
   min-width: 0;
 }

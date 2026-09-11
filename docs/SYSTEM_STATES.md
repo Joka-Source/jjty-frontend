@@ -14,7 +14,11 @@ The empty state is also integrated into the real document library. Its `open-doc
 
 The permission state is integrated into voice settings. A rejected `getUserMedia` request moves the real microphone state machine to `denied`, mounts the shared permission surface, keeps reading and touch available, and exposes `request-microphone` to retry the same browser permission boundary after the person changes site settings.
 
-The offline state is integrated into device sharing. When a paired relay session drops, kept moments remain in the IndexedDB outbox and the sharing screen mounts the shared offline surface. Its `retry-connection` action waits for the same authenticated pairing to resume and then drains that durable outbox. The recovery state is integrated with the home paste editor. Input is retained locally while unfinished; after a reload, Restore draft returns it to the editor, and the retained copy is removed only after document ingestion succeeds. The loading and error evidence-route events still need bindings to their real product operations.
+The offline state is integrated into device sharing. When a paired relay session drops, kept moments remain in the IndexedDB outbox and the sharing screen mounts the shared offline surface. Its `retry-connection` action waits for the same authenticated pairing to resume and then drains that durable outbox.
+
+The recovery state is integrated with the home paste editor. Input is retained locally while unfinished; after a reload, Restore draft returns it to the editor, and the retained copy is removed only after document ingestion succeeds.
+
+The loading state now covers the real asynchronous boot interval while JETT restores its local stores and document state. Incomplete application surfaces stay hidden until boot settles. Its Work offline action remains unbound because current boot does not wait on a network dependency; the error action also still needs a real retry operation.
 
 ```sh
 npm run storybook
@@ -25,7 +29,7 @@ Storybook exposes the same six states under **JETT / System states**. The static
 
 ## Evidence
 
-`evidence/system-states/manifest.json` binds desktop and phone captures to SHA-256 hashes and records the axe result for every state and viewport. `evidence/home-empty`, `evidence/voice-permission`, `evidence/share-offline` and `evidence/home-recovery` record the production integrations. The remaining gallery captures are review evidence, not a claim that loading or general retry is integrated end to end.
+`evidence/system-states/manifest.json` binds desktop and phone captures to SHA-256 hashes and records the axe result for every state and viewport. `evidence/home-empty`, `evidence/voice-permission`, `evidence/share-offline` and `evidence/home-recovery` record the production integrations. The remaining gallery captures are review evidence, not a claim that the loading action or general retry is integrated end to end.
 
 Regenerate the real offline evidence from a stopped local relay with:
 
