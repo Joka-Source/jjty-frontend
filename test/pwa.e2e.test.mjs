@@ -44,7 +44,10 @@ async function bootPwa(t, preferredPort, { userAgent } = {}) {
     headless: true,
     args: ["--disable-gpu", "--no-first-run", "--no-sandbox", "--disable-setuid-sandbox"],
   });
-  t.after(() => browser.close());
+  t.after(async () => {
+    const timer = setTimeout(() => browser.process()?.kill("SIGKILL"), 5000);
+    try { await browser.close(); } finally { clearTimeout(timer); }
+  });
   const page = await browser.newPage();
   if (userAgent) await page.setUserAgent(userAgent);
   return { page, url };
@@ -276,4 +279,22 @@ test("manual install help is platform-specific and the installable hint appears 
   assert.match(iosManual, /Safari/i);
   assert.match(iosManual, /Share/);
   assert.match(iosManual, /Add to Home Screen/);
+});
+
+test('offline notebook navigation retains its own app and saved notebook', {timeout:60000}, async t => {
+  const {page,url}=await bootPwa(t,4987);
+  await page.goto(`${url}/notebooks/index.html`);
+  await page.waitForSelector('#new');
+  await page.click('#new');
+  await page.type('[name=title]','Offline notebook fixture');
+  await page.click('form button[type=submit]');
+  await page.waitForFunction(()=>document.querySelector('.footer')?.textContent.includes('Saved on this browser'));
+  await page.evaluate(()=>navigator.serviceWorker.ready);
+  await page.waitForFunction(()=>navigator.serviceWorker.controller!==null);
+  await page.setOfflineMode(true);
+  await page.reload();
+  await page.waitForSelector('[data-open]');
+  await page.click('[data-open]');
+  assert.equal(await page.$eval('#title',n=>n.value),'Offline notebook fixture');
+  assert.equal(await page.title(),'JETT · Notebooks');
 });

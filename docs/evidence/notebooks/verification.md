@@ -1,9 +1,20 @@
 # Notebook workspace verification — 11 September 2026
 
-Local route: /notebooks/index.html. Engineering base: 455883f.
+Route: `/notebooks/index.html`. Engineering branch: `feat/slack-learning-lab`; original notebook increment: `7f7532eeba15e4a739d4e0105f14421be0448bb8`.
 
-Passed: production Vite build; four model tests; browser create notebook, pointer drawing, typed text, add page, undo/redo, reload and recovery of two pages plus original stroke/text; typed-text search; duplicate page and undo; additive JSON restore; downloaded JSON file independently parsed and validated. In-app browser console reported no errors. At 390 px width the document scroll width was 390 px and paper width 290 px. Desktop screenshot uses synthetic test content.
+## Current observed passes
 
-Repository regression gate is RED/INCOMPLETE. `npm test` reported failures in command-journal.e2e and document-rename.e2e while many unrelated tests passed. The full suite and a stalled command-journal retry were stopped; no full-suite pass is claimed. Failure origin is not established and must be diagnosed before merging. Local logs remained at /tmp/jett-notebooks-test.log and /tmp/jett-journal-focus.log during execution.
+- Production Vite build; automated notebook browser test (import, reload, reorder, outline, zoom, narrow layout); production offline notebook reload test; seven model tests covering immutable history, backup validation, source preservation and lasso movement.
+- In-app browser: create, pointer ink, typed text, add/duplicate pages, undo/redo, reload recovery, search, validated additive backup restore; folders and Trash/restore.
+- Imported synthetic `test/fixtures/jett-fillable.pdf`: two pages render, extracted text search works, annotations survive reload.
+- Image insertion, sticky note, rectangle, temporary laser (no persistent object), lasso text edit/move and undo.
+- Page reorder retains selected page content; named outline appears; undo restores original order. 200% zoom produces a 1440 px page without overflowing the app. Expanded toolbar fits 390 px viewport after overflow fix.
+- Downloaded original PDF hash equals fixture: `4fd8273558b765ab9597566bc0676a34d097ab3d909e733d8e30d9f8daf088af` (15,063 bytes).
+- Downloaded printable HTML contains two page sections and PDF page backgrounds.
+- Downloaded annotated PDF (331,910 bytes) opens independently in MuPDF with two pages. Rendered first page visually verified with synthetic source, inserted image and sticky note. It is a flattened export.
 
-No physical-device, multi-user, deployment or exact visual-parity claim. This increment is a runnable start to the larger app assembly.
+## Regression history and gate
+
+The previous run was incomplete/red. This turn diagnosed and fixed its two observed failures: command-journal screenshot used an absent directory; exact resolved anchors lost original metadata during reload. Both focused browser tests now pass. A fresh complete `npm test` is running; final result will replace this pending status. Do not treat this as a full-suite pass yet.
+
+No deployment, physical-device, multiplayer or exact Goodnotes visual/behavioral parity claim. Source PDFs are retained unchanged; notebook edits and flattened exports are separate derivatives. Tests use synthetic content.

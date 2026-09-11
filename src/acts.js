@@ -61,6 +61,7 @@ export function createActEngine({
           delete entry.resolvedAnchor;
         } else {
           entry.resolvedAnchor = {
+            ...(resolved.arrival === "exact" ? entry.anchor : {}),
             blockIndex: resolved.blockIndex,
             tokenStart: resolved.tokenStart,
             tokenEnd: resolved.tokenEnd,

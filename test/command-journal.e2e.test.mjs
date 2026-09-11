@@ -42,7 +42,7 @@ test('actual command journal distinguishes saved action, reading and failed pers
  await page.select('#command-journal-list li:first-child select','highlight');
  await page.setViewport({width:375,height:812});
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'journal fits narrow screen');
- await page.screenshot({path:path.join(root,'../runtime/live-voice-diagnosis/command-journal-narrow.png'),fullPage:true});
+ await page.screenshot({path:path.join(downloads,'command-journal-narrow.png'),fullPage:true});
  await page.setViewport({width:1100,height:850});
  let exported=await page.evaluate(()=>window.__jtApp.commandJournal.export());assert.ok(exported.some(e=>e.properties.feedback_rating==='missed'));assert.ok(!JSON.stringify(exported).includes('private diagnostic words'));
  await page.click('#command-journal-export');

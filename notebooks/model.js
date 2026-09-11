@@ -29,19 +29,54 @@ export function validate(data) {
       !/^[a-zA-Z0-9_-]{1,100}$/.test(n.id) ||
       ids.has(n.id) ||
       typeof n.title !== "string" ||
+      (n.folder !== undefined && typeof n.folder !== "string") ||
       !/^#[0-9a-f]{6}$/i.test(n.color) ||
       !["grid", "ruled", "blank", "dots"].includes(n.paper) ||
       !Array.isArray(n.pages) ||
       !n.pages.length
     )
       throw Error("Invalid notebook data.");
+    if (
+      n.source &&
+      (typeof n.source.name !== "string" ||
+        typeof n.source.data !== "string" ||
+        !/^data:application\/pdf;base64,[A-Za-z0-9+/=]+$/.test(n.source.data))
+    )
+      throw Error("Invalid PDF source.");
     ids.add(n.id);
     for (const p of n.pages) {
+      if (
+        p.background &&
+        (typeof p.background !== "string" ||
+          !/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(p.background))
+      )
+        throw Error("Invalid page background.");
+      if (p.sourceText !== undefined && typeof p.sourceText !== "string")
+        throw Error("Invalid PDF text.");
+      if (
+        p.paper !== undefined &&
+        !["grid", "ruled", "dots", "blank"].includes(p.paper)
+      )
+        throw Error("Invalid page template.");
       if (typeof p.id !== "string" || !Array.isArray(p.items))
         throw Error("Invalid page data.");
       for (const i of p.items) {
-        if (!["ink", "text"].includes(i.type))
+        if (
+          i.opacity !== undefined &&
+          (!Number.isFinite(i.opacity) || i.opacity < 0 || i.opacity > 1)
+        )
+          throw Error("Invalid opacity.");
+        if (!["ink", "text", "image"].includes(i.type))
           throw Error("Unsupported page item.");
+        if (
+          i.type === "image" &&
+          (typeof i.src !== "string" ||
+            !/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(i.src) ||
+            ![i.x, i.y, i.width, i.height].every(Number.isFinite) ||
+            i.width <= 0 ||
+            i.height <= 0)
+        )
+          throw Error("Invalid image.");
         if (
           i.type === "text" &&
           (typeof i.text !== "string" ||

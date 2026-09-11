@@ -54,7 +54,10 @@ async function networkFirstNavigation(request) {
   try {
     return await fetch(request);
   } catch {
-    return (await caches.match(SHELL_URL)) || Response.error();
+    const requested = new URL(request.url);
+    const notebookShell = new URL("./notebooks/index.html", self.registration.scope).pathname;
+    const fallback = requested.pathname === notebookShell || requested.pathname === notebookShell.replace("index.html", "") ? notebookShell : SHELL_URL;
+    return (await caches.match(fallback)) || Response.error();
   }
 }
 
@@ -98,4 +101,5 @@ function emitVersionedServiceWorker() {
 
 export default defineConfig({
   plugins: [emitVersionedServiceWorker()],
+  build: { rollupOptions: { input: { main: path.join(root,"index.html"), notebooks: path.join(root,"notebooks/index.html") } } },
 });

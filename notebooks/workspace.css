@@ -243,6 +243,8 @@ a {
 }
 .tools {
   display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
   gap: 3px;
   margin: auto;
 }
@@ -290,6 +292,7 @@ a {
 }
 .canvas-wrap {
   flex: 1;
+  min-width: 0;
   overflow: auto;
   padding: 38px 40px;
   background: #e9edf1;
@@ -452,4 +455,8 @@ dialog menu {
   .library {
     padding: 24px 18px;
   }
+}
+
+.paper.read {
+  touch-action: pan-x pan-y;
 }
