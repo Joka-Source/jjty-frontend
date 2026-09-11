@@ -259,7 +259,7 @@ select:focus-visible {
 .footer {
   min-height: 28px;
   background: #f4f6f8;
-  color: #68778b;
+  color: var(--j-color-muted);
   font-size: 11px;
 }
 .voicebar {
@@ -358,12 +358,12 @@ dialog menu {
 dialog .hint {
   font-weight: 400;
   font-size: 12px;
-  color: #758297;
+  color: var(--j-color-muted);
 }
 .dialog-intro {
   font-size: 13px;
   line-height: 1.6;
-  color: #68778b;
+  color: var(--j-color-muted);
   margin: -8px 0 18px;
 }
 .template-preview {
@@ -549,7 +549,7 @@ html[data-density="compact"] .books {
 .menu-actions small {
   display: block;
   font-size: 12px;
-  color: #758297;
+  color: var(--j-color-muted);
   margin-top: 3px;
   font-weight: 400;
 }
