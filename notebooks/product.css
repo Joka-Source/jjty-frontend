@@ -580,3 +580,21 @@ html[data-density="compact"] .books {
     width: 28px;
   }
 }
+
+/* Quiet chrome; water is reserved for the companion and direct touch feedback. */
+.jjty-companion { position: fixed; right: max(20px, env(safe-area-inset-right)); bottom: max(30px, env(safe-area-inset-bottom)); z-index: 20; display: flex; align-items: center; gap: 9px; min-height: 46px; padding: 7px 15px 7px 8px; border-radius: 28px; color: #17405b; background: rgba(247,252,255,.94); border: 1px solid #bdd6e5; box-shadow: 0 4px 18px #163e5d24, inset 0 1px 0 white; backdrop-filter: blur(18px); }
+.jjty-water { display: block; width: 29px; height: 29px; border-radius: 48% 52% 60% 40%; background: radial-gradient(circle at 30% 25%, #e7fdff 3%, #74dbea 32%, #2798c7 72%, #236ba8); box-shadow: inset -2px -3px 5px #164c7b33; }
+.jjty-companion:hover .jjty-water { transform: rotate(25deg); border-radius: 60% 40% 45% 55%; }
+.jjty-water, .jjty-companion { transition: transform 380ms cubic-bezier(.2,.9,.25,1.18), border-radius 380ms ease; }
+.jjty-companion:active { transform: scale(.94); }
+.jjty-lesson { max-width: 400px; line-height: 1.6; }
+.jjty-lesson h3 { font-size: 23px; line-height: 1.2; letter-spacing: -.5px; }
+.lesson-water { width: 64px; height: 64px; display: grid; place-items: center; font-size: 24px; color: #17405b; background: #d9f4fa; border-radius: 42% 58% 55% 45%; }
+.lesson-progress { color: var(--j-color-muted); font-size: 12px; }
+.lesson-navigation { display: flex; justify-content: space-between; margin-top: 24px; }
+.jjty-ripple { pointer-events: none; position: fixed; z-index: 9999; width: 8px; height: 8px; border: 1px solid #2685b875; border-radius: 50%; animation: jjty-ripple 500ms ease-out forwards; }
+@keyframes jjty-ripple { from { transform: translate(-50%,-50%) scale(1); opacity: .7; } to { transform: translate(-50%,-50%) scale(6); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .jjty-water, .jjty-companion { transition: none; } .jjty-ripple { display:none; } }
+[data-motion="reduce"] .jjty-water, [data-motion="reduce"] .jjty-companion { transition: none; }
+[data-motion="reduce"] .jjty-ripple { display:none; }
+@media (max-width: 600px) { .jjty-companion { right: 12px; bottom: 32px; } }

@@ -33,3 +33,19 @@ Fresh checks: 12 focused model/browser cases pass (including the new product jou
 Independent review caught voice results changing page ownership during dialogs and stale targets surviving Find. Fixed by pausing capture before dialogs, gating late/deferred callbacks, validating notebook/page ownership, and clearing stale targets. Targeted rereview found no remaining issue in that scope. Tests explicitly protect an open text draft from a late recognition callback.
 
 Full repository regression result is recorded below when the run completes. Legacy Chrome teardown leaves childless browser processes after renderers close; test-owned childless processes were released, with interventions logged separately. This is not an unattended clean teardown claim.
+
+
+## Companion and teaching UI — 11 September
+
+Added a contextual JJTY helper, replayable four-step guide, water-shaped control,
+bounded press ripples and reduced-motion behavior. Source contract and browsable
+coverage are in notebooks/design/. Shared modal focus now includes the helper.
+Independent review found the focus gap; it was corrected and covered for Done,
+Escape and Close. No native Apple material or physics-engine parity is claimed.
+
+Prior full regression completed: 488 cases, 483 passed, 5 failures. Two worker
+teardown failures followed passing assertions; command-journal and two recovery
+cases passed focused reruns. Preserve this as a red broad run, not a clean gate.
+Physical microphone and native-platform mirroring remain unverified.
+
+Current companion pass: npm run test:notebooks passed 12/12; production build passed. Browser guide screenshot inspected. Full suite was not repeated after the companion change; prior broad red evidence above remains applicable.

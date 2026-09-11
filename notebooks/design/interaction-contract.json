@@ -1,18 +1,217 @@
 {
-  "version":1,
-  "scope":"JETT document workspace UI; PDF engine remains an adapter boundary",
-  "components":[
-    {"id":"library","states":["opening","empty","populated","filtered-empty","list","grid"],"events":{"open":"Restore notebook and page; keep other tabs","search":"Filter notebook names immediately; no mutation","sort":"Order by name or most recent edit","favorite":"Toggle membership and preserve content","trash":"Move to reversible Trash","restore":"Return notebook to Documents"},"focus":"Search retains caret while results update","native":"Navigation sidebar on desktop/tablet; compact navigation on phone"},
-    {"id":"creation-menu","states":["closed","open","notebook-form","import-picker"],"events":{"new":"Validate name, paper and cover; save then open","quick-note":"Create with default paper and open","import":"Native file picker; progress per page; success opens document; failure retains previous workspace","restore-backup":"Validate whole backup before adding independent copies"},"dismiss":"Escape or Cancel leaves content unchanged"},
-    {"id":"editor-tabs","states":["one","many","active","closed"],"events":{"switch":"Keep page and independent undo history","reload":"Restore active notebook/page","close":"Keep content; select adjacent tab; stop capture if closing active notebook"}},
-    {"id":"tool-strip","states":["pen","highlighter","shape","lasso","text","sticky","image","eraser","laser","read"],"events":{"select":"Show tool-specific guidance and controls","pen":"Commit stroke on release; save status changes pending to saved or failed","lasso":"Open move/edit/duplicate/delete dialog for selected objects","laser":"Remove mark on release","read":"Allow scrolling without marking"},"cancel":"Pointer cancellation drops only unfinished stroke"},
-    {"id":"page-menu","states":["open","first-page","middle-page","last-page","only-page"],"events":{"details":"Paper, outline and bounded destination form","duplicate":"Insert independent page copy after current","move":"Reorder and follow same page content","remove":"Remove with Undo; disabled for only page","export":"Open format sheet"}},
-    {"id":"voice-cursor","states":["off","starting","listening","paused","denied","unavailable","matched","ambiguous","not-found"],"events":{"start":"Use browser recognizer; native permission belongs to browser","try-words":"Explicit text rehearsal, no microphone","unique-match":"Navigate and reveal text cursor; PDF text currently lands on page","ambiguous":"User chooses a match; never guess","no-match":"Clear prior highlight target","highlight":"Validate current notebook/page; commit reversible highlight","dialog-open":"Pause recognition before dialog takes ownership","drawing":"Defer final phrase until pointer release; never replace active stroke","leave":"Pause or dispose recognition"},"privacy":"Browser recognition may use its provider's service; no live microphone verification is inferred from mocked tests"},
-    {"id":"export","states":["format-choice","preparing","downloaded","failed"],"events":{"json":"Editable independent backup","original":"Unchanged source PDF","html":"Self-contained printable pages","pdf":"Flattened annotated pages"},"ownership":"Capture source snapshot before asynchronous work; navigation cannot change export target"},
-    {"id":"settings","states":["open","changed","saved","write-failed"],"events":{"paper":"Default for new notebooks only","density":"Update library spacing","motion":"Follow system or reduce","save":"Persist preferences independently from notebook content"}},
-    {"id":"global-dialog","states":["open","invalid","submitted","dismissed"],"events":{"submit":"Validate before mutation; close before opening a subsequent surface","escape":"Dismiss without mutation","close":"Restore focus to surviving trigger or workspace fallback"}},
-    {"id":"save-feedback","states":["pending","saved","failed"],"events":{"pending":"Do not show a saved receipt","saved":"Only after storage transaction completes","failed":"Keep in-memory content; offer backup","leave-pending":"Browser close warning protects unsaved work"}}
+  "version": 1,
+  "scope": "JETT document workspace UI; PDF engine remains an adapter boundary",
+  "components": [
+    {
+      "id": "library",
+      "states": [
+        "opening",
+        "empty",
+        "populated",
+        "filtered-empty",
+        "list",
+        "grid"
+      ],
+      "events": {
+        "open": "Restore notebook and page; keep other tabs",
+        "search": "Filter notebook names immediately; no mutation",
+        "sort": "Order by name or most recent edit",
+        "favorite": "Toggle membership and preserve content",
+        "trash": "Move to reversible Trash",
+        "restore": "Return notebook to Documents"
+      },
+      "focus": "Search retains caret while results update",
+      "native": "Navigation sidebar on desktop/tablet; compact navigation on phone"
+    },
+    {
+      "id": "creation-menu",
+      "states": [
+        "closed",
+        "open",
+        "notebook-form",
+        "import-picker"
+      ],
+      "events": {
+        "new": "Validate name, paper and cover; save then open",
+        "quick-note": "Create with default paper and open",
+        "import": "Native file picker; progress per page; success opens document; failure retains previous workspace",
+        "restore-backup": "Validate whole backup before adding independent copies"
+      },
+      "dismiss": "Escape or Cancel leaves content unchanged"
+    },
+    {
+      "id": "editor-tabs",
+      "states": [
+        "one",
+        "many",
+        "active",
+        "closed"
+      ],
+      "events": {
+        "switch": "Keep page and independent undo history",
+        "reload": "Restore active notebook/page",
+        "close": "Keep content; select adjacent tab; stop capture if closing active notebook"
+      }
+    },
+    {
+      "id": "tool-strip",
+      "states": [
+        "pen",
+        "highlighter",
+        "shape",
+        "lasso",
+        "text",
+        "sticky",
+        "image",
+        "eraser",
+        "laser",
+        "read"
+      ],
+      "events": {
+        "select": "Show tool-specific guidance and controls",
+        "pen": "Commit stroke on release; save status changes pending to saved or failed",
+        "lasso": "Open move/edit/duplicate/delete dialog for selected objects",
+        "laser": "Remove mark on release",
+        "read": "Allow scrolling without marking"
+      },
+      "cancel": "Pointer cancellation drops only unfinished stroke"
+    },
+    {
+      "id": "page-menu",
+      "states": [
+        "open",
+        "first-page",
+        "middle-page",
+        "last-page",
+        "only-page"
+      ],
+      "events": {
+        "details": "Paper, outline and bounded destination form",
+        "duplicate": "Insert independent page copy after current",
+        "move": "Reorder and follow same page content",
+        "remove": "Remove with Undo; disabled for only page",
+        "export": "Open format sheet"
+      }
+    },
+    {
+      "id": "voice-cursor",
+      "states": [
+        "off",
+        "starting",
+        "listening",
+        "paused",
+        "denied",
+        "unavailable",
+        "matched",
+        "ambiguous",
+        "not-found"
+      ],
+      "events": {
+        "start": "Use browser recognizer; native permission belongs to browser",
+        "try-words": "Explicit text rehearsal, no microphone",
+        "unique-match": "Navigate and reveal text cursor; PDF text currently lands on page",
+        "ambiguous": "User chooses a match; never guess",
+        "no-match": "Clear prior highlight target",
+        "highlight": "Validate current notebook/page; commit reversible highlight",
+        "dialog-open": "Pause recognition before dialog takes ownership",
+        "drawing": "Defer final phrase until pointer release; never replace active stroke",
+        "leave": "Pause or dispose recognition"
+      },
+      "privacy": "Browser recognition may use its provider's service; no live microphone verification is inferred from mocked tests"
+    },
+    {
+      "id": "export",
+      "states": [
+        "format-choice",
+        "preparing",
+        "downloaded",
+        "failed"
+      ],
+      "events": {
+        "json": "Editable independent backup",
+        "original": "Unchanged source PDF",
+        "html": "Self-contained printable pages",
+        "pdf": "Flattened annotated pages"
+      },
+      "ownership": "Capture source snapshot before asynchronous work; navigation cannot change export target"
+    },
+    {
+      "id": "settings",
+      "states": [
+        "open",
+        "changed",
+        "saved",
+        "write-failed"
+      ],
+      "events": {
+        "paper": "Default for new notebooks only",
+        "density": "Update library spacing",
+        "motion": "Follow system or reduce",
+        "save": "Persist preferences independently from notebook content"
+      }
+    },
+    {
+      "id": "global-dialog",
+      "states": [
+        "open",
+        "invalid",
+        "submitted",
+        "dismissed"
+      ],
+      "events": {
+        "submit": "Validate before mutation; close before opening a subsequent surface",
+        "escape": "Dismiss without mutation",
+        "close": "Restore focus to surviving trigger or workspace fallback"
+      }
+    },
+    {
+      "id": "save-feedback",
+      "states": [
+        "pending",
+        "saved",
+        "failed"
+      ],
+      "events": {
+        "pending": "Do not show a saved receipt",
+        "saved": "Only after storage transaction completes",
+        "failed": "Keep in-memory content; offer backup",
+        "leave-pending": "Browser close warning protects unsaved work"
+      }
+    },
+    {
+      "id": "jjty-companion",
+      "states": [
+        "resting",
+        "pressed",
+        "actions",
+        "guide-1",
+        "guide-2",
+        "guide-3",
+        "guide-4",
+        "dismissed"
+      ],
+      "events": {
+        "open": "Contextual workspace actions; pause voice through shared modal owner",
+        "guide": "Replay four lessons; Back and Next preserve document state",
+        "close": "Return focus to helper",
+        "action": "Close helper before invoking actual creation, voice, export or settings surface"
+      },
+      "motion": "380ms eased shape response; bounded 500ms press ripple; no continuous movement; reduced motion disables both",
+      "boundary": "CSS response, not physical simulation or native Apple material"
+    }
   ],
-  "motion":{"tokens":"tokens.json/motion","opening":"180ms opacity and 8px dialog motion","feedback":"120ms control response","cursor":"Scroll target into view; reduced-motion uses immediate movement","reduced":"Disable decorative animation; preserve all state changes"},
-  "portableAssets":{"tokens":"tokens.json","icons":"icons/*.svg","behavior":"this contract","renderer":"workspace.js + product.css","platformAdaptation":"Use platform text metrics, permission dialogs, safe areas, accessibility semantics and touch targets while preserving state ownership and outcomes"}
+  "motion": {
+    "tokens": "tokens.json/motion",
+    "opening": "180ms opacity and 8px dialog motion",
+    "feedback": "120ms control response",
+    "cursor": "Scroll target into view; reduced-motion uses immediate movement",
+    "reduced": "Disable decorative animation; preserve all state changes"
+  },
+  "portableAssets": {
+    "tokens": "tokens.json",
+    "icons": "icons/*.svg",
+    "behavior": "this contract",
+    "renderer": "workspace.js + product.css",
+    "platformAdaptation": "Use platform text metrics, permission dialogs, safe areas, accessibility semantics and touch targets while preserving state ownership and outcomes"
+  }
 }

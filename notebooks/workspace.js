@@ -1,4 +1,5 @@
 import "./product.css";
+import { installCompanion } from "./companion.js";
 import {
   installTokens,
   loadPreferences,
@@ -657,7 +658,7 @@ document.addEventListener("keydown", (e) => {
 let focusReturn = null;
 function rememberFocus() {
   const el = document.activeElement;
-  if (app.contains(el))
+  if (app.contains(el) || el?.id === "jjty-helper")
     focusReturn = {
       id: el.id,
       tool: el.dataset.tool,
@@ -665,9 +666,9 @@ function rememberFocus() {
     };
 }
 dialog.addEventListener("close", () => {
-  if (dialog.open || app.contains(document.activeElement)) return;
+  if (dialog.open || app.contains(document.activeElement) || document.activeElement?.id === "jjty-helper") return;
   const target = focusReturn?.id
-    ? app.querySelector(`#${CSS.escape(focusReturn.id)}`)
+    ? document.getElementById(focusReturn.id)
     : focusReturn?.tool
       ? app.querySelector(`[data-tool="${CSS.escape(focusReturn.tool)}"]`)
       : null;
@@ -1198,3 +1199,12 @@ async function exportFlattened() {
     notify(`PDF export failed: ${err.message}`);
   }
 }
+
+installCompanion({
+  panel, dialog,
+  inEditor: () => Boolean(current),
+  create: creationMenu,
+  voice: () => { voicePanel = true; render(); app.querySelector("#voice-start")?.focus(); },
+  export: exportNotebook,
+  settings: settingsMenu,
+});

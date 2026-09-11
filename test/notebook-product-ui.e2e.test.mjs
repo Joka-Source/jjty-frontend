@@ -55,6 +55,23 @@ test(
       `http://127.0.0.1:${server.httpServer.address().port}/notebooks/index.html`,
     );
     await page.waitForSelector("#new");
+    await page.click('.jjty-companion');
+    await page.click('[data-helper=guide]');
+    assert.equal(await page.$eval('[data-back]', n => n.disabled), true);
+    for (let i = 0; i < 3; i++) await page.click('[data-next]');
+    assert.equal(await page.$eval('.jjty-lesson h3', n => n.textContent), 'Keep the result');
+    await page.click('[data-back]');
+    assert.equal(await page.$eval('.jjty-lesson h3', n => n.textContent), 'Let your voice find the place');
+    await page.click('[data-next]');
+    await page.click('[data-next]');
+    assert.equal(await page.$eval('#dialog', n => n.open), false);
+    assert.equal(await page.evaluate(() => document.activeElement.className), 'jjty-companion');
+    await page.click('.jjty-companion');
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.querySelector('#dialog').open && document.activeElement.id === 'jjty-helper');
+    await page.click('.jjty-companion');
+    await page.click('#panel-close');
+    await page.waitForFunction(() => !document.querySelector('#dialog').open && document.activeElement.id === 'jjty-helper');
     await page.click("#settings");
     await page.select("[name=paper]", "ruled");
     await page.select("[name=motion]", "reduce");
