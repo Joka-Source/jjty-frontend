@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Later recovery lab</title><link rel="stylesheet" href="styles.css"></head>
+<body><main>
+  <header><p class="eyebrow">Original executable learning model</p><h1>A list request must always land somewhere visible.</h1><p>This small model turns loading, failure, retry, pagination and stale responses into inspectable states. It contains no Slack source or private workspace data.</p></header>
+  <section class="lab" aria-labelledby="lab-title"><div class="lab-head"><div><p class="eyebrow">Runnable state machine</p><h2 id="lab-title">Later</h2></div><label class="fault"><input id="fail-next" type="checkbox"> fail the next request</label></div>
+    <div role="tablist" aria-label="Later filters"><button id="tab-saved" role="tab" aria-selected="true" aria-controls="items">Saved</button><button id="tab-completed" role="tab" aria-selected="false" aria-controls="items">Completed</button></div>
+    <div id="state" role="status" aria-live="polite"></div><ol id="items"></ol><div id="actions"></div>
+  </section>
+  <section class="evidence"><h2>What came from evidence</h2><dl><dt>Observed in pinned Slack code</dt><dd>Separate tab cursors; success-only message synchronization; pagination cleanup in <code>finally</code>; no list-renderer error prop; initial rejection cleanup unestablished.</dd><dt>Our original adaptation</dt><dd>Every request settles into ready or error, retry reuses the failed request boundary, older-page failure preserves visible items and cursor, and request generations discard stale tab responses.</dd></dl><p><a href="model.mjs">Read the state machine</a> · <a href="app.mjs">Read the UI adapter</a> · <a href="test/model.test.mjs">Read the tests</a></p></section>
+</main><script type="module" src="app.mjs"></script></body></html>
