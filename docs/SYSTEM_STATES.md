@@ -31,7 +31,9 @@ Storybook exposes the same six states under **JETT / System states**. The static
 
 ## Evidence
 
-`evidence/system-states/manifest.json` binds desktop and phone captures to SHA-256 hashes and records the axe result for every state and viewport. `evidence/home-empty`, `evidence/voice-permission`, `evidence/share-offline`, `evidence/home-recovery` and `evidence/home-ingest-error` record the production integrations.
+`evidence/system-states/manifest.json` binds desktop and phone captures to SHA-256 hashes and records the axe result for every state and viewport. `evidence/home-empty`, `evidence/voice-permission`, `evidence/share-offline`, `evidence/home-recovery` and `evidence/home-ingest-error` record the production integrations. `evidence/keyboard-zoom` records an automated Chromium proof that the offline recovery action reflows without horizontal overflow at a 200% desktop-zoom equivalent, is reachable by Tab, exposes a visible focus outline and activates with Enter. It also verifies that the nonessential install prompt does not cover a product-state decision.
+
+The keyboard and reflow proof is browser automation. It does not replace a human screen-reader pass or physical-device review.
 
 Regenerate the real offline evidence from a stopped local relay with:
 

@@ -1,0 +1,24 @@
+{
+  "generatedAt": "2026-09-11",
+  "source": "production Vite build at a 640 CSS-pixel viewport, equivalent to a 1280 CSS-pixel viewport at 200% browser zoom",
+  "route": "#/states/offline",
+  "state": "offline",
+  "checks": {
+    "horizontalOverflow": false,
+    "tabReachedAction": "retry-connection",
+    "visibleFocusIndicator": {
+      "outlineStyle": "solid",
+      "outlineWidth": "3px"
+    },
+    "enterActivatedAction": true
+  },
+  "files": [
+    {
+      "file": "offline-keyboard-200-percent.png",
+      "width": 640,
+      "height": 450,
+      "sha256": "396329b8a8f3e6796a2a6e5ae68f82b0c46612981674eb8f66b240b6ad66f835"
+    }
+  ],
+  "boundary": "Automated Chromium keyboard and reflow evidence; not a human screen-reader or physical-device result."
+}

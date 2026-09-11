@@ -1357,6 +1357,19 @@ body:not([data-view="read"]) .layout {
   display: none;
 }
 
+/* Installation can wait while a person is reading or acting on a product
+   state. Keep the recovery decision visually clear and available to zoomed
+   and keyboard users. */
+body[data-booting="true"] .install-hint,
+body[data-view="states"] .install-hint,
+body:has(#home-empty:not([hidden])) .install-hint,
+body:has(#home-recovery-state:not([hidden])) .install-hint,
+body:has(#home-error-state:not([hidden])) .install-hint,
+body:has(#share-offline-state:not([hidden])) .install-hint,
+body:has(#voice-permission-state:not([hidden])) .install-hint {
+  display: none;
+}
+
 .install-hint a {
   color: var(--accent);
   white-space: nowrap;
