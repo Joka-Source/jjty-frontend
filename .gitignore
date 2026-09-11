@@ -3,3 +3,4 @@ dist
 storybook-static
 .npm-cache/
 .local/
+.artifacts/
