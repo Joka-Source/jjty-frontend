@@ -56,6 +56,11 @@ jobs:
           CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
           JT_SYNC_REPO: ${{ github.workspace }}/vendor/jt-sync-runner
 
+      - name: Finalize and verify PWA receipt
+        run: |
+          node scripts/write-build-receipt.mjs
+          node --test test/pilot-artifact.test.mjs
+
       - name: Retain exact PWA pilot artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1, Node 24
         with:
