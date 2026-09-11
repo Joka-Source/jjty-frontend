@@ -473,3 +473,35 @@ dialog menu {
 .toolbar button:focus-visible {
   outline-color: #fff;
 }
+
+.notebook-tabs {
+  display: flex;
+  overflow-x: auto;
+  flex-shrink: 0;
+  gap: 2px;
+  background: #2b4d7a;
+  color: white;
+  padding: 0 12px;
+}
+.notebook-tab {
+  display: flex;
+  align-items: center;
+  border-radius: 7px 7px 0 0;
+  background: #ffffff0b;
+}
+.notebook-tab.active {
+  background: #355f96;
+}
+.notebook-tab button {
+  white-space: nowrap;
+  font-size: 12px;
+  padding: 7px 10px;
+}
+.notebook-tab button:first-child {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.notebook-tab button:hover {
+  background: #ffffff20;
+}

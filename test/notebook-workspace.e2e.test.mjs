@@ -43,7 +43,14 @@ test(
       headless: true,
       args: ["--no-first-run"],
     });
-    t.after(() => browser.close());
+    t.after(async () => {
+      const timer = setTimeout(() => browser.process()?.kill("SIGKILL"), 5000);
+      try {
+        await browser.close();
+      } finally {
+        clearTimeout(timer);
+      }
+    });
     const page = await browser.newPage();
     await page.goto(url);
     await page.waitForSelector("#pdf-import");
@@ -60,8 +67,7 @@ test(
         .textContent.includes("Saved on this browser"),
     );
     await page.reload();
-    await page.waitForSelector("[data-open]");
-    await page.click("[data-open]");
+    await page.waitForSelector("#ink");
     assert.equal(
       await page.$eval("#ink image", (n) => n.getAttribute("href")),
       first,
@@ -142,5 +148,33 @@ test(
       2,
       "restore retains existing notebook",
     );
+    await page.click('[aria-label="Open Large backup (restored)"]');
+    assert.equal(await page.$$eval("[data-tab-open]", (ns) => ns.length), 2);
+    await page.click("#add");
+    await page.click(".notebook-tab:first-child [data-tab-open]");
+    assert.equal(await page.$eval("#title", (n) => n.value), "jett-fillable");
+    assert.equal(
+      await page.$eval("#undo", (n) => n.disabled),
+      true,
+      "undo belongs to this notebook",
+    );
+    await page.click('[data-page="1"]');
+    await page.click(".notebook-tab:last-child [data-tab-open]");
+    await page.click(".notebook-tab:first-child [data-tab-open]");
+    assert.match(await page.$eval(".footer", (n) => n.textContent), /2 of 2/);
+    await page.reload();
+    await page.waitForSelector("#ink");
+    assert.equal(await page.$eval("#title", (n) => n.value), "jett-fillable");
+    assert.match(await page.$eval(".footer", (n) => n.textContent), /2 of 2/);
+    await page.click('#home');
+    await page.click('[aria-label="Manage Large backup (restored)"]');
+    await page.$eval('[name=title]',n=>{n.value='Renamed backup';});
+    await page.type('[name=folder]','Research');
+    await page.click('form button[type=submit]');
+    await page.click('[aria-label="Open Renamed backup"]');
+    assert.equal(await page.$eval('#undo',n=>n.disabled),true,'library metadata clears older whole-notebook history');
+    assert.equal(await page.$eval('#title',n=>n.value),'Renamed backup');
+    await page.click('[aria-label="Close Renamed backup"]');
+    assert.equal(await page.$(".notebook-tabs"), null);
   },
 );

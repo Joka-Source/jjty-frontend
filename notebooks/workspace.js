@@ -1,4 +1,5 @@
 import "../src/pwa.js";
+import { reconcileSession } from "./session.js";
 import { pageBackground } from "./paper.js";
 import { toolIcon } from "./icons.js";
 import { notebook, validate, appendItem, VERSION } from "./model.js";
@@ -42,6 +43,56 @@ try {
   storageError =
     "Saved data could not be opened. It has not been overwritten. Restore a valid backup or reload after resolving browser storage.";
   saved = false;
+}
+const sessionKey = "jett-notebook-session-v1";
+let session;
+try {
+  session = reconcileSession(
+    JSON.parse(localStorage.getItem(sessionKey)),
+    data.notebooks,
+  );
+} catch {
+  session = reconcileSession(null, data.notebooks);
+}
+current = session.active;
+page = current ? session.pages[current] : 0;
+const histories = new Map();
+function holdNotebook() {
+  if (current) {
+    session.pages[current] = page;
+    histories.set(current, { undo, redo });
+  }
+}
+function openNotebook(id) {
+  holdNotebook();
+  current = id;
+  if (!session.tabs.includes(id)) session.tabs.push(id);
+  page = session.pages[id] || 0;
+  const held = histories.get(id);
+  undo = held?.undo || [];
+  redo = held?.redo || [];
+  render();
+}
+function home() {
+  holdNotebook();
+  current = null;
+  render();
+}
+function closeNotebook(id) {
+  const index = session.tabs.indexOf(id);
+  holdNotebook();
+  session.tabs = session.tabs.filter((tab) => tab !== id);
+  delete session.pages[id];
+  histories.delete(id);
+  if (current === id) {
+    current = null;
+    const next = session.tabs[Math.max(0, index - 1)];
+    if (next) {
+      openNotebook(next);
+      return;
+    }
+  }
+  render();
 }
 function notify(s) {
   document.querySelector("#notice").textContent = s;
@@ -103,11 +154,7 @@ function create() {
       const n = notebook(f.get("title"), f.get("paper"), f.get("color"));
       data.notebooks.push(n);
       persist();
-      current = n.id;
-      page = 0;
-      undo = [];
-      redo = [];
-      render();
+      openNotebook(n.id);
     },
   );
 }
@@ -126,6 +173,14 @@ function render() {
   if (current && !book()) current = null;
   if (current) editor();
   else library();
+  holdNotebook();
+  session.active = current;
+  session = reconcileSession(session, data.notebooks);
+  try {
+    localStorage.setItem(sessionKey, JSON.stringify(session));
+  } catch {
+    /* Notebook storage and export remain available. */
+  }
 }
 function library() {
   const list = data.notebooks
@@ -160,11 +215,7 @@ function library() {
   app.querySelectorAll("[data-open]").forEach(
     (b) =>
       (b.onclick = () => {
-        current = b.dataset.open;
-        page = 0;
-        undo = [];
-        redo = [];
-        render();
+        openNotebook(b.dataset.open);
       }),
   );
   app.querySelectorAll("[data-star]").forEach(
@@ -172,6 +223,7 @@ function library() {
       (b.onclick = () => {
         const n = data.notebooks.find((n) => n.id === b.dataset.star);
         n.favorite = !n.favorite;
+        histories.delete(n.id);
         persist();
         render();
       }),
@@ -218,7 +270,18 @@ function editor() {
   page = Number.isInteger(page)
     ? Math.max(0, Math.min(page, n.pages.length - 1))
     : 0;
-  app.innerHTML = `<div class="editor"><div class="tabbar"><button id="home" aria-label="Back to library">⌂</button><input id="title" aria-label="Notebook title" value="${esc(n.title)}" maxlength="100"><span style="margin-left:auto;font-size:12px">JETT</span></div><div class="toolbar"><button id="sidebar" aria-label="Toggle pages">▤</button><button id="find" aria-label="Find text">⌕</button><div class="tools">${[
+  app.innerHTML = `<div class="editor"><div class="tabbar"><button id="home" aria-label="Back to library">⌂</button><input id="title" aria-label="Notebook title" value="${esc(n.title)}" maxlength="100"><span style="margin-left:auto;font-size:12px">JETT</span></div>${
+    session.tabs.length > 1
+      ? `<nav class="notebook-tabs" aria-label="Open notebooks">${session.tabs
+          .map((id) => {
+            const tab = data.notebooks.find((n) => n.id === id);
+            return tab
+              ? `<span class="notebook-tab ${id === current ? "active" : ""}"><button data-tab-open="${id}" aria-current="${id === current ? "page" : "false"}">${esc(tab.title)}</button><button data-tab-close="${id}" aria-label="Close ${esc(tab.title)}">×</button></span>`
+              : "";
+          })
+          .join("")}</nav>`
+      : ""
+  }<div class="toolbar"><button id="sidebar" aria-label="Toggle pages">▤</button><button id="find" aria-label="Find text">⌕</button><div class="tools">${[
     ["lasso", "⌁", "Lasso selection"],
     ["pen", "✎", "Pen"],
     ["rectangle", "□", "Rectangle"],
@@ -250,10 +313,13 @@ function editor() {
     .join(
       "",
     )}</select><button id="undo" aria-label="Undo" ${!undo.length ? "disabled" : ""}>↶</button><button id="redo" aria-label="Redo" ${!redo.length ? "disabled" : ""}>↷</button><button id="add" aria-label="Add page">＋</button><button id="export" aria-label="Export notebook">↥</button><button id="page-options" aria-label="Page options">⋯</button></div><div class="desk">${sidebar ? `<aside class="pages"><h3>Pages <span style="color:#8a96a5">${n.pages.length}</span></h3>${n.pages.some((p) => p.outline) ? `<nav aria-label="Document outline">${n.pages.map((p, i) => (p.outline ? `<button data-page="${i}" style="display:block;text-align:left">${esc(p.outline)}</button>` : "")).join("")}</nav>` : ""}${n.pages.map((p, i) => `<button data-page="${i}" class="thumb ${i === page ? "active" : ""}" aria-label="Page ${i + 1}"><svg viewBox="0 0 720 960" width="100%" height="85%">${pageBackground(p, n.paper)}${svgItems(p.items)}</svg>${i + 1}</button>`).join("")}<button id="add-side" aria-label="Add another page">＋ Add page</button></aside>` : ""}<main class="canvas-wrap"><div style="width:${zoom ? `${720 * zoom}px` : "min(720px, 100%)"}" class="paper ${n.pages[page].paper || n.paper} ${tool === "read" ? "read" : ""}"><svg id="ink" viewBox="0 0 720 960" role="img" aria-label="Notebook page ${page + 1}">${pageBackground(n.pages[page], n.paper)}${svgItems(n.pages[page].items)}</svg></div></main></div><div class="footer"><span>${page + 1} of ${n.pages.length} · ${tool === "read" ? "Read only" : tool === "eraser" ? "Click near a stroke to erase" : tool === "text" ? "Click the paper to add text" : "Draw on the paper"}</span><span>${saved ? "Saved on this browser" : "Unsaved — export a backup"}</span></div></div>`;
-  app.querySelector("#home").onclick = () => {
-    current = null;
-    render();
-  };
+  app.querySelector("#home").onclick = home;
+  app
+    .querySelectorAll("[data-tab-open]")
+    .forEach((b) => (b.onclick = () => openNotebook(b.dataset.tabOpen)));
+  app
+    .querySelectorAll("[data-tab-close]")
+    .forEach((b) => (b.onclick = () => closeNotebook(b.dataset.tabClose)));
   app.querySelector("#title").onchange = (e) => {
     const next = structuredClone(book());
     next.title = e.target.value.trim() || "Untitled notebook";
@@ -540,6 +606,7 @@ function manageNotebook(id) {
         n.folder = f.get("folder").trim();
         if (f.get("action") === "trash") n.trashed = !n.trashed;
         n.updated = Date.now();
+        histories.delete(n.id);
       }
       persist();
       render();
@@ -592,11 +659,7 @@ document.querySelector("#pdf-file").onchange = async (e) => {
     );
     data.notebooks.push(n);
     persist();
-    current = n.id;
-    page = 0;
-    undo = [];
-    redo = [];
-    render();
+    openNotebook(n.id);
     notify(`Imported ${n.pages.length} pages. Original PDF retained.`);
   } catch (error) {
     notify(`PDF import failed: ${error.message}`);

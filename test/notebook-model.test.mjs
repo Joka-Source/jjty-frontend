@@ -95,3 +95,10 @@ test('page backgrounds use the captured notebook template without live UI state'
   assert.match(pageBackground(snapshot.pages[0],snapshot.paper),/paper-pattern-ruled/);
   assert.match(pageBackground({paper:'dots'},snapshot.paper),/paper-pattern-dots/);
 });
+
+test('session recovery drops missing and trashed tabs and clamps saved page positions', async()=>{
+  const {reconcileSession}=await import('../notebooks/session.js');
+  const a=notebook('A'), b=notebook('B'); b.trashed=true;
+  assert.deepEqual(reconcileSession({tabs:[a.id,a.id,b.id,'missing'],active:a.id,pages:{[a.id]:99}},[a,b]),{tabs:[a.id],active:a.id,pages:{[a.id]:0}});
+  assert.deepEqual(reconcileSession({tabs:[b.id],active:b.id},[a,b]),{tabs:[],active:null,pages:{}});
+});

@@ -6,6 +6,7 @@ Open `/notebooks/index.html` from `npm run dev` or the built site. Vite bundles 
 
 - Library: create notebooks, cover colors, search, favorites, folders, rename, duplicate, recoverable Trash.
 - Pages: grid/ruled/dotted/blank templates per page, thumbnails, named outline entries, add, duplicate, reorder, remove with undo, direct page navigation, fit/50–200% zoom.
+- Workspace: multiple notebook tabs retain separate page positions and in-memory undo histories; reload reopens the active notebook/page. Closing a tab leaves notebook content intact. Library metadata changes clear that notebook's older editor undo history.
 - Editing: SVG pen, translucent highlighter, rectangle, whole-stroke erase, typed text, sticky notes, raster image insertion, temporary laser pointer; polygon lasso selects objects for movement, text editing, duplication and deletion; undo/redo in the open notebook.
 - PDF: import up to 20 MB/100 pages through PDF.js, searchable extracted text and rendered page backgrounds. Keep exact original PDF bytes. This route uses rendered backgrounds, not native PDF text/form editing.
 - Export: validated editable JSON backup; unchanged original PDF; self-contained printable HTML; flattened annotated PDF through MuPDF, with paper templates and page content.

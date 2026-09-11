@@ -293,8 +293,7 @@ test('offline notebook navigation retains its own app and saved notebook', {time
   await page.waitForFunction(()=>navigator.serviceWorker.controller!==null);
   await page.setOfflineMode(true);
   await page.reload();
-  await page.waitForSelector('[data-open]');
-  await page.click('[data-open]');
+  await page.waitForSelector('#ink');
   assert.equal(await page.$eval('#title',n=>n.value),'Offline notebook fixture');
   assert.equal(await page.title(),'JETT · Notebooks');
 });
