@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { BackupError, decryptBackup, encryptBackup, parseBackup } from "../src/backup.js";
+import { BackupError, decryptBackup, encryptBackup, parseBackup, verifyTransportLog } from "../src/backup.js";
+import { envelopeHash } from "../packages/jt-sync/src/hash.ts";
 
 const valid = () => ({
   format: "jt-export",
@@ -16,15 +17,29 @@ const valid = () => ({
 });
 
 test("a complete jt export is accepted for restoration", () => {
-  assert.deepEqual(parseBackup(JSON.stringify(valid())), { ...valid(), transport: { deviceId: null, queued: [] } });
+  assert.deepEqual(parseBackup(JSON.stringify(valid())), { ...valid(), transport: { deviceId: null, queued: [], log: [] } });
 });
 
 test("device-bound queued sends are validated and old exports remain readable", () => {
   const backup = valid();
   backup.transport = { deviceId: "device-a", queued: [{ id: "moment-1", moment: { transport: { momentId: "moment-1" } } }] };
-  assert.deepEqual(parseBackup(JSON.stringify(backup)).transport, backup.transport);
+  assert.deepEqual(parseBackup(JSON.stringify(backup)).transport, { ...backup.transport, log: [] });
   backup.transport.queued = [{ id: "broken" }];
   assert.throws(() => parseBackup(JSON.stringify(backup)), /invalid outbound queue/);
+});
+
+test("device delivery evidence is structurally validated and old exports default to no log", async () => {
+  const old = parseBackup(JSON.stringify(valid()));
+  assert.deepEqual(old.transport.log, []);
+  const backup = valid();
+  const moment = { transport: { momentId: "moment-1", fromDeviceId: "device-a", seq: 0, sentAt: "2026-09-11T00:00:00.000Z", protocol: "jt-sync/0" } };
+  backup.transport = { deviceId: "device-a", queued: [], log: [{ logSeq: 0, appendedAt: "2026-09-11T00:00:01.000Z", contentHash: await envelopeHash(moment), moment }] };
+  const parsed = parseBackup(JSON.stringify(backup));
+  await verifyTransportLog(parsed.transport.log);
+  parsed.transport.log[0].contentHash = "sha256:" + "0".repeat(64);
+  await assert.rejects(() => verifyTransportLog(parsed.transport.log), /content hash does not match/);
+  backup.transport.log[0].logSeq = 2;
+  assert.throws(() => parseBackup(JSON.stringify(backup)), /invalid delivery log sequence/);
 });
 
 test("corrupt, foreign and incomplete backups fail before mutation", () => {
@@ -52,7 +67,7 @@ test("encrypted exports round-trip without exposing document text or passphrase"
   assert.equal(envelope.kdf.name, "PBKDF2");
   assert.equal(envelope.kdf.iterations, 310000);
   assert.equal(envelope.cipher.name, "AES-GCM");
-  assert.deepEqual(parseBackup(await decryptBackup(encrypted, "a memorable long passphrase")), { ...valid(), transport: { deviceId: null, queued: [] } });
+  assert.deepEqual(parseBackup(await decryptBackup(encrypted, "a memorable long passphrase")), { ...valid(), transport: { deviceId: null, queued: [], log: [] } });
 });
 
 test("encrypted exports reject short, wrong and tampered credentials", async () => {

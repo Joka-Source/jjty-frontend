@@ -28,7 +28,7 @@ import pkg from "../package.json" with { type: "json" };
 import { renderCapabilities } from "./capabilities.js";
 import { verbRegistry } from "./registry/index.js";
 import { JETT_UI_STATES, mountStateSurface } from "./ui-state.js";
-import { decryptBackup, encryptBackup, isEncryptedBackup, parseBackup } from "./backup.js";
+import { decryptBackup, encryptBackup, isEncryptedBackup, parseBackup, verifyTransportLog } from "./backup.js";
 import { restoreDeviceBackup } from "./restore-coordinator.js";
 
 const VIEWS = ["welcome", "home", "read", "history", "share", "spaces", "settings", "capabilities", "states", "rooms"];
@@ -842,6 +842,7 @@ export function initShell(ctx) {
         transport: {
           deviceId: ctx.syncDeviceId,
           queued: await ctx.getOutbox(),
+          log: await ctx.getDeliveryLog(),
         },
       },
       null,
@@ -891,15 +892,16 @@ export function initShell(ctx) {
 
   let pendingBackup = null;
   let selectedBackupText = null;
-  function stageBackup(backup, encrypted) {
+  async function stageBackup(backup, encrypted) {
+    await verifyTransportLog(backup.transport.log);
     const restoredOrg = OrgStore.fromJSON(backup.spaces);
     const restoreQueued = backup.transport.deviceId === ctx.syncDeviceId;
     pendingBackup = { backup, restoredOrg, restoreQueued };
     $("restore-btn").disabled = false;
     const queued = restoreQueued
-      ? ` ${backup.transport.queued.length} queued sends will also be restored for this device.`
-      : backup.transport.queued.length
-        ? " queued sends belong to another device and will not be replayed here."
+      ? ` ${backup.transport.queued.length} queued sends and ${backup.transport.log.length} delivery records will also be restored for this device.`
+      : backup.transport.queued.length || backup.transport.log.length
+        ? " queued sends and delivery records belong to another device and will not be installed here."
         : "";
     const legacy = encrypted ? "" : " this is a legacy unencrypted backup; restore is supported, but make the next backup encrypted.";
     $("restore-state").textContent = `ready to restore ${backup.documents.length} documents, ${backup.records.length} records and ${backup.arrived.length} arrivals.${queued}${legacy} existing data on this device will be replaced.`;
@@ -920,7 +922,7 @@ export function initShell(ctx) {
         $("restore-unlock").hidden = false;
         state.textContent = "encrypted backup selected. enter its passphrase to inspect it before restoring.";
       } else {
-        stageBackup(parseBackup(selectedBackupText), false);
+        await stageBackup(parseBackup(selectedBackupText), false);
       }
     } catch (error) {
       state.textContent = `this backup cannot be restored: ${error.message}`;
@@ -935,7 +937,7 @@ export function initShell(ctx) {
     state.textContent = "unlocking and validating the backup on this device…";
     try {
       const plaintext = await decryptBackup(selectedBackupText, $("restore-passphrase").value);
-      stageBackup(parseBackup(plaintext), true);
+      await stageBackup(parseBackup(plaintext), true);
     } catch (error) {
       state.textContent = `this backup cannot be unlocked: ${error.message}`;
     } finally {
@@ -974,6 +976,8 @@ export function initShell(ctx) {
         },
         getOutbox: ctx.getOutbox,
         replaceOutbox: ctx.replaceOutbox,
+        getDeliveryLog: ctx.getDeliveryLog,
+        replaceDeliveryLog: ctx.replaceDeliveryLog,
         replaceAllData: ctx.replaceAllData,
       });
       location.reload();

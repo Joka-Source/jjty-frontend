@@ -1991,6 +1991,8 @@ async function boot() {
     syncDeviceId: sync.deviceId,
     getOutbox: () => sync.pendingItems(),
     replaceOutbox: (entries) => sync.replacePending(entries),
+    getDeliveryLog: () => sync.deliveryEntries(),
+    replaceDeliveryLog: (entries) => sync.replaceDeliveryEntries(entries),
     positionForDoc,
     relativeReadTime,
     getInbox: () => inbox,

@@ -38,6 +38,18 @@ test("verified moment log survives a new store instance for the same device", as
   assert.equal(await afterReload.nextSeq(), 1);
 });
 
+test("delivery-log recovery is atomic and scoped to one device", async () => {
+  const databaseName = `jt-sync-log-replace-${crypto.randomUUID()}`;
+  const deviceA = new IndexedDbLogStore({ indexedDB, databaseName, deviceId: "device-a" });
+  const deviceB = new IndexedDbLogStore({ indexedDB, databaseName, deviceId: "device-b" });
+  await deviceA.append(entry);
+  await deviceB.append({ ...entry, moment: { ...entry.moment, transport: { ...entry.moment.transport, momentId: "other" } } });
+  const restored = [{ ...entry, logSeq: 0, moment: { ...entry.moment, transport: { ...entry.moment.transport, momentId: "restored" } } }];
+  await deviceA.replaceAll(restored);
+  assert.deepEqual((await deviceA.readAll()).map((row) => row.moment.transport.momentId), ["restored"]);
+  assert.deepEqual((await deviceB.readAll()).map((row) => row.moment.transport.momentId), ["other"]);
+});
+
 test("an unsent moment survives reload until verified delivery removes it", async () => {
   const options = {
     indexedDB,

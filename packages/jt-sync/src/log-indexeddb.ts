@@ -61,6 +61,25 @@ export class IndexedDbLogStore implements LogStore {
     return entries.length === 0 ? 0 : entries[entries.length - 1].logSeq + 1;
   }
 
+  /** Recovery-only replacement; normal delivery remains append-only. */
+  async replaceAll(entries: LogEntry[]): Promise<void> {
+    const database = await this.open();
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction(STORE_NAME, "readwrite");
+      const store = transaction.objectStore(STORE_NAME);
+      const keys = store.getAllKeys();
+      keys.onsuccess = () => {
+        for (const key of keys.result) {
+          if (String(key).startsWith(`${this.deviceId}:`)) store.delete(key);
+        }
+        for (const entry of entries) store.put({ ...entry, key: this.key(entry.logSeq), deviceId: this.deviceId } satisfies StoredLogEntry);
+      };
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+  }
+
   private key(logSeq: number): string {
     return `${this.deviceId}:${String(logSeq).padStart(12, "0")}`;
   }

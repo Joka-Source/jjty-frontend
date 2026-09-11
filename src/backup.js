@@ -120,10 +120,25 @@ export function parseBackup(text) {
   for (const position of value.positions) {
     if (!position || !docIds.has(position.docId)) throw new BackupError("the jt export contains a reading place without its document");
   }
-  const transport = value.transport ?? { deviceId: null, queued: [] };
+  const transport = value.transport ?? { deviceId: null, queued: [], log: [] };
   if (transport.deviceId !== null && typeof transport.deviceId !== "string") throw new BackupError("the jt export contains an invalid transport identity");
   if (!Array.isArray(transport.queued) || transport.queued.some((entry) => !entry || typeof entry.id !== "string" || !entry.moment)) {
     throw new BackupError("the jt export contains an invalid outbound queue");
   }
-  return { ...value, transport };
+  const log = transport.log ?? [];
+  if (!Array.isArray(log) || log.some((entry, index) =>
+    !entry || entry.logSeq !== index || typeof entry.appendedAt !== "string" ||
+    typeof entry.contentHash !== "string" || !entry.moment
+  )) throw new BackupError("the jt export contains an invalid delivery log sequence");
+  return { ...value, transport: { ...transport, log } };
 }
+
+export async function verifyTransportLog(entries) {
+  for (const entry of entries) {
+    if (await envelopeHash(entry.moment) !== entry.contentHash) {
+      throw new BackupError(`delivery evidence ${entry.logSeq} content hash does not match its moment`);
+    }
+  }
+  return entries;
+}
+import { envelopeHash } from "../packages/jt-sync/src/hash.ts";

@@ -80,6 +80,7 @@ export function createSyncSurface({ relayUrl, deviceId, onArrive, onState, stora
   let flushing = null;
   const activeSends = new Set();
   const outbox = new IndexedDbOutboxStore({ deviceId });
+  const logStore = new IndexedDbLogStore({ deviceId });
   let restoring = isValidPairCode(storage?.getItem(PAIR_CODE_KEY) ?? "") && !!storage?.getItem(RESUME_TOKEN_KEY);
   let restoreError = "";
 
@@ -156,7 +157,7 @@ export function createSyncSurface({ relayUrl, deviceId, onArrive, onState, stora
     const savedResumeToken = storage?.getItem(RESUME_TOKEN_KEY) ?? "";
     if (!isValidPairCode(savedCode) || !savedResumeToken) { restoring = false; return false; }
     try {
-      channel = await MomentChannel.resume(relayUrl, deviceId, savedCode, savedResumeToken, new IndexedDbLogStore({ deviceId }));
+      channel = await MomentChannel.resume(relayUrl, deviceId, savedCode, savedResumeToken, logStore);
       attach(channel);
       return true;
     } catch (error) {
@@ -177,7 +178,7 @@ export function createSyncSurface({ relayUrl, deviceId, onArrive, onState, stora
     async open() {
       await ready;
       channel?.close();
-      channel = await MomentChannel.create(relayUrl, deviceId, new IndexedDbLogStore({ deviceId }));
+      channel = await MomentChannel.create(relayUrl, deviceId, logStore);
       restoreError = "";
       storage?.setItem(PAIR_CODE_KEY, channel.pairCode);
       storage?.setItem(RESUME_TOKEN_KEY, channel.resumeToken);
@@ -192,7 +193,7 @@ export function createSyncSurface({ relayUrl, deviceId, onArrive, onState, stora
       const c = codeFromSpoken(code) ?? code;
       if (!isValidPairCode(c)) throw new Error("that does not sound like a share code");
       channel?.close();
-      channel = await MomentChannel.join(relayUrl, deviceId, c, new IndexedDbLogStore({ deviceId }));
+      channel = await MomentChannel.join(relayUrl, deviceId, c, logStore);
       restoreError = "";
       storage?.setItem(PAIR_CODE_KEY, c);
       storage?.setItem(RESUME_TOKEN_KEY, channel.resumeToken);
@@ -240,5 +241,7 @@ export function createSyncSurface({ relayUrl, deviceId, onArrive, onState, stora
     restorePairing: () => ready,
     pendingItems: () => outbox.readAll(),
     replacePending: (entries) => outbox.replaceAll(entries),
+    deliveryEntries: () => logStore.readAll(),
+    replaceDeliveryEntries: (entries) => logStore.replaceAll(entries),
   };
 }

@@ -19,16 +19,23 @@ export async function restoreDeviceBackup({
   revertLocal,
   getOutbox,
   replaceOutbox,
+  getDeliveryLog,
+  replaceDeliveryLog,
   replaceAllData,
 }) {
   let priorOutbox = null;
+  let priorDeliveryLog = null;
   let outboxChanged = false;
+  let deliveryLogChanged = false;
   try {
     applyLocal();
     if (restoreQueued) {
       priorOutbox = await getOutbox();
       await replaceOutbox(backup.transport.queued);
       outboxChanged = true;
+      priorDeliveryLog = await getDeliveryLog();
+      await replaceDeliveryLog(backup.transport.log);
+      deliveryLogChanged = true;
     }
     await replaceAllData(backup);
   } catch (cause) {
@@ -36,6 +43,9 @@ export async function restoreDeviceBackup({
     try { revertLocal(); } catch (error) { rollbackErrors.push(error); }
     if (outboxChanged) {
       try { await replaceOutbox(priorOutbox); } catch (error) { rollbackErrors.push(error); }
+    }
+    if (deliveryLogChanged) {
+      try { await replaceDeliveryLog(priorDeliveryLog); } catch (error) { rollbackErrors.push(error); }
     }
     if (rollbackErrors.length === 0) {
       throw new RestoreFailure(
