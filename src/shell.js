@@ -49,9 +49,9 @@ export function initShell(ctx) {
     return v === "read" ? null : $(`view-${v}`);
   }
 
-  function show(next, { silent = false, hash = null } = {}) {
+  function show(next, { silent = false, hash = null, attachmentReview = false } = {}) {
     if (!VIEWS.includes(next)) next = "home";
-    if (!settings.welcomed && !ctx.SIM) next = "welcome";
+    if (!settings.welcomed && !ctx.SIM && !(attachmentReview && next === "read")) next = "welcome";
     const prev = view;
     ctx.onViewChange?.(next, prev);
     view = next;

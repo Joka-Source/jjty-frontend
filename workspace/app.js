@@ -1,7 +1,8 @@
+import { startPdfHandoff, readPdfHandoff } from './pdf-handoff.js';
 import './style.css';
 import '../src/pwa.js';
 import { navigationIcon } from './icons.js';
-import { attachmentStore } from './attachments.js';
+import { attachmentStore, attachmentEntries } from './attachments.js';
 import { sections, loadState, saveState, providers } from './model.js';
 const root = document.querySelector('#workspace'), sheet = document.querySelector('#sheet');
 let state = loadState(localStorage), folder = 'Inbox', objectUrl = null;
@@ -45,6 +46,7 @@ function communication(surface) {
  document.querySelector('#composer').oninput=event=>{const form=document.querySelector('#composer');state.drafts[section]={to:form.elements.to.value,subject:form.elements.subject?.value||'',body:form.elements.body.value};if(['to','subject','body'].includes(event.target.name)&&store({section,field:event.target.name}))status('Draft saved on this browser · not sent');};
  document.querySelector('#composer').onsubmit=e=>{e.preventDefault();modal('Connect before sending','<p>Your draft is saved here. A delivery provider is required to send it. Nothing has been sent.</p><button id="open-connections" class="primary">View connections</button>');document.querySelector('#open-connections').onclick=()=>{sheet.close();navigate('Connections');};};
  document.querySelector('#attach').onclick=()=>document.querySelector('#file').click();
+ showReturnedCopy();
  const attachmentKey=section;
  async function showAttachment(file) {
   if(section!==attachmentKey)return;
@@ -54,6 +56,10 @@ function communication(surface) {
   objectUrl=URL.createObjectURL(file);
   const caption=document.createElement('p');caption.textContent=`${file.name} · ${(file.size/1048576).toFixed(1)} MB · saved locally, not uploaded`;node.append(caption);
   if(file.type.startsWith('video/')){const video=document.createElement('video');video.controls=true;video.src=objectUrl;node.append(video);}
+  if(file.type==='application/pdf'||/\.pdf$/i.test(file.name)){
+   const edit=document.createElement('button');edit.type='button';edit.textContent='Review PDF';
+   edit.onclick=async()=>{edit.disabled=true;try{const id=await startPdfHandoff(attachmentKey,file);location.href=`/?workspaceSession=${id}#/home`;}catch(error){status(error.message);edit.disabled=false;}};node.append(edit);
+  }
   const download=document.createElement('a');download.href=objectUrl;download.download=file.name;download.textContent='Download attachment';node.append(download);
   const remove=document.createElement('button');remove.type='button';remove.textContent='Remove attachment';remove.onclick=async()=>{try{await attachmentStore(attachmentKey,null);showAttachment(null);status('Attachment removed.');}catch{status('Attachment could not be removed. Try again.');}};node.append(remove);
  }
@@ -87,3 +93,21 @@ function settings(surface) {
  };surface.querySelectorAll('[data-setting]').forEach(b=>b.onclick=()=>show(b.dataset.setting));show('Appearance');
 }
 render();
+
+async function showReturnedCopy(){
+ const destination=section;
+ if(!['Inbox','Messages'].includes(destination))return;
+ try{
+  const reviews=await attachmentEntries('review-list:');
+  for(const review of reviews.filter(r=>r.destination===destination)){
+   const file=await attachmentStore(`result:${review.id}`);
+   if(section!==destination)return;
+   const node=document.querySelector('#attachment');if(!node||!file)return;
+   if(document.getElementById(`review-${review.id}`))continue;
+   const box=document.createElement('div'),label=document.createElement('p'),link=document.createElement('a');
+   box.id=`review-${review.id}`;label.textContent=`Reviewed copy: ${file.name}. Original attachment retained. Nothing sent.`;
+   const url=URL.createObjectURL(file);link.href=url;link.download=file.name;link.textContent='Download reviewed copy';
+   box.append(label,link);box.className='reviewed-copy';node.after(box);
+  }
+ }catch(error){status(error.message);}
+}

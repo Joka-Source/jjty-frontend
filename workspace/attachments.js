@@ -10,3 +10,11 @@ export async function attachmentStore(key,file) {
  tx.oncomplete=()=>resolve(request.result);tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error);
  });}finally{db.close();}
 }
+export async function attachmentEntries(prefix) {
+ const db=await open();try{return await new Promise((resolve,reject)=>{
+ const tx=db.transaction('attachments','readonly'),results=[];
+ const request=tx.objectStore('attachments').openCursor(IDBKeyRange.bound(prefix,prefix+'\uffff'));
+ request.onsuccess=()=>{const cursor=request.result;if(cursor){results.push(cursor.value);cursor.continue();}};
+ tx.oncomplete=()=>resolve(results);tx.onerror=()=>reject(tx.error);
+ });}finally{db.close();}
+}

@@ -39,3 +39,12 @@ Gmail and messaging adapters are not configured. Their connection screens state 
 Verification: unified real-browser journey passed; field-level concurrent-tab model check passed; production build passed; production offline shell/draft reload passed. Desktop screenshot inspected. Independent review findings corrected and tested. Broader baseline remains red as recorded in notebook evidence.
 
 Remaining critical work: provider-neutral thread/attachment identity and editor return contract; actual email import/provider authorization; communication thread data and delivery adapter; video upload destination/progress; exhaustive screen-state coverage and visual finish; broad regression gate. The app is not declared finished.
+
+## PDF attachment return checkpoint
+Implemented local attachment review sessions: original file retained, independent reader document, saved form/annotation export, uniquely identified reviewed results listed with the same draft after folder navigation and fresh visits. Completed sessions cannot overwrite returned results. First-run review opens the reader without changing onboarding or microphone preferences.
+
+Fresh browser proof edits the synthetic full_name PDF field, returns the copy, parses exported bytes to verify the new value, verifies original attachment and draft retention, and reopens the canonical workspace URL to verify result discoverability.
+
+Boundary: this is local attachment → PDF form/annotation review → draft, not Gmail import or delivery. Existing text-edit derived-document and Bento return flows are not yet bound to the draft review session; the return control refuses a different document or unapplied text draft. Full product checklist remains open.
+
+Verification for this checkpoint: 3 focused acceptance tests passed; existing desktop shell walk passed; production build passed. Broad historical red evidence remains unchanged.

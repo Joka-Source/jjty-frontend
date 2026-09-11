@@ -1,3 +1,4 @@
+import { mountWorkspaceReturn } from './workspace-return.js';
 import {EPUB_LIMITS} from './epub-package.js';
 import {ingestEpub} from './epub-ingest.js';
 import {mountEpubReader} from './epub-reader.js';
@@ -2856,4 +2857,17 @@ async function boot() {
   window.__jtApp.booted = true;
 }
 
-boot();
+boot().then(()=>mountWorkspaceReturn({
+ importFile:async file=>{const doc=await ingestFile(file);if(doc)shell.show("read",{attachmentReview:true});return doc;},getDocument:getDoc,openDocument:async doc=>{await openDocument(doc);shell.show("read",{attachmentReview:true});},currentDocument:()=>state.doc,
+ exportDocument:async id=>{
+  if(state.doc?.id!==id)throw new Error('Return to the attachment to export it.');
+  await pdfFormPanel.flush(id);
+  const source=await getDoc(id),records=await getRecords(id);
+  if(state.doc?.id!==id)throw new Error('The open document changed. Return to the attachment.');
+  if(source.textEditDraft)throw new Error('Apply or discard pending text edits before returning a copy.');
+  const undone=new Set(records.filter(r=>r.act==='undo').map(r=>r.undoes));
+  const hasMarks=records.some(r=>r.kind==='act'&&(isTextMarkup(r.act)||['note','important'].includes(r.act))&&!r.undone&&!undone.has(r.id));
+  const hasForms=source.formDraft&&Object.keys(source.formDraft.values||{}).length>0;
+  return hasMarks||hasForms?(await exportCombinedPdf({source,savedFormDraft:source.formDraft??null,committedRecords:records,allowFormOnly:true})).bytes:pdfSourceBytes(source.sourceBytes).slice();
+ }
+})).catch(error=>setStatus(false,error.message));
