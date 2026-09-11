@@ -174,6 +174,30 @@ test("desktop shell walk: first-run once, every surface, settings persist, expor
   await page.click('#set-motion .choice[data-value="calm"]');
   await page.click('#set-engine .choice[data-value="js"]');
 
+  await page.evaluate(async () => {
+    const deviceId = localStorage.getItem("jt.sync.deviceId");
+    const database = await new Promise((resolve, reject) => {
+      const request = indexedDB.open("jt-sync-outbox", 1);
+      request.onupgradeneeded = () => request.result.createObjectStore("momentOutbox", { keyPath: "key" });
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    await new Promise((resolve, reject) => {
+      const transaction = database.transaction("momentOutbox", "readwrite");
+      transaction.objectStore("momentOutbox").put({
+        key: `${deviceId}:backup-queued-1`,
+        deviceId,
+        id: "backup-queued-1",
+        createdAt: "2026-09-11T00:00:00.000Z",
+        attemptCount: 1,
+        lastError: "relay unavailable",
+        moment: { transport: { momentId: "backup-queued-1", fromDeviceId: deviceId } },
+      });
+      transaction.oncomplete = resolve;
+      transaction.onerror = () => reject(transaction.error);
+    });
+  });
+
   // 8. Export: one valid JSON file of everything on the device.
   const exported = await page.evaluate(() => window.__jtApp.exportData());
   const data = JSON.parse(exported); // throws if not valid JSON
@@ -181,6 +205,9 @@ test("desktop shell walk: first-run once, every surface, settings persist, expor
   assert.ok(data.documents.length >= 1, "export missing documents");
   assert.ok(data.records.length >= 2, "export missing records (act + undo)");
   assert.ok(Array.isArray(data.arrived), "export must resolve arrived moments before serialization");
+  assert.equal(typeof data.transport.deviceId, "string");
+  assert.ok(Array.isArray(data.transport.queued), "export must resolve queued sends before serialization");
+  assert.deepEqual(data.transport.queued.map((entry) => entry.id), ["backup-queued-1"]);
   assert.equal(data.spaces.institutions[0].name, "A Small College");
   assert.equal(data.settings.lang, "en-IN");
   assert.equal(data.settings.motion, "calm");
@@ -204,6 +231,7 @@ test("desktop shell walk: first-run once, every surface, settings persist, expor
   assert.deepEqual(restored.documents.map((doc) => doc.id).sort(), data.documents.map((doc) => doc.id).sort());
   assert.deepEqual(restored.records.map((record) => record.id).sort(), data.records.map((record) => record.id).sort());
   assert.deepEqual(restored.arrived, data.arrived);
+  assert.deepEqual(restored.transport.queued.map((entry) => entry.id), ["backup-queued-1"]);
 
   // 10. Reload: everything persisted — settings, spaces, engine choice live.
   // The hash deep-link is honored too: we reload while on #/settings.

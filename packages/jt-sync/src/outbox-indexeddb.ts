@@ -48,6 +48,24 @@ export class IndexedDbOutboxStore {
 
   async remove(id: string): Promise<void> { await this.write("delete", this.key(id)); }
 
+  async replaceAll(entries: PendingMoment[]): Promise<void> {
+    const database = await this.open();
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction(STORE_NAME, "readwrite");
+      const store = transaction.objectStore(STORE_NAME);
+      const keys = store.getAllKeys();
+      keys.onsuccess = () => {
+        for (const key of keys.result) {
+          if (String(key).startsWith(`${this.deviceId}:`)) store.delete(key);
+        }
+        for (const entry of entries) store.put({ ...entry, key: this.key(entry.id), deviceId: this.deviceId });
+      };
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+  }
+
   async readAll(): Promise<PendingMoment[]> {
     const database = await this.open();
     const rows = await new Promise<StoredPendingMoment[]>((resolve, reject) => {

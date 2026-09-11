@@ -16,7 +16,15 @@ const valid = () => ({
 });
 
 test("a complete jt export is accepted for restoration", () => {
-  assert.deepEqual(parseBackup(JSON.stringify(valid())), valid());
+  assert.deepEqual(parseBackup(JSON.stringify(valid())), { ...valid(), transport: { deviceId: null, queued: [] } });
+});
+
+test("device-bound queued sends are validated and old exports remain readable", () => {
+  const backup = valid();
+  backup.transport = { deviceId: "device-a", queued: [{ id: "moment-1", moment: { transport: { momentId: "moment-1" } } }] };
+  assert.deepEqual(parseBackup(JSON.stringify(backup)).transport, backup.transport);
+  backup.transport.queued = [{ id: "broken" }];
+  assert.throws(() => parseBackup(JSON.stringify(backup)), /invalid outbound queue/);
 });
 
 test("corrupt, foreign and incomplete backups fail before mutation", () => {

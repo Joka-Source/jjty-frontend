@@ -169,6 +169,7 @@ export function createSyncSurface({ relayUrl, deviceId, onArrive, onState, stora
   })();
 
   return {
+    deviceId,
     get state() {
       return state();
     },
@@ -237,5 +238,7 @@ export function createSyncSurface({ relayUrl, deviceId, onArrive, onState, stora
     },
     disconnectForTest: () => channel?._dropTransport(),
     restorePairing: () => ready,
+    pendingItems: () => outbox.readAll(),
+    replacePending: (entries) => outbox.replaceAll(entries),
   };
 }

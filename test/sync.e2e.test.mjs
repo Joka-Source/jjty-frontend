@@ -199,7 +199,7 @@ test("moment-send: pair two pages by spoken words, send a kept act, verify", { t
   const resent = await resentPromise;
   assert.equal(resent.queued, true, "the caller should get an honest durable-queue receipt during the outage");
   await pageB.waitForFunction(() => window.__jtApp.inbox().length === 2, { timeout: 10000 });
-  assert.equal(await pageA.evaluate(() => window.__jtApp.syncState().pending), 0);
+  await pageA.waitForFunction(() => window.__jtApp.syncState().pending === 0, { timeout: 10000 });
 
   // The relay process itself can restart on the same endpoint. Both browser
   // clients reconnect using the persisted pairing record; no new words are

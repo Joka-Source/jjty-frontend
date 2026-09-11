@@ -70,3 +70,15 @@ test("an unsent moment survives reload until verified delivery removes it", asyn
   await afterReload.remove(queued.id);
   assert.deepEqual(await new IndexedDbOutboxStore(options).readAll(), []);
 });
+
+test("outbox replacement is atomic and scoped to one device", async () => {
+  const databaseName = `jt-sync-outbox-replace-${crypto.randomUUID()}`;
+  const deviceA = new IndexedDbOutboxStore({ indexedDB, databaseName, deviceId: "device-a" });
+  const deviceB = new IndexedDbOutboxStore({ indexedDB, databaseName, deviceId: "device-b" });
+  const queued = (id) => ({ id, createdAt: `2026-09-10T12:00:0${id.at(-1)}.000Z`, attemptCount: 0, lastError: null, moment: { transport: { momentId: id } } });
+  await deviceA.put(queued("old-1"));
+  await deviceB.put(queued("other-2"));
+  await deviceA.replaceAll([queued("new-3"), queued("new-4")]);
+  assert.deepEqual((await deviceA.readAll()).map((entry) => entry.id), ["new-3", "new-4"]);
+  assert.deepEqual((await deviceB.readAll()).map((entry) => entry.id), ["other-2"]);
+});

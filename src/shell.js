@@ -838,6 +838,10 @@ export function initShell(ctx) {
         arrived: ctx.getInbox(),
         spaces: org.toJSON(),
         spaceFeeds: await ctx.getSpaceFeed(),
+        transport: {
+          deviceId: ctx.syncDeviceId,
+          queued: await ctx.getOutbox(),
+        },
       },
       null,
       2
@@ -863,9 +867,15 @@ export function initShell(ctx) {
       if (!file) return;
       const backup = parseBackup(await file.text());
       const restoredOrg = OrgStore.fromJSON(backup.spaces);
-      pendingBackup = { backup, restoredOrg };
+      const restoreQueued = backup.transport.deviceId === ctx.syncDeviceId;
+      pendingBackup = { backup, restoredOrg, restoreQueued };
       $("restore-btn").disabled = false;
-      state.textContent = `ready to restore ${backup.documents.length} documents, ${backup.records.length} records and ${backup.arrived.length} arrivals. existing data on this device will be replaced.`;
+      const queued = restoreQueued
+        ? ` ${backup.transport.queued.length} queued sends will also be restored for this device.`
+        : backup.transport.queued.length
+          ? " queued sends belong to another device and will not be replayed here."
+          : "";
+      state.textContent = `ready to restore ${backup.documents.length} documents, ${backup.records.length} records and ${backup.arrived.length} arrivals.${queued} existing data on this device will be replaced.`;
     } catch (error) {
       state.textContent = `this backup cannot be restored: ${error.message}`;
     }
@@ -874,7 +884,7 @@ export function initShell(ctx) {
   $("restore-btn").addEventListener("click", async () => {
     if (!pendingBackup) return;
     const state = $("restore-state");
-    const { backup, restoredOrg } = pendingBackup;
+    const { backup, restoredOrg, restoreQueued } = pendingBackup;
     $("restore-btn").disabled = true;
     state.textContent = "restoring the backup…";
     const prior = {
@@ -883,11 +893,16 @@ export function initShell(ctx) {
       motion: settings.motion,
       engine: settings.engine,
     };
+    let priorOutbox = null;
     try {
       restoredOrg.save(localStorage);
       settings.set("lang", backup.settings.lang);
       settings.set("motion", backup.settings.motion);
       settings.set("engine", backup.settings.engine);
+      if (restoreQueued) {
+        priorOutbox = await ctx.getOutbox();
+        await ctx.replaceOutbox(backup.transport.queued);
+      }
       await ctx.replaceAllData(backup);
       location.reload();
     } catch (error) {
@@ -896,6 +911,7 @@ export function initShell(ctx) {
       settings.set("lang", prior.lang);
       settings.set("motion", prior.motion);
       settings.set("engine", prior.engine);
+      if (priorOutbox) await ctx.replaceOutbox(priorOutbox);
       $("restore-btn").disabled = false;
       state.textContent = `restore failed; the previous settings were kept. ${error.message}`;
     }

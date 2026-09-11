@@ -36,5 +36,10 @@ export function parseBackup(text) {
   for (const position of value.positions) {
     if (!position || !docIds.has(position.docId)) throw new BackupError("the jt export contains a reading place without its document");
   }
-  return value;
+  const transport = value.transport ?? { deviceId: null, queued: [] };
+  if (transport.deviceId !== null && typeof transport.deviceId !== "string") throw new BackupError("the jt export contains an invalid transport identity");
+  if (!Array.isArray(transport.queued) || transport.queued.some((entry) => !entry || typeof entry.id !== "string" || !entry.moment)) {
+    throw new BackupError("the jt export contains an invalid outbound queue");
+  }
+  return { ...value, transport };
 }
