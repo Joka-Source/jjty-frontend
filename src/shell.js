@@ -34,6 +34,7 @@ const VIEWS = ["welcome", "home", "read", "history", "share", "spaces", "setting
 const $ = (id) => document.getElementById(id);
 
 export function initShell(ctx) {
+  const HOME_PASTE_DRAFT_KEY = "jt.homePasteDraft";
   const { settings } = ctx;
   let view = "read";
   let org = OrgStore.load(localStorage);
@@ -164,6 +165,27 @@ export function initShell(ctx) {
 
   // --- home ----------------------------------------------------------------
 
+  const homePaste = $("home-paste-box");
+  const recoveryRoot = $("home-recovery-state");
+  let savedHomeDraft = "";
+  try { savedHomeDraft = localStorage.getItem(HOME_PASTE_DRAFT_KEY) ?? ""; } catch { /* storage can be unavailable */ }
+  if (savedHomeDraft.trim()) {
+    recoveryRoot.hidden = false;
+    mountStateSurface(recoveryRoot, "recovery", (event) => {
+      if (event !== "restore-draft") return;
+      homePaste.value = savedHomeDraft;
+      recoveryRoot.hidden = true;
+      homePaste.focus();
+    });
+  }
+  homePaste.addEventListener("input", () => {
+    savedHomeDraft = homePaste.value;
+    try {
+      if (savedHomeDraft.trim()) localStorage.setItem(HOME_PASTE_DRAFT_KEY, savedHomeDraft);
+      else localStorage.removeItem(HOME_PASTE_DRAFT_KEY);
+    } catch { /* the visible text remains usable */ }
+  });
+
   async function renderHome() {
     const docs = (await ctx.getDocs()).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     $("home-empty").hidden = docs.length > 0;
@@ -216,10 +238,12 @@ export function initShell(ctx) {
   $("home-file-input-2").addEventListener("change", (e) => homeIngest(e.target));
   $("home-sample").addEventListener("click", () => ctx.addDocument(ctx.starterDoc, "a sample page"));
   $("home-paste-add").addEventListener("click", async () => {
-    const box = $("home-paste-box");
+    const box = homePaste;
     if (box.value.trim()) {
       await ctx.addIngested(await ctx.ingestPaste({ text: box.value }));
       box.value = "";
+      savedHomeDraft = "";
+      try { localStorage.removeItem(HOME_PASTE_DRAFT_KEY); } catch { /* document is already durable */ }
     }
   });
 

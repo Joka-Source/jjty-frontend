@@ -14,7 +14,7 @@ The empty state is also integrated into the real document library. Its `open-doc
 
 The permission state is integrated into voice settings. A rejected `getUserMedia` request moves the real microphone state machine to `denied`, mounts the shared permission surface, keeps reading and touch available, and exposes `request-microphone` to retry the same browser permission boundary after the person changes site settings.
 
-The offline state is integrated into device sharing. When a paired relay session drops, kept moments remain in the IndexedDB outbox and the sharing screen mounts the shared offline surface. Its `retry-connection` action waits for the same authenticated pairing to resume and then drains that durable outbox. The loading, error and recovery evidence-route events still need bindings to their real product operations.
+The offline state is integrated into device sharing. When a paired relay session drops, kept moments remain in the IndexedDB outbox and the sharing screen mounts the shared offline surface. Its `retry-connection` action waits for the same authenticated pairing to resume and then drains that durable outbox. The recovery state is integrated with the home paste editor. Input is retained locally while unfinished; after a reload, Restore draft returns it to the editor, and the retained copy is removed only after document ingestion succeeds. The loading and error evidence-route events still need bindings to their real product operations.
 
 ```sh
 npm run storybook

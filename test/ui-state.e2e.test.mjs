@@ -52,6 +52,22 @@ test("production state route renders the requested state and emits its action", 
   await page.waitForFunction(() => window.__jtApp?.booted && window.__jtApp.view() === "home");
   assert.equal(await page.$eval("#home-empty", (node) => node.hidden), true);
 
+  await page.evaluate(() => localStorage.setItem("jt.homePasteDraft", "unfinished board notes"));
+  await page.reload({ waitUntil: "load" });
+  await page.waitForFunction(() => window.__jtApp?.booted && window.__jtApp.view() === "home");
+  assert.equal(await page.$eval("#home-recovery-state [data-state]", (node) => node.dataset.state), "recovery");
+  await page.evaluate(() => document.querySelector('#home-recovery-state [data-state-action="restore-draft"]').click());
+  assert.equal(await page.$eval("#home-paste-box", (node) => node.value), "unfinished board notes");
+  assert.equal(await page.$eval("#home-recovery-state", (node) => node.hidden), true);
+  await page.type("#home-paste-box", " revised");
+  assert.equal(await page.evaluate(() => localStorage.getItem("jt.homePasteDraft")), "unfinished board notes revised");
+  await page.reload({ waitUntil: "load" });
+  await page.waitForFunction(() => window.__jtApp?.booted && window.__jtApp.view() === "home");
+  await page.evaluate(() => document.querySelector('#home-recovery-state [data-state-action="restore-draft"]').click());
+  await page.click("#home-paste-add");
+  await page.waitForFunction(() => window.__jtApp.view() === "read");
+  assert.equal(await page.evaluate(() => localStorage.getItem("jt.homePasteDraft")), null);
+
   await page.evaluate(() => {
     window.webkitSpeechRecognition = class {};
     window.__micPermissionAttempts = 0;
