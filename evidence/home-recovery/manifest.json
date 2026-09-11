@@ -1,0 +1,25 @@
+{
+  "generatedAt": "2026-09-11",
+  "source": "production Vite build after reload with an unfinished local paste draft",
+  "route": "#/home",
+  "state": "recovery",
+  "integration": "input persists the unfinished draft; restore-draft returns it to the editor; successful ingestion removes the retained copy",
+  "files": [
+    {
+      "file": "home-recovery-desktop.png",
+      "size": "desktop",
+      "width": 1280,
+      "height": 900,
+      "sha256": "56b472038b6e26693cc9a88c024e429443375719db5b6ec3a639c44736481355",
+      "violations": []
+    },
+    {
+      "file": "home-recovery-phone.png",
+      "size": "phone",
+      "width": 375,
+      "height": 812,
+      "sha256": "7037f029b59a06a78bf31d1a019947ca78f06211b458b4eadb62725129791b9e",
+      "violations": []
+    }
+  ]
+}

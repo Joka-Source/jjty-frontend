@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import puppeteer from "puppeteer-core";
 import { root } from "./validate.mjs";
@@ -56,6 +57,38 @@ test("production state route renders the requested state and emits its action", 
   await page.reload({ waitUntil: "load" });
   await page.waitForFunction(() => window.__jtApp?.booted && window.__jtApp.view() === "home");
   assert.equal(await page.$eval("#home-recovery-state [data-state]", (node) => node.dataset.state), "recovery");
+  if (process.env.CAPTURE_RECOVERY_EVIDENCE === "1") {
+    const evidenceDirectory = path.join(root, "evidence", "home-recovery");
+    const axeSource = readFileSync(path.join(root, "node_modules", "axe-core", "axe.min.js"), "utf8");
+    mkdirSync(evidenceDirectory, { recursive: true });
+    const files = [];
+    for (const viewport of [
+      { size: "desktop", width: 1280, height: 900 },
+      { size: "phone", width: 375, height: 812 },
+    ]) {
+      await page.setViewport({ width: viewport.width, height: viewport.height });
+      await page.addScriptTag({ content: axeSource });
+      const violations = await page.evaluate(async () => {
+        const result = await axe.run(document, { resultTypes: ["violations"] });
+        return result.violations.map(({ id, impact, help, nodes }) => ({
+          id, impact, help, targets: nodes.map((node) => node.target),
+        }));
+      });
+      assert.deepEqual(violations, [], `home recovery axe violations at ${viewport.width}px`);
+      const file = `home-recovery-${viewport.size}.png`;
+      await page.screenshot({ path: path.join(evidenceDirectory, file), fullPage: true });
+      const sha256 = createHash("sha256").update(readFileSync(path.join(evidenceDirectory, file))).digest("hex");
+      files.push({ file, ...viewport, sha256, violations });
+    }
+    writeFileSync(path.join(evidenceDirectory, "manifest.json"), `${JSON.stringify({
+      generatedAt: "2026-09-11",
+      source: "production Vite build after reload with an unfinished local paste draft",
+      route: "#/home",
+      state: "recovery",
+      integration: "input persists the unfinished draft; restore-draft returns it to the editor; successful ingestion removes the retained copy",
+      files,
+    }, null, 2)}\n`);
+  }
   await page.evaluate(() => document.querySelector('#home-recovery-state [data-state-action="restore-draft"]').click());
   assert.equal(await page.$eval("#home-paste-box", (node) => node.value), "unfinished board notes");
   assert.equal(await page.$eval("#home-recovery-state", (node) => node.hidden), true);

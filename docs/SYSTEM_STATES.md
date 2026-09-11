@@ -25,10 +25,11 @@ Storybook exposes the same six states under **JETT / System states**. The static
 
 ## Evidence
 
-`evidence/system-states/manifest.json` binds desktop and phone captures to SHA-256 hashes and records the axe result for every state and viewport. `evidence/home-empty`, `evidence/voice-permission` and `evidence/share-offline` record the production integrations. The remaining gallery captures are review evidence, not a claim that loading, general retry or draft restoration is integrated end to end.
+`evidence/system-states/manifest.json` binds desktop and phone captures to SHA-256 hashes and records the axe result for every state and viewport. `evidence/home-empty`, `evidence/voice-permission`, `evidence/share-offline` and `evidence/home-recovery` record the production integrations. The remaining gallery captures are review evidence, not a claim that loading or general retry is integrated end to end.
 
 Regenerate the real offline evidence from a stopped local relay with:
 
 ```sh
 CAPTURE_OFFLINE_EVIDENCE=1 npm run test:e2e:sync
+CAPTURE_RECOVERY_EVIDENCE=1 node --import tsx --test --test-concurrency=1 test/ui-state.e2e.test.mjs
 ```
