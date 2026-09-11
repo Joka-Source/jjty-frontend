@@ -22,3 +22,14 @@ Final focused checks: ten notebook model/browser tests pass, including a 21 MiB 
 Notebook tabs were subsequently added and verified in the in-app browser and automated browser test: independent pages and undo ownership, reload to active notebook/page, closing without deleting content, and library metadata changes invalidating stale undo snapshots. A session reconciliation unit test drops missing/trashed tabs and clamps page indices. The updated production offline test also passes. Tabbed UI remains 390px wide at a 390px viewport. The history fix received a targeted independent rereview with no remaining finding.
 
 No deployment, physical-device, multiplayer or exact Goodnotes visual/behavioral parity claim. Source PDFs are retained unchanged; notebook edits and flattened exports are separate derivatives. Tests use synthetic content.
+
+
+## UI-first product pass
+
+Founder clarification: prioritize a production-quality working UI and portable assets; full PDF engine parity is not this pass's acceptance target. Added semantic tokens, original SVG assets, surface/state contracts, contextual editor controls, grid/list/sort, creation/page menus, local preferences, keyboard switching, dialog focus restoration and reduced motion. Voice cursor reuses the capture lifecycle and supports unique/ambiguous/no-match feedback plus reversible typed-text highlighting. PDF phrase targeting is page-level.
+
+Fresh checks: 12 focused model/browser cases pass (including the new product journey), production Vite build passes, and production offline notebook reload passes. JSON design files and all SVG icons parse. In-app browser inspection covered desktop editor, page action menu, typed phrase cursor and dialog dismissal. The automated 390px journey checks overflow. Live microphone/native stylus/other-platform rendering was not exercised.
+
+Independent review caught voice results changing page ownership during dialogs and stale targets surviving Find. Fixed by pausing capture before dialogs, gating late/deferred callbacks, validating notebook/page ownership, and clearing stale targets. Targeted rereview found no remaining issue in that scope. Tests explicitly protect an open text draft from a late recognition callback.
+
+Full repository regression result is recorded below when the run completes. Legacy Chrome teardown leaves childless browser processes after renderers close; test-owned childless processes were released, with interventions logged separately. This is not an unattended clean teardown claim.

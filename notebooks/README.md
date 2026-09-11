@@ -1,6 +1,6 @@
 # JETT notebook workspace
 
-Open `/notebooks/index.html` from `npm run dev` or the built site. Vite bundles this as a second application entry. The existing document desk links to it. This is independently implemented, runnable notebook software; complete Goodnotes visual and behavioral parity remains outstanding.
+Open `/notebooks/index.html` from `npm run dev` or the built site. Vite bundles this as a second application entry. The existing document desk links to it. This is independently implemented, runnable notebook software. The current product priority is a complete, coherent UI with shared platform semantics; native PDF engine integration is a later adapter boundary.
 
 ## Implemented
 
@@ -13,12 +13,20 @@ Open `/notebooks/index.html` from `npm run dev` or the built site. Vite bundles 
 - Offline: production service worker caches the notebook shell and restores its route on offline reload. First use of the lazy PDF export engine requires network access.
 - Persistence: IndexedDB (`jett-notebooks`, workspace store); one-way migration from legacy localStorage `jett-notebooks-v1`, leaving that legacy copy intact. Writes report completion/failure; unsaved work triggers a close warning. JSON restore adds notebooks without replacing existing notebook IDs.
 
+## UI and platform contract
+
+`design/tokens.json` is the semantic color, spacing, type, radius and motion source. `design/icons/*.svg` contains original reusable vector controls. `design/product.json` defines the product surfaces; `design/interaction-contract.json` defines menus, intermediate states, focus, cancellation, ownership and expected outcomes. `product.css` and `product-ui.js` implement the browser presentation. Native renderers should reuse the semantics and outcomes while respecting platform text metrics, permissions and safe areas.
+
+The library has grid/list views, sorting, preferences, quick notes and a keyboard notebook switcher (Command/Control+K). The editor has contextual tool guidance, pen presets, page action sheets with boundary-aware disabled actions, named dialog actions, focus restoration, save receipts and reduced motion.
+
+Voice cursor reuses the existing capture lifecycle. A unique phrase reveals matching typed text; PDF text lands on its page. Multiple matches ask for a choice. Highlight is reversible and validates notebook/page ownership. Opening dialogs pauses recognition; a phrase received during a stroke waits for release. **Try words** is explicitly a no-microphone rehearsal. Browser recognition availability varies and may use the browser provider service. Physical microphone operation is not established by the mocked callback tests.
+
 ## Boundaries
 
-Local browser storage is not cloud synchronization or a backup. Export before changing device/browser/origin. Concurrent tabs are not a collaboration system. PDF imports retain their original source in backups, so source file size affects storage use. Annotated PDF export is flattened; JSON retains editable objects. Ink is not a pressure-sensitive native Pencil engine. Lasso uses object origins/ink vertices, not full geometric intersections. OCR/handwriting search, audio recording/playback, AI, multiplayer, account/settings/billing flows and full native platform parity remain unimplemented. Original PDF remains unchanged when notebook pages are reordered.
+Local browser storage is not cloud synchronization or a backup. Export before changing device/browser/origin. Concurrent tabs are not a collaboration system. PDF imports retain their original source in backups, so source file size affects storage use. Annotated PDF export is flattened; JSON retains editable objects. Ink is not a pressure-sensitive native Pencil engine. Lasso uses object origins/ink vertices, not full geometric intersections. OCR/handwriting search, audio recording/playback, AI, multiplayer, account/billing flows and full native platform parity remain unimplemented. Original PDF remains unchanged when notebook pages are reordered.
 
 ## Verification
 
-Run `node --test test/notebook-model.test.mjs test/notebook-workspace.e2e.test.mjs`, `npm run build`, and the repository regression suite `npm test`. Browser evidence and the dated status are in `docs/evidence/notebooks/verification.md`.
+Run `node --test test/notebook-model.test.mjs test/notebook-workspace.e2e.test.mjs test/notebook-product-ui.e2e.test.mjs`, `npm run build`, and the repository regression suite `npm test`. Browser evidence and the dated status are in `docs/evidence/notebooks/verification.md`.
 
 Reference: Goodnotes atlas in `Joka-Source/jjty-human`. Slack research informs persistent navigation; it does not establish notebook parity. Test artifacts use synthetic content only.

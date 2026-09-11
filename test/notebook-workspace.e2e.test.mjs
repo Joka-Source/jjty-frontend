@@ -66,6 +66,7 @@ test(
         .querySelector(".footer")
         .textContent.includes("Saved on this browser"),
     );
+    await page.waitForFunction(()=>document.querySelector(".footer")?.textContent.includes("Saved on this browser"));
     await page.reload();
     await page.waitForSelector("#ink");
     assert.equal(
@@ -73,6 +74,7 @@ test(
       first,
     );
     await page.click("#page-options");
+    await page.click('[data-page-action="details"]');
     await page.type("[name=outline]", "Review form");
     await page.$eval("[name=destination]", (n) => {
       n.value = "";
@@ -162,6 +164,7 @@ test(
     await page.click(".notebook-tab:last-child [data-tab-open]");
     await page.click(".notebook-tab:first-child [data-tab-open]");
     assert.match(await page.$eval(".footer", (n) => n.textContent), /2 of 2/);
+    await page.waitForFunction(()=>document.querySelector(".footer")?.textContent.includes("Saved on this browser"));
     await page.reload();
     await page.waitForSelector("#ink");
     assert.equal(await page.$eval("#title", (n) => n.value), "jett-fillable");

@@ -102,3 +102,12 @@ test('session recovery drops missing and trashed tabs and clamps saved page posi
   assert.deepEqual(reconcileSession({tabs:[a.id,a.id,b.id,'missing'],active:a.id,pages:{[a.id]:99}},[a,b]),{tabs:[a.id],active:a.id,pages:{[a.id]:0}});
   assert.deepEqual(reconcileSession({tabs:[b.id],active:b.id},[a,b]),{tabs:[],active:null,pages:{}});
 });
+
+test('voice cursor matches typed text or imported page text and preserves ambiguity', async()=>{
+  const {matchNotebook}=await import('../notebooks/product-ui.js');
+  const n={pages:[{items:[{type:'text',text:'Build with care'}]},{items:[],sourceText:'Build with care and attention'}]};
+  assert.equal(matchNotebook(n,'build with care').length,2);
+  assert.deepEqual(matchNotebook(n,'attention'),[{page:1,index:null,text:'attention'}]);
+  assert.deepEqual(matchNotebook(n,'not present'),[]);
+  assert.deepEqual(matchNotebook(n,'a'),[]);
+});
