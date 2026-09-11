@@ -29,6 +29,7 @@ import { renderCapabilities } from "./capabilities.js";
 import { verbRegistry } from "./registry/index.js";
 import { JETT_UI_STATES, mountStateSurface } from "./ui-state.js";
 import { decryptBackup, encryptBackup, isEncryptedBackup, parseBackup } from "./backup.js";
+import { restoreDeviceBackup } from "./restore-coordinator.js";
 
 const VIEWS = ["welcome", "home", "read", "history", "share", "spaces", "settings", "capabilities", "states", "rooms"];
 
@@ -954,27 +955,31 @@ export function initShell(ctx) {
       motion: settings.motion,
       engine: settings.engine,
     };
-    let priorOutbox = null;
     try {
-      restoredOrg.save(localStorage);
-      settings.set("lang", backup.settings.lang);
-      settings.set("motion", backup.settings.motion);
-      settings.set("engine", backup.settings.engine);
-      if (restoreQueued) {
-        priorOutbox = await ctx.getOutbox();
-        await ctx.replaceOutbox(backup.transport.queued);
-      }
-      await ctx.replaceAllData(backup);
+      await restoreDeviceBackup({
+        backup,
+        restoreQueued,
+        applyLocal: () => {
+          restoredOrg.save(localStorage);
+          settings.set("lang", backup.settings.lang);
+          settings.set("motion", backup.settings.motion);
+          settings.set("engine", backup.settings.engine);
+        },
+        revertLocal: () => {
+          if (prior.org === null) localStorage.removeItem("jt.org");
+          else localStorage.setItem("jt.org", prior.org);
+          settings.set("lang", prior.lang);
+          settings.set("motion", prior.motion);
+          settings.set("engine", prior.engine);
+        },
+        getOutbox: ctx.getOutbox,
+        replaceOutbox: ctx.replaceOutbox,
+        replaceAllData: ctx.replaceAllData,
+      });
       location.reload();
     } catch (error) {
-      if (prior.org === null) localStorage.removeItem("jt.org");
-      else localStorage.setItem("jt.org", prior.org);
-      settings.set("lang", prior.lang);
-      settings.set("motion", prior.motion);
-      settings.set("engine", prior.engine);
-      if (priorOutbox) await ctx.replaceOutbox(priorOutbox);
       $("restore-btn").disabled = false;
-      state.textContent = `restore failed; the previous settings were kept. ${error.message}`;
+      state.textContent = error.message;
     }
   });
 
