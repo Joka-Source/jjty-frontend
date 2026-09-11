@@ -1,0 +1,25 @@
+{
+  "generatedAt": "2026-09-11",
+  "source": "production Vite build with a synthetic File whose first read fails and second read succeeds",
+  "route": "#/home",
+  "state": "error",
+  "integration": "retry-action reruns ingestion with the retained File; success persists and opens the document, then removes the error state",
+  "files": [
+    {
+      "file": "home-ingest-error-desktop.png",
+      "size": "desktop",
+      "width": 1280,
+      "height": 900,
+      "sha256": "b3f53ad790294203f5f9e23b4ea808498b960b2eff3dbe2cf6a98f22e3fb1f35",
+      "violations": []
+    },
+    {
+      "file": "home-ingest-error-phone.png",
+      "size": "phone",
+      "width": 375,
+      "height": 812,
+      "sha256": "df522dd9536df5d8540a61f421b4d46c689f95e6ef3662420c0685f831e314d4",
+      "violations": []
+    }
+  ]
+}

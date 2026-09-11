@@ -18,7 +18,9 @@ The offline state is integrated into device sharing. When a paired relay session
 
 The recovery state is integrated with the home paste editor. Input is retained locally while unfinished; after a reload, Restore draft returns it to the editor, and the retained copy is removed only after document ingestion succeeds.
 
-The loading state now covers the real asynchronous boot interval while JETT restores its local stores and document state. Incomplete application surfaces stay hidden until boot settles. Its Work offline action remains unbound because current boot does not wait on a network dependency; the error action also still needs a real retry operation.
+The loading state now covers the real asynchronous boot interval while JETT restores its local stores and document state. Incomplete application surfaces stay hidden until boot settles. Its Work offline action remains unbound because current boot does not wait on a network dependency.
+
+The error state is integrated with home file ingestion. If a file read throws, JETT retains that in-memory File, leaves existing documents unchanged and offers Try again. A successful retry persists and opens the document before clearing the error state.
 
 ```sh
 npm run storybook
@@ -29,11 +31,12 @@ Storybook exposes the same six states under **JETT / System states**. The static
 
 ## Evidence
 
-`evidence/system-states/manifest.json` binds desktop and phone captures to SHA-256 hashes and records the axe result for every state and viewport. `evidence/home-empty`, `evidence/voice-permission`, `evidence/share-offline` and `evidence/home-recovery` record the production integrations. The remaining gallery captures are review evidence, not a claim that the loading action or general retry is integrated end to end.
+`evidence/system-states/manifest.json` binds desktop and phone captures to SHA-256 hashes and records the axe result for every state and viewport. `evidence/home-empty`, `evidence/voice-permission`, `evidence/share-offline`, `evidence/home-recovery` and `evidence/home-ingest-error` record the production integrations. The remaining gallery captures are review evidence, not a claim that the loading action is integrated end to end.
 
 Regenerate the real offline evidence from a stopped local relay with:
 
 ```sh
 CAPTURE_OFFLINE_EVIDENCE=1 npm run test:e2e:sync
 CAPTURE_RECOVERY_EVIDENCE=1 node --import tsx --test --test-concurrency=1 test/ui-state.e2e.test.mjs
+CAPTURE_ERROR_EVIDENCE=1 node --import tsx --test --test-concurrency=1 test/ui-state.e2e.test.mjs
 ```

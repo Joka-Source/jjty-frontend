@@ -229,9 +229,35 @@ export function initShell(ctx) {
     }
   }
 
+  const homeError = $("home-error-state");
+  let failedHomeFile = null;
+
+  async function attemptHomeIngest(file) {
+    try {
+      const document = await ctx.ingestFile(file);
+      if (document) {
+        failedHomeFile = null;
+        homeError.hidden = true;
+      }
+      return document;
+    } catch (error) {
+      failedHomeFile = file;
+      homeError.hidden = false;
+      mountStateSurface(homeError, "error", async (event) => {
+        if (event !== "retry-action" || !failedHomeFile) return;
+        const action = homeError.querySelector("[data-state-action]");
+        if (action) action.disabled = true;
+        try { await attemptHomeIngest(failedHomeFile); }
+        finally { if (action) action.disabled = false; }
+      });
+      ctx.setStatus(true, `that file could not be opened: ${error?.message ?? error}`);
+      return null;
+    }
+  }
+
   const homeIngest = async (input) => {
     const f = input.files?.[0];
-    if (f) await ctx.ingestFile(f);
+    if (f) await attemptHomeIngest(f);
     input.value = "";
   };
   $("home-file-input").addEventListener("change", (e) => homeIngest(e.target));

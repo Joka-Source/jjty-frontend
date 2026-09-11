@@ -110,6 +110,60 @@ test("production state route renders the requested state and emits its action", 
   assert.equal(await page.evaluate(() => localStorage.getItem("jt.homePasteDraft")), null);
 
   await page.evaluate(() => {
+    window.__jtApp.showView("home");
+    let attempts = 0;
+    const file = {
+      name: "transient.md",
+      type: "text/markdown",
+      text: async () => {
+        attempts += 1;
+        if (attempts === 1) throw new Error("temporary read failure");
+        return "# recovered file\n\nThis retry succeeded.";
+      },
+    };
+    const input = document.getElementById("home-file-input-2");
+    Object.defineProperty(input, "files", { configurable: true, get: () => [file] });
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await page.waitForSelector("#home-error-state .jett-state--error", { visible: true });
+  await page.waitForFunction(() => document.getElementById("view-home").style.opacity === "", { timeout: 5000 });
+  if (process.env.CAPTURE_ERROR_EVIDENCE === "1") {
+    const evidenceDirectory = path.join(root, "evidence", "home-ingest-error");
+    const axeSource = readFileSync(path.join(root, "node_modules", "axe-core", "axe.min.js"), "utf8");
+    mkdirSync(evidenceDirectory, { recursive: true });
+    const files = [];
+    for (const viewport of [
+      { size: "desktop", width: 1280, height: 900 },
+      { size: "phone", width: 375, height: 812 },
+    ]) {
+      await page.setViewport({ width: viewport.width, height: viewport.height });
+      await page.addScriptTag({ content: axeSource });
+      const violations = await page.evaluate(async () => {
+        const result = await axe.run(document, { resultTypes: ["violations"] });
+        return result.violations.map(({ id, impact, help, nodes }) => ({
+          id, impact, help, targets: nodes.map((node) => node.target),
+        }));
+      });
+      assert.deepEqual(violations, [], `home ingest error axe violations at ${viewport.width}px`);
+      const file = `home-ingest-error-${viewport.size}.png`;
+      await page.screenshot({ path: path.join(evidenceDirectory, file), fullPage: true });
+      const sha256 = createHash("sha256").update(readFileSync(path.join(evidenceDirectory, file))).digest("hex");
+      files.push({ file, ...viewport, sha256, violations });
+    }
+    writeFileSync(path.join(evidenceDirectory, "manifest.json"), `${JSON.stringify({
+      generatedAt: "2026-09-11",
+      source: "production Vite build with a synthetic File whose first read fails and second read succeeds",
+      route: "#/home",
+      state: "error",
+      integration: "retry-action reruns ingestion with the retained File; success persists and opens the document, then removes the error state",
+      files,
+    }, null, 2)}\n`);
+  }
+  await page.evaluate(() => document.querySelector('#home-error-state [data-state-action="retry-action"]').click());
+  await page.waitForFunction(() => window.__jtApp.view() === "read" && window.__jtApp.currentDoc()?.title === "recovered file");
+  assert.equal(await page.$eval("#home-error-state", (node) => node.hidden), true);
+
+  await page.evaluate(() => {
     window.webkitSpeechRecognition = class {};
     window.__micPermissionAttempts = 0;
     navigator.mediaDevices.getUserMedia = async () => {
