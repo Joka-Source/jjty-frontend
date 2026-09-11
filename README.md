@@ -7,6 +7,10 @@ jt on the web: open your document, speak, and the thing you meant happens — wi
 - append `?sim=1` for a micless scripted replay (`&fast=1` for CI speed)
 - `npm test` — schema validation + unit tests + headless end-to-ends
   (sim replay and two-device moment transport)
+- `npm run test:failure-trace` — prove that a controlled browser failure
+  retains a privacy-scanned Playwright trace while a passing run retains none
+
+Failure evidence is documented in [`docs/FAILURE_TRACES.md`](docs/FAILURE_TRACES.md).
 
 What's fused in (see `vendor/`, one directory per sibling repo):
 
