@@ -103,5 +103,5 @@ function emitVersionedServiceWorker() {
 
 export default defineConfig({
   plugins: [emitVersionedServiceWorker()],
-  build: { rollupOptions: { input: { playground: path.join(root,"playground/index.html"), workspace: path.join(root,"workspace/index.html"), main: path.join(root,"index.html"), notebooks: path.join(root,"notebooks/index.html") } } },
+  build: { rollupOptions: { input: { studio: path.join(root,"studio/index.html"), playground: path.join(root,"playground/index.html"), workspace: path.join(root,"workspace/index.html"), main: path.join(root,"index.html"), notebooks: path.join(root,"notebooks/index.html") } } },
 });
