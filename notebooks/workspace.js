@@ -1,3 +1,4 @@
+import {getDoc} from '../src/db.js';
 import "./product.css";
 import { installCompanion } from "./companion.js";
 import {
@@ -77,6 +78,13 @@ try {
 }
 current = session.active;
 page = current ? session.pages[current] : 0;
+const requestedNotebook=new URL(location.href).searchParams.get('notebook');
+let requestedNotice='';
+if(requestedNotebook){
+  const requested=data.notebooks.find(n=>n.id===requestedNotebook&&!n.trashed);
+  if(requested){current=requested.id;if(!session.tabs.includes(current))session.tabs.push(current);page=session.pages[current]||0;}
+  else requestedNotice='This notebook is unavailable. Your other saved notebooks are still here.';
+}
 const histories = new Map();
 function holdNotebook() {
   if (current) {
@@ -154,9 +162,9 @@ function persist() {
         if (status) status.textContent = "Saved on this browser";
       }
     })
-    .catch(() => {
+    .catch(error => {
       saved = false;
-      notify("Storage is unavailable. Export a backup before closing.");
+      notify(error.code==='NOTEBOOK_CONFLICT'?"This notebook changed in another window. Your draft is still here; export a backup before reopening the latest version.":"Storage is unavailable. Export a backup before closing.");
     });
   return true;
 }
@@ -342,7 +350,7 @@ function editor() {
           })
           .join("")}</nav>`
       : ""
-  }<div class="toolbar"><button id="sidebar" aria-label="Toggle pages">▤</button><button id="find" aria-label="Find text">⌕</button><div class="tools">${[
+  } ${n.sourceRef?'<div id="notebook-source-return" class="notebook-source-return" role="status">Checking the source PDF…</div>':''}<div class="toolbar"><button id="sidebar" aria-label="Toggle pages">▤</button><button id="find" aria-label="Find text">⌕</button><div class="tools">${[
     ["lasso", "⌁", "Lasso selection"],
     ["pen", "✎", "Pen"],
     ["rectangle", "□", "Rectangle"],
@@ -375,6 +383,17 @@ function editor() {
       "",
     )}</select><button id="undo" aria-label="Undo" ${!undo.length ? "disabled" : ""}>↶</button><button id="redo" aria-label="Redo" ${!redo.length ? "disabled" : ""}>↷</button><button id="add" aria-label="Add page">＋</button><button id="export" aria-label="Export notebook">↥</button><button id="voice" aria-label="Voice cursor" aria-pressed="${voicePanel}">Voice</button><button id="page-options" aria-label="Page options">⋯</button></div>${toolContext()}${voicePanel ? voiceSurface() : ""}<div class="desk">${sidebar ? `<aside class="pages"><h3>Pages <span style="color:#8a96a5">${n.pages.length}</span></h3>${n.pages.some((p) => p.outline) ? `<nav aria-label="Document outline">${n.pages.map((p, i) => (p.outline ? `<button data-page="${i}" style="display:block;text-align:left">${esc(p.outline)}</button>` : "")).join("")}</nav>` : ""}${n.pages.map((p, i) => `<button data-page="${i}" class="thumb ${i === page ? "active" : ""}" aria-label="Page ${i + 1}"><svg viewBox="0 0 720 960" width="100%" height="85%">${pageBackground(p, n.paper)}${svgItems(p.items)}</svg>${i + 1}</button>`).join("")}<button id="add-side" aria-label="Add another page">＋ Add page</button></aside>` : ""}<main class="canvas-wrap"><div style="width:${zoom ? `${720 * zoom}px` : "min(720px, 100%)"}" class="paper ${n.pages[page].paper || n.paper} ${tool === "read" ? "read" : ""}"><svg id="ink" viewBox="0 0 720 960" role="img" aria-label="Notebook page ${page + 1}">${pageBackground(n.pages[page], n.paper)}${svgItems(n.pages[page].items)}${voiceMarker()}</svg></div></main></div><div class="footer"><span>${page + 1} of ${n.pages.length} · ${tool === "read" ? "Read only" : tool === "eraser" ? "Click near a stroke to erase" : tool === "text" ? "Click the paper to add text" : "Draw on the paper"}</span><span>${saved ? "Saved on this browser" : "Unsaved — export a backup"}</span></div></div>`;
   app.querySelector("#home").onclick = home;
+  if(n.sourceRef){
+    const sourceHost=app.querySelector('#notebook-source-return'), sourcePage=n.pages[page].sourcePageIndex;
+    getDoc(n.sourceRef.documentId).then(source=>{
+      if(!sourceHost.isConnected)return;
+      if(!source||source.provenance?.contentDigest!==n.sourceRef.contentDigest){sourceHost.textContent='Source PDF unavailable or changed. Your notebook is preserved; its backup contains notes only.';return;}
+      const physical=Number.isSafeInteger(sourcePage)&&sourcePage>=0?sourcePage+1:1;
+      sourceHost.innerHTML=`<a href="/studio/index.html#editor/${encodeURIComponent(source.id)}/${physical}">Return to ${esc(source.title)} · page ${physical}</a><button id="read-linked-notes">Read & edit linked notes</button><span>Linked notes · source PDF stays separate</span>`;
+      sourceHost.querySelector('#read-linked-notes').onclick=linkedNotes;
+      sourceHost.querySelector('a').onclick=event=>{if(!saved){event.preventDefault();notify('Save your notebook or export a backup before returning to the source.');}};
+    }).catch(()=>{if(sourceHost.isConnected)sourceHost.textContent='Source PDF could not be checked. Your notebook is still available.';});
+  }
   app
     .querySelectorAll("[data-tab-open]")
     .forEach((b) => (b.onclick = () => openNotebook(b.dataset.tabOpen)));
@@ -416,12 +435,14 @@ function editor() {
   app.querySelector("#color").onchange = (e) => (color = e.target.value);
   app.querySelector("#width").onchange = (e) => (width = +e.target.value);
   const add = () => {
+    if(book().sourceRef){notify("This notebook has one page for each PDF page. Create a separate notebook for additional pages.");return;}
     const next = structuredClone(book());
     next.pages.push({ id: crypto.randomUUID(), items: [] });
     page = next.pages.length - 1;
     change(next);
   };
   app.querySelector("#add").onclick = add;
+  if(n.sourceRef){app.querySelector("#add").hidden=true;const addSide=app.querySelector("#add-side");if(addSide)addSide.hidden=true;}
   app.querySelector("#add-side")?.addEventListener("click", add);
   app.querySelector("#undo").onclick = () => history(false);
   app.querySelector("#redo").onclick = () => history(true);
@@ -711,15 +732,28 @@ function creationMenu() {
       }),
   );
 }
+function linkedNotes(){
+ const n=book(),heldPage=page,items=n.pages[heldPage].items.filter(i=>i.sourceAnchor&&i.type==='text');
+ panel(`Notes on source page ${n.pages[heldPage].sourcePageIndex+1}`,`<p>These notes remain separate from the original PDF.</p>${items.length?items.map(i=>`<form data-linked-note="${esc(i.id)}"><label>Note<textarea rows="5" maxlength="10000">${esc(i.text)}</textarea></label><button type="submit">Save note</button></form>`).join(''):'<p>No linked notes on this page yet. Return to the PDF to add one.</p>'}`);
+ dialog.querySelectorAll('[data-linked-note]').forEach(form=>form.onsubmit=event=>{
+  event.preventDefault();const text=form.querySelector('textarea').value.trim();if(!text)return;
+  if(book()?.id!==n.id||page!==heldPage){notify('Return to this notebook page before editing the note.');return;}
+  const next=structuredClone(book()),item=next.pages[heldPage].items.find(i=>i.id===form.dataset.linkedNote);
+  if(!item){notify('The note is unavailable. Your words are still in the editor.');return;}
+  item.text=text;change(next);dialog.close();notify('Saving the linked note…');
+ });
+}
+
 function pageMenu() {
   panel(
     `Page ${page + 1}`,
-    `<div class="menu-actions"><button data-page-action="details">Paper & outline</button><button data-page-action="duplicate">Duplicate page</button><button data-page-action="earlier" ${page === 0 ? "disabled" : ""}>Move earlier</button><button data-page-action="later" ${page === book().pages.length - 1 ? "disabled" : ""}>Move later</button><button data-page-action="export">Export notebook</button><button class="danger" data-page-action="remove" ${book().pages.length === 1 ? "disabled" : ""}>Remove page <small>Undo is available</small></button></div>`,
+    `<div class="menu-actions"><button data-page-action="details">Paper & outline</button><button data-page-action="duplicate" ${book().sourceRef?'hidden':''}>Duplicate page</button><button data-page-action="earlier" ${page === 0 ? "disabled" : ""}>Move earlier</button><button data-page-action="later" ${page === book().pages.length - 1 ? "disabled" : ""}>Move later</button><button data-page-action="export">Export notebook</button><button class="danger" data-page-action="remove" ${book().sourceRef?'hidden':''} ${book().pages.length === 1 ? "disabled" : ""}>Remove page <small>Undo is available</small></button></div>`,
   );
   dialog.querySelectorAll("[data-page-action]").forEach(
     (b) =>
       (b.onclick = () => {
         const action = b.dataset.pageAction;
+        if(book().sourceRef&&["duplicate","remove"].includes(action)){notify("Linked notebook pages match the source PDF.");return;}
         dialog.close();
         if (action === "details") {
           pageOptions();
@@ -967,13 +1001,15 @@ function shortcutsMenu() {
 }
 
 render();
+if(requestedNotice)notify(requestedNotice);
 if (storageError) notify(storageError);
 
 function pageOptions() {
   modal(
     "Page options",
-    `<label>Paper<select name="paper">${["grid", "ruled", "dots", "blank"].map((p) => `<option value="${p}" ${(book().pages[page].paper || book().paper) === p ? "selected" : ""}>${p}</option>`).join("")}</select></label><label>Go to page<input name="destination" type="number" required min="1" max="${book().pages.length}" value="${page + 1}"></label><label>Outline title<input name="outline" maxlength="100" value="${esc(book().pages[page].outline || "")}" placeholder="Add this page to outline"></label><label>Action<select name="action"><option value="none">Keep current page</option><option value="duplicate">Duplicate current page</option><option value="earlier">Move page earlier</option><option value="later">Move page later</option><option value="remove">Remove current page (undo available)</option></select></label>`,
+    `<label>Paper<select name="paper">${["grid", "ruled", "dots", "blank"].map((p) => `<option value="${p}" ${(book().pages[page].paper || book().paper) === p ? "selected" : ""}>${p}</option>`).join("")}</select></label><label>Go to page<input name="destination" type="number" required min="1" max="${book().pages.length}" value="${page + 1}"></label><label>Outline title<input name="outline" maxlength="100" value="${esc(book().pages[page].outline || "")}" placeholder="Add this page to outline"></label><label>Action<select name="action"><option value="none">Keep current page</option><option value="duplicate" ${book().sourceRef?'disabled':''}>Duplicate current page</option><option value="earlier">Move page earlier</option><option value="later">Move page later</option><option value="remove" ${book().sourceRef?'disabled':''}>Remove current page (undo available)</option></select></label>`,
     (f) => {
+      if(book().sourceRef&&["duplicate","remove"].includes(f.get("action"))){notify("Linked notebook pages match the source PDF.");return;}
       const next = structuredClone(book());
       next.pages[page].paper = f.get("paper");
       next.pages[page].outline = f.get("outline").trim();
@@ -1020,10 +1056,11 @@ function manageNotebook(id) {
   const n = data.notebooks.find((n) => n.id === id);
   modal(
     "Notebook options",
-    `<label>Name<input name="title" required maxlength="100" value="${esc(n.title)}"></label><label>Folder<input name="folder" maxlength="100" value="${esc(n.folder || "")}" placeholder="No folder"></label><label>Action<select name="action"><option value="rename">Save name</option><option value="duplicate">Duplicate notebook</option><option value="trash">${n.trashed ? "Restore from Trash" : "Move to Trash"}</option></select></label>`,
+    `<label>Name<input name="title" required maxlength="100" value="${esc(n.title)}"></label><label>Folder<input name="folder" maxlength="100" value="${esc(n.folder || "")}" placeholder="No folder"></label><label>Action<select name="action"><option value="rename">Save name</option><option value="duplicate">${n.sourceRef?'Duplicate as a standalone notebook':'Duplicate notebook'}</option><option value="trash">${n.trashed ? "Restore from Trash" : "Move to Trash"}</option></select></label>`,
     (f) => {
       if (f.get("action") === "duplicate") {
         const copy = structuredClone(n);
+        if(copy.sourceRef){delete copy.sourceRef;delete copy.sourceLinkage;for(const p of copy.pages){delete p.sourcePageIndex;for(const item of p.items)delete item.sourceAnchor;}}
         copy.id = crypto.randomUUID();
         copy.title = f.get("title") + " (copy)";
         copy.trashed = false;

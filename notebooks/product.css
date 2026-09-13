@@ -598,3 +598,6 @@ html[data-density="compact"] .books {
 [data-motion="reduce"] .jjty-water, [data-motion="reduce"] .jjty-companion { transition: none; }
 [data-motion="reduce"] .jjty-ripple { display:none; }
 @media (max-width: 600px) { .jjty-companion { right: 12px; bottom: 32px; } }
+
+.notebook-source-return{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px;background:var(--surface,#f4f7f1);border-bottom:1px solid #d4ded3;font-size:12px;flex-wrap:wrap}.notebook-source-return a{color:inherit;text-decoration:underline;min-height:32px;display:flex;align-items:center}.notebook-source-return span{font-size:10px;opacity:.75}
+.notebook-source-return button{border:1px solid #bdcdbc;border-radius:8px;padding:8px 12px;min-height:40px;background:transparent;color:inherit}[data-linked-note]{border-top:1px solid #ccd7ca;margin-top:18px;padding-top:18px}[data-linked-note] label{display:grid;gap:8px}[data-linked-note] textarea{width:100%;min-height:140px;font:16px/1.5 system-ui;resize:vertical;padding:12px;border:1px solid #bdcdbc;border-radius:8px}[data-linked-note] button{margin-top:12px}
