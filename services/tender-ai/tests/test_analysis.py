@@ -85,6 +85,34 @@ class TenderAnalysisTests(unittest.TestCase):
                 },
             )
 
+    def test_normalizes_a_provider_sha256_evidence_alias(self):
+        source = b"Earnest money deposit: INR 50,000."
+        digest = hashlib.sha256(source).hexdigest()
+
+        result = analyze_documents(
+            [("notice.pdf", source)],
+            parse=lambda _name, _data: [{"page": 1, "text": source.decode()}],
+            reason=lambda _documents: {
+                "summary": "Deposit found.",
+                "findings": [
+                    {
+                        "kind": "financial_requirement",
+                        "title": "Earnest money deposit",
+                        "detail": "Human review required.",
+                        "evidence": {
+                            "sha256": digest,
+                            "page": 1,
+                            "quote": source.decode(),
+                        },
+                    }
+                ],
+            },
+        )
+
+        evidence = result["findings"][0]["evidence"]
+        self.assertEqual(evidence["document_sha256"], digest)
+        self.assertNotIn("sha256", evidence)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -47,7 +47,7 @@ def analyze_documents(
         evidence = finding.get("evidence") if isinstance(finding, dict) else None
         if not isinstance(evidence, dict):
             raise AnalysisError("Every finding requires source evidence")
-        digest = evidence.get("document_sha256")
+        digest = evidence.get("document_sha256") or evidence.get("sha256")
         page = evidence.get("page")
         quote = evidence.get("quote")
         source = pages_by_receipt.get((digest, page))
@@ -55,7 +55,10 @@ def analyze_documents(
             raise AnalysisError("Finding references an unknown document page")
         if not isinstance(quote, str) or not quote.strip() or quote not in source:
             raise AnalysisError("Finding quote is not present on its referenced source page")
-        accepted.append(finding)
+        normalized_evidence = dict(evidence)
+        normalized_evidence["document_sha256"] = digest
+        normalized_evidence.pop("sha256", None)
+        accepted.append({**finding, "evidence": normalized_evidence})
 
     summary = proposed.get("summary", "")
     if not isinstance(summary, str):
