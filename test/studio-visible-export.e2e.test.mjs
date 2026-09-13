@@ -1,3 +1,4 @@
+import {prepareStudioControl} from './helpers/studio-controls.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
@@ -16,7 +17,7 @@ test('Download PDF includes visible marks, keeps the original and supports nativ
  const page=await browser.newPage();await page.setViewport({width:390,height:844});const errors=[];page.on('pageerror',e=>errors.push(e.message));
  const downloadPath=await mkdtemp(path.join(os.tmpdir(),'jetty-visible-export-'));
  const client=await page.createCDPSession();await client.send('Browser.setDownloadBehavior',{behavior:'allow',downloadPath});
- const click=async s=>{await page.waitForSelector(s,{visible:true});await page.$eval(s,e=>e.scrollIntoView({block:'center',behavior:'instant'}));await page.locator(s).click();};
+ const click=async s=>{await prepareStudioControl(page,s);await page.waitForSelector(s,{visible:true});await page.$eval(s,e=>e.scrollIntoView({block:'center',behavior:'instant'}));await page.locator(s).click();};
  await page.goto('http://127.0.0.1:5206/studio/index.html#files');await page.waitForFunction(()=>document.querySelector('#real-status')?.textContent==='Your PDF will be stored in this browser.');
  await click('[data-doc-action="sample"]');await page.waitForFunction(()=>document.querySelector('#real-status')?.textContent.startsWith('Opened from')).catch(async e=>{throw new Error(e.message+' '+await page.$eval('main',e=>e.textContent)+' '+errors.join(','));});
  const original=await page.evaluate(async()=>{const {getDocs}=await import('/src/db.js');const d=(await getDocs())[0];return{id:d.id,bytes:Array.from(d.sourceBytes)};});

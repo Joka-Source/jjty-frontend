@@ -4,7 +4,7 @@ import {saveScanResult} from './scan-custody.js';
 import {activityView,mountActivity,documentActivity} from './runtime-activity.js';
 import './scan-page.css';
 let controller=null,generation=0;
-export function scanView(){return `<div class="a-page real-scan-page"><a class="a-back" href="#files">← Back to Library</a><a class="a-btn" id="scan-new" href="#scan/new">New document</a>${activityView()}<p id="scan-host-status" role="status">Opening your scan workspace…</p><div id="scan-host"></div></div>`;}
+export function scanView(){return `<div class="a-page real-scan-page"><a class="a-back" href="#files">← Back to Library</a>${window.JettyNative?.scan?'<button class="a-btn a-primary" data-a="native-scan">Scan with iPhone</button>':''}<a class="a-btn" id="scan-new" href="#scan/new">New document</a>${activityView()}<p id="scan-host-status" role="status">Opening your scan workspace…</p><div id="scan-host"></div></div>`;}
 export function releaseScan(){generation++;controller?.destroy();controller=null;}
 export async function mountScanPage(root){
  releaseScan();const version=generation,host=root.querySelector('#scan-host'),status=root.querySelector('#scan-host-status');mountActivity(root);

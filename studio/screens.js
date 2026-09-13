@@ -1,5 +1,9 @@
 export const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const paths = {
+ image:'M3 3h18v18H3zM3 17l5-5 4 4 3-3 6 6M8 7h.01',
+ text:'M4 4h16M12 4v16M8 20h8',
+ highlight:'m14 3 7 7-9 9H5v-7zM5 19l-2 2h7M12 5l7 7',
+ redo:'M20 10H10a6 6 0 0 0 0 12M20 10l-5-5M20 10l-5 5',
  home:'m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z',
  search:'M21 21l-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0',
  grid:'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
