@@ -41,7 +41,7 @@ resource "aws_route_table_association" "runner" {
 
 resource "aws_security_group" "runner" {
   name        = "jjty-tender-runner"
-  description = "Amazon DCV access from the operator's current address"
+  description = "Amazon DCV access from the operator current address"
   vpc_id      = aws_vpc.runner.id
 
   ingress {
