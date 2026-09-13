@@ -18,6 +18,48 @@ uv run --project services/tender-ai python -m unittest discover -s services/tend
 The first run downloads the open document models. No tender file is retained by
 the analysis core or sent to a hosted model during this proof.
 
+## Run the service
+
+Start the local parser and advisory API:
+
+```sh
+uv run --project services/tender-ai \
+  uvicorn tender_ai.api:app --host 127.0.0.1 --port 8788
+```
+
+Opening `/health` initializes Docling before it reports ready. The Kothali
+workspace checks this endpoint, but uploads nothing until the user presses
+**Review added documents**. The API accepts PDF, DOCX, XLSX, PPTX, HTML,
+Markdown, text, CSV and common image formats. Legacy `.xls` BOQs and archives
+remain in the browser workspace and are not sent to Docling.
+
+Without model configuration, the service performs local extraction and returns
+no proposed findings. To use a hosted or self-hosted JSON chat-completion
+endpoint, configure all three server-side values:
+
+```sh
+export TENDER_AI_BASE_URL='https://provider.example/v1'
+export TENDER_AI_MODEL='open-model-name'
+export TENDER_AI_API_KEY='read-from-a-secret-store'
+```
+
+The API key never enters browser storage. `TENDER_AI_ALLOWED_ORIGINS` may contain
+a comma-separated allow-list and defaults to the two local workspace origins on
+port 8793.
+
+For a containerized deployment:
+
+```sh
+docker build --platform linux/amd64 -t jjty-tender-ai services/tender-ai
+docker run --rm -p 127.0.0.1:8788:8788 jjty-tender-ai
+```
+
+The image contains CPU-only PyTorch and prefetches its open Docling/RapidOCR
+assets during the build. It runs as an unprivileged user. Docling receives
+temporary files during conversion and the service removes them when parsing
+finishes. The response contains only document receipts and source-linked
+findings; extracted page text is not returned to the browser.
+
 ## Intended boundaries
 
 - Browser: originals, bid state, approvals, offline use, and the visible evidence trail.

@@ -7,10 +7,15 @@ from typing import Any
 
 
 class DoclingParser:
-    def __init__(self) -> None:
-        from docling.document_converter import DocumentConverter
+    def __init__(self, *, converter: Any | None = None) -> None:
+        from docling.datamodel.base_models import InputFormat
 
-        self._converter = DocumentConverter()
+        if converter is None:
+            from docling.document_converter import DocumentConverter
+
+            converter = DocumentConverter()
+        self._converter = converter
+        self._converter.initialize_pipeline(InputFormat.PDF)
 
     def parse(self, name: str, data: bytes) -> list[dict[str, Any]]:
         suffix = Path(name).suffix or ".pdf"

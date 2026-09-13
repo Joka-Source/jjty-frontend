@@ -7,6 +7,22 @@ from tender_ai.docling_parser import DoclingParser
 
 
 class TenderAnalysisTests(unittest.TestCase):
+    def test_docling_parser_eagerly_initializes_the_pdf_pipeline(self):
+        from docling.datamodel.base_models import InputFormat
+
+        class ProbeConverter:
+            def __init__(self) -> None:
+                self.initialized_formats = []
+
+            def initialize_pipeline(self, source_format):
+                self.initialized_formats.append(source_format)
+
+        converter = ProbeConverter()
+
+        DoclingParser(converter=converter)
+
+        self.assertEqual(converter.initialized_formats, [InputFormat.PDF])
+
     def test_docling_parser_returns_page_grounded_text_from_a_real_pdf(self):
         fixture = Path(__file__).parents[3] / "test" / "fixtures" / "jett-range.pdf"
         pages = DoclingParser().parse(fixture.name, fixture.read_bytes())
@@ -42,6 +58,7 @@ class TenderAnalysisTests(unittest.TestCase):
 
         self.assertEqual(result["state"], "ready_for_review")
         self.assertEqual(result["documents"][0]["sha256"], hashlib.sha256(source).hexdigest())
+        self.assertNotIn("pages", result["documents"][0])
         self.assertEqual(result["findings"][0]["evidence"]["page"], 1)
 
     def test_rejects_a_model_finding_without_exact_source_evidence(self):

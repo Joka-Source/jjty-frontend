@@ -65,7 +65,10 @@ def analyze_documents(
         "schema": "jjty-tender-analysis-v1",
         "state": "ready_for_review",
         "summary": summary,
-        "documents": documents,
+        "documents": [
+            {key: value for key, value in document.items() if key != "pages"}
+            for document in documents
+        ],
         "findings": accepted,
         "authority": "advisory_only",
         "submission_allowed": False,
