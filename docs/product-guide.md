@@ -37,4 +37,12 @@ Apple [Meet Liquid Glass](https://developer.apple.com/videos/play/wwdc2025/219/)
 
 Change one concrete journey, reuse the owning engine, preserve an interrupted draft, and verify the produced artifact. For PDF work, independently inspect output geometry/content and unchanged originals. For notebooks, test stale writers, conflicts, reload and backup linkage. Run focused checks plus required repository gates. Report browser, emulator, physical device, commit/push and deployment separately.
 
-Open items include unified history/redo, existing PDF image editing, broader OCR exposure, live provider/AI integrations, native input adapters and portable source-plus-notebook backup. Root integration may advance the inventory; reconcile this guide with its latest receipt before release.
+Open items include unified history/redo, broader existing-image support, browser OCR provider integration, live provider/AI integrations, native input adapters and portable source-plus-notebook backup. Root integration may advance the inventory; reconcile this guide with its latest receipt before release.
+
+## Scanner and image checkpoint
+
+Studio exposes Scan pages from Library. Camera start is explicit; stopping, hiding or leaving the scanner stops capture. Recovered checkpoints retain active, superseded and removed source images. Saving owns the resulting PDF and all retained images in one document transaction. This browser has no OCR provider: the scanner engine can embed verified positioned ASCII recognition when supplied, while unsupported scripts remain explicit sidecars.
+
+Write → Edit an existing image uses the existing PDF object engine to move, resize or replace a single opaque image on a simple image-only page. It refuses shared/masked/mixed content and nonstandard page geometry. Separate copies retain their original source relationship. This is bounded image editing, not arbitrary PDF artwork editing.
+
+Cold launch resumes the last real Library, PDF or scanner route; an explicit route still takes precedence.

@@ -66,3 +66,13 @@ Page organization now exposes rotate/reorder/extract/merge through the existing 
 Short-height layout uses the same horizontal text row at every width. At 920 × 126 CSS pixels, input and the full 44 px Add button remain within the viewport. Separate Android verification is required for the new layout.
 
 Focused gate: 19 tests pass in `/tmp/jetty-second-checkpoint-final.log`, including form recovery, real page journeys, exact native extraction, native print responder, existing form lifecycle, and paragraph/short-height/guide checks. Subsequent snapshot guards require the refreshed editor gate before packaging.
+
+### Scanner, image and resume checkpoint
+
+Studio Library now exposes camera/file scanning, checkpoint recovery, separate new documents, and one-transaction custody of PDF plus all active/superseded/removed source images. Stable save identity includes the exact PDF digest and checkpoint metadata: repeated equal output reuses its record; a changed revision or different PDF bytes creates a separate record. Browser tests exercise camera track shutdown, storage failure/retry, removed-source equality, repeat save, rotated save, new scan, different-byte acknowledgement and cold-launch resume. Browser media is synthetic; physical camera quality is unmeasured. OCR is not wired to a browser provider.
+
+Write now exposes bounded native PDF image move/resize/replacement, with unsupported structure explained before editing. The Studio-level test follows file import through the actual command dispatcher, saves a moved copy, independently reads image bounds, and compares original bytes. Component tests also cover replacement transparency refusal, storage retry and stale page/route completion.
+
+Fresh gates: `/tmp/jetty-scan-image-journeys-final.log` (5 pass); `/tmp/jetty-scan-exact-custody.log` (1 pass after exact-byte identity fix); `/tmp/jetty-scan-checkpoint-editor-regression.log` (11 pass). Production build succeeds. Previous broad moving-source suite had 508/510 passing, with both failures passing fresh isolated reruns; this is not an exact-final full-suite claim.
+
+Android checkpoint d504449 separately verifies the full keyboard target, form persistence and field readback, page rotation/reorder/extraction, and original byte equality. Scanner/image/resume changes require a newer package. Native iOS scanner work is separately owned in the current JttyApp target and is not yet claimed complete.
