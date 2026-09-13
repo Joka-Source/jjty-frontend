@@ -127,3 +127,10 @@ resource "aws_instance" "runner" {
 
   depends_on = [aws_iam_role_policy_attachment.ssm]
 }
+
+resource "aws_eip" "runner" {
+  domain   = "vpc"
+  instance = aws_instance.runner.id
+
+  tags = { Name = "jjty-tender-runner" }
+}

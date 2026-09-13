@@ -48,6 +48,18 @@ body:has(.tender-work) .rail nav a[aria-current] { background: #dceee6; color: #
 .tender-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; overflow: hidden; margin: 24px 0; border: 1px solid #e0e6eb; border-radius: 14px; background: #e0e6eb; }
 .tender-metrics div { padding: 16px 18px; background: #f8fafc; color: #60717f; font-size: 12px; }
 .tender-metrics strong { display: block; margin-top: 5px; color: var(--tender-ink); font-size: 19px; }
+.signing-desk { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(240px, .7fr); gap: 32px; align-items: center; margin: 24px 0; padding: 28px; border: 1px solid #b9d9ca; border-radius: 22px; background: linear-gradient(135deg, #e9f5ef 0%, #f8fbf9 72%); box-shadow: 0 16px 36px rgba(24, 91, 69, .09); }
+.signing-desk h3 { margin: 8px 0 8px; font-size: 26px; letter-spacing: -.025em; }
+.signing-desk p { max-width: 680px; margin: 0; color: #3f5d51; line-height: 1.55; }
+.signing-desk-kicker { display: flex; align-items: center; gap: 8px; color: #17604b; font-size: 12px; }
+.signing-desk-kicker span:last-child { color: #65786f; }
+.runner-dot { width: 9px; height: 9px; border-radius: 50%; background: #21a476; box-shadow: 0 0 0 4px rgba(33, 164, 118, .13); }
+.signing-desk ol { display: flex; flex-wrap: wrap; gap: 18px; margin: 20px 0 0; padding: 0; list-style: none; }
+.signing-desk li { display: flex; align-items: center; gap: 7px; color: #355347; font-size: 12px; font-weight: 650; }
+.signing-desk li span { display: grid; width: 24px; height: 24px; place-items: center; border: 1px solid #90beaa; border-radius: 50%; background: white; color: #17604b; }
+.signing-desk-action { display: flex; flex-direction: column; gap: 8px; }
+.signing-desk-button { display: block; padding: 13px 18px; border: 1px solid #1d654f; border-radius: 10px; text-align: center; text-decoration: none; font-weight: 700; }
+.signing-desk-action small { color: #5c7369; text-align: center; }
 .tender-source, .tender-local { color: #667684; font-size: 12px; line-height: 1.6; }
 .tender-grid { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(290px, 1fr); gap: 32px; margin-top: 28px; }
 .tender-docs > header { display: flex; align-items: center; justify-content: space-between; gap: 15px; }
@@ -85,6 +97,7 @@ body:has(.tender-work) .rail nav a[aria-current] { background: #dceee6; color: #
   .tender-grid { grid-template-columns: 1fr; }
   .tender-work { padding: 20px; }
   .tender-heading { flex-direction: column; }
+  .signing-desk { grid-template-columns: 1fr; }
   .tender-deadline { width: 100%; }
   .tender-metrics { grid-template-columns: repeat(2, 1fr); }
 }
@@ -98,6 +111,8 @@ body:has(.tender-work) .rail nav a[aria-current] { background: #dceee6; color: #
   .tender-journey li small { font-size: 9px; }
   .tender-next { align-items: flex-end; }
   .tender-next p { display: none; }
+  .signing-desk { padding: 22px; }
+  .signing-desk ol { display: grid; gap: 10px; }
   .tender-document { flex-direction: column; }
   .tender-actions { align-items: stretch; }
 }

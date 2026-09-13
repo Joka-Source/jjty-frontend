@@ -3,11 +3,11 @@ output "instance_id" {
 }
 
 output "public_ip" {
-  value = aws_instance.runner.public_ip
+  value = aws_eip.runner.public_ip
 }
 
 output "dcv_url" {
-  value = "dcv://Administrator@${aws_instance.runner.public_ip}:8443/#console"
+  value = "dcv://Administrator@${aws_eip.runner.public_ip}:8443/#console"
 }
 
 output "aws_console_url" {

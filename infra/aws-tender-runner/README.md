@@ -1,6 +1,6 @@
 # AWS tender runner
 
-This creates a private Windows Server 2025 workstation for the Kothali tender (`2026_PWR_1337988_1`). It installs Google Chrome, Amazon DCV, and a MahaTenders desktop shortcut. The machine accepts DCV traffic only from the public IPv4 address used during deployment.
+This creates a private Windows Server 2025 workstation for the Kothali tender (`2026_PWR_1337988_1`). It installs Google Chrome, Amazon DCV, and a MahaTenders desktop shortcut. A fixed AWS address keeps the in-product signing-desk button stable. The machine accepts DCV traffic only from the public IPv4 address used during deployment.
 
 ## Use it today
 
