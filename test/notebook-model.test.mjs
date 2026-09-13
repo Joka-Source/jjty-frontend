@@ -111,3 +111,10 @@ test('voice cursor matches typed text or imported page text and preserves ambigu
   assert.deepEqual(matchNotebook(n,'not present'),[]);
   assert.deepEqual(matchNotebook(n,'a'),[]);
 });
+test('reference-only source notes retain validated physical page links without embedding PDFs',()=>{
+ const n=notebook('Linked');n.sourceRef={documentId:'document-a',contentDigest:'sha256:'+'a'.repeat(64)};n.sourceLinkage='reference-only';n.pages[0].sourcePageIndex=2;n.pages[0].items.push({id:'note-a',type:'text',x:40,y:60,text:'A note',revision:1,sourceAnchor:{pageIndex:2}});
+ const restored=validate(JSON.parse(JSON.stringify({version:1,notebooks:[n]})));assert.deepEqual(restored.notebooks[0].sourceRef,n.sourceRef);assert.equal(restored.notebooks[0].source,undefined);
+ const bad=structuredClone(n);bad.pages[0].items[0].sourceAnchor.pageIndex=1;assert.throws(()=>validate({version:1,notebooks:[bad]}),/anchor/);
+ const duplicate=structuredClone(n);duplicate.pages.push(structuredClone(n.pages[0]));assert.throws(()=>validate({version:1,notebooks:[duplicate]}),/physical source page/);
+ const missing=structuredClone(n);delete missing.sourceLinkage;assert.throws(()=>validate({version:1,notebooks:[missing]}),/reference-only/);
+});

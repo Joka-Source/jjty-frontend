@@ -1,4 +1,8 @@
 export const VERSION = 1;
+export function validateSourceRef(ref) {
+  if (!ref || typeof ref.documentId !== 'string' || !/^[a-zA-Z0-9_-]{1,100}$/.test(ref.documentId) || typeof ref.contentDigest !== 'string' || !/^sha256:[0-9a-f]{64}$/.test(ref.contentDigest)) throw Error('Invalid source reference.');
+  return {documentId:ref.documentId,contentDigest:ref.contentDigest};
+}
 export function notebook(
   title = "Untitled notebook",
   paper = "grid",
@@ -43,7 +47,12 @@ export function validate(data) {
         !/^data:application\/pdf;base64,[A-Za-z0-9+/=]+$/.test(n.source.data))
     )
       throw Error("Invalid PDF source.");
+    if (n.sourceRef) {
+      validateSourceRef(n.sourceRef);
+      if (n.sourceLinkage !== 'reference-only') throw Error('Source notes must identify their reference-only linkage.');
+    }
     ids.add(n.id);
+    const sourcePages=new Set(), sourceItems=new Set();
     for (const p of n.pages) {
       if (
         p.background &&
@@ -60,7 +69,11 @@ export function validate(data) {
         throw Error("Invalid page template.");
       if (typeof p.id !== "string" || !Array.isArray(p.items))
         throw Error("Invalid page data.");
+      if (n.sourceRef && (!Number.isInteger(p.sourcePageIndex) || p.sourcePageIndex < 0 || sourcePages.has(p.sourcePageIndex))) throw Error('Invalid physical source page.');
+      if(n.sourceRef)sourcePages.add(p.sourcePageIndex);
       for (const i of p.items) {
+        if (i.sourceAnchor && (!n.sourceRef || i.type !== 'text' || typeof i.id !== 'string' || !/^[a-zA-Z0-9_-]{1,100}$/.test(i.id) || i.sourceAnchor.pageIndex !== p.sourcePageIndex || !Number.isInteger(i.revision) || i.revision < 1 || sourceItems.has(i.id))) throw Error('Invalid source note anchor.');
+        if(i.sourceAnchor)sourceItems.add(i.id);
         if (
           i.opacity !== undefined &&
           (!Number.isFinite(i.opacity) || i.opacity < 0 || i.opacity > 1)
