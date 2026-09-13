@@ -13,3 +13,10 @@ test('selected Text/Popup parent links and annotation page ownership survive obj
  assert.equal((await inspectPdfExtraction(bytes)).allowed,true);const output=await extractPdfPages(bytes,[1]),doc=new m.PDFDocument(output);try{const page=doc.loadPage(0),object=page.getObject(),annots=object.get('Annots'),note=annots.get(0),popup=annots.get(1),notePage=note.get('P'),popupPage=popup.get('P'),parent=popup.get('Parent'),child=note.get('Popup');try{assert.equal(notePage.asIndirect(),object.asIndirect());assert.equal(popupPage.asIndirect(),object.asIndirect());assert.equal(parent.asIndirect(),note.asIndirect());assert.equal(child.asIndirect(),popup.asIndirect());}finally{for(const v of[child,parent,popupPage,notePage,popup,note,annots,object,page])v.destroy();}}finally{doc.destroy();}
  assert.deepEqual(await read(output),[(await read(bytes))[1]]);
 });
+test('constructor metadata and Studio native marks survive subset extraction without source mutation',async()=>{
+ const {exportFreehandPdf}=await import('../src/pdf-freehand.js');
+ const original=new Uint8Array(readFileSync(new URL('../public/examples/orchard-walk.pdf',import.meta.url)));
+ const marked=await exportFreehandPdf(original,{ink:[{pageIndex:1,points:[[45,160],[120,170]],width:2,color:[.1,.2,.3]}],text:[{pageIndex:1,x:45,y:190,fontSize:12,text:'Kept in the copy',color:[.1,.2,.3]}]});
+ const before=marked.slice(),rows=await read(marked),output=await extractPdfPages(marked,[1]);assert.deepEqual(await read(output),[rows[1]]);assert.deepEqual(marked,before);assert.ok((await read(output))[0].annotations.some(a=>a.type==='Ink'));assert.ok((await read(output))[0].annotations.some(a=>a.type==='FreeText'));
+ const unsafe=edit(original,doc=>{const t=doc.getTrailer(),r=t.get('Root'),info=doc.newDictionary(),p=doc.loadPage(0),o=p.getObject();try{info.put('Producer',o);r.put('Info',info);}finally{o.destroy();p.destroy();info.destroy();r.destroy();t.destroy();}});assert.equal((await inspectPdfExtraction(unsafe)).allowed,false);
+});

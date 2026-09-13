@@ -2,20 +2,20 @@ import {inspectPdfForm} from './pdf-forms.js';
 import {snapshotPdfStructure} from './pdf-structure.js';
 function fail(code){const error=new Error(code);error.code=code;throw error;}
 function owned(input){if(input instanceof Uint8Array)return input.slice();if(input instanceof ArrayBuffer)return new Uint8Array(input.slice(0));if(Array.isArray(input)&&Array.from(input).every(v=>Number.isInteger(v)&&v>=0&&v<=255))return Uint8Array.from(input);fail('EXTRACT_INVALID_BYTES');}
-const allowedCatalog=['Type','Pages','PageLayout','PageMode','Lang','Version'];
+const allowedCatalog=['Type','Pages','PageLayout','PageMode','Lang','Version','Info'];
 async function inspect(doc,bytes){
  doc.disableJS();if(doc.countPages()<1||doc.countPages()>10000)fail('EXTRACT_STRUCTURE_UNSUPPORTED');const form=await inspectPdfForm(bytes);
  if(form.restrictions.some(r=>['encrypted','signed-document','signature-protection','xfa-unsupported','calculated-form-unsupported'].includes(r)))fail('EXTRACT_DOCUMENT_RESTRICTED');
  if(!doc.hasPermission('assemble'))fail('EXTRACT_PERMISSION_DENIED');
  const trailer=doc.getTrailer(),root=trailer.get('Root');
- try{root.forEach((value,key)=>{try{if(!value.isNull()&&!allowedCatalog.includes(key))fail('EXTRACT_STRUCTURE_UNSUPPORTED');if(key!=='Pages'&&!value.isNull()&&!value.isName()&&!value.isString())fail('EXTRACT_STRUCTURE_UNSUPPORTED');}finally{value.destroy();}});}finally{root.destroy();trailer.destroy();}
+ try{root.forEach((value,key)=>{try{if(!value.isNull()&&!allowedCatalog.includes(key))fail('EXTRACT_STRUCTURE_UNSUPPORTED');if(key==='Info'&&!value.isNull()){if(!value.isDictionary())fail('EXTRACT_STRUCTURE_UNSUPPORTED');value.forEach((item,name)=>{try{if(!['Title','Author','Subject','Keywords','Creator','Producer','CreationDate','ModDate','Trapped'].includes(name)||(!item.isNull()&&!item.isString()&&!item.isName()))fail('EXTRACT_STRUCTURE_UNSUPPORTED');}finally{item.destroy();}});}else if(key!=='Pages'&&!value.isNull()&&!value.isName()&&!value.isString())fail('EXTRACT_STRUCTURE_UNSUPPORTED');}finally{value.destroy();}});}finally{root.destroy();trailer.destroy();}
  // Reject navigation and form authority, including page actions and unknown
  // annotation types. Simple marks are proved byte-semantically after saving.
  for(let i=0;i<doc.countPages();i++){
   const page=doc.loadPage(i),object=page.getObject();
   try{
    for(const key of ['AA','B','PresSteps','StructParents']){const value=object.get(key);try{if(!value.isNull())fail('EXTRACT_STRUCTURE_UNSUPPORTED');}finally{value.destroy();}}
-   const annots=object.get('Annots');try{if(!annots.isNull()){if(!annots.isArray())fail('EXTRACT_STRUCTURE_UNSUPPORTED');for(let j=0;j<annots.length;j++){const annotation=annots.get(j),type=annotation.get('Subtype');try{if(!type.isName()||!['Text','Highlight','Popup'].includes(type.asName()))fail('EXTRACT_STRUCTURE_UNSUPPORTED');for(const key of ['A','AA','Dest','IRT','StructParent']){const value=annotation.get(key);try{if(!value.isNull())fail('EXTRACT_STRUCTURE_UNSUPPORTED');}finally{value.destroy();}}}finally{type.destroy();annotation.destroy();}}}}finally{annots.destroy();}
+   const annots=object.get('Annots');try{if(!annots.isNull()){if(!annots.isArray())fail('EXTRACT_STRUCTURE_UNSUPPORTED');for(let j=0;j<annots.length;j++){const annotation=annots.get(j),type=annotation.get('Subtype');try{if(!type.isName()||!['Text','Highlight','Underline','StrikeOut','Ink','FreeText','Popup'].includes(type.asName()))fail('EXTRACT_STRUCTURE_UNSUPPORTED');for(const key of ['A','AA','Dest','IRT','StructParent']){const value=annotation.get(key);try{if(!value.isNull())fail('EXTRACT_STRUCTURE_UNSUPPORTED');}finally{value.destroy();}}}finally{type.destroy();annotation.destroy();}}}}finally{annots.destroy();}
   }finally{object.destroy();page.destroy();}
  }
  return snapshotPdfStructure(doc,Array.from({length:doc.countPages()},(_,i)=>i));

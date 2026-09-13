@@ -24,10 +24,10 @@ function combinedError(error){
   return messages[error.code] || error.message;
 }
 
-export function initPdfFormPanel({saveDocument, getRecords, review=initPdfReview()}) {
-  const $=id=>document.getElementById(id), panel=$('pdf-form-panel'), status=$('pdf-form-status'), fields=$('pdf-form-fields'), download=$('pdf-form-download');
+export function initPdfFormPanel({saveDocument, getRecords, review=initPdfReview(), root=document}) {
+  const $=id=>root.querySelector('#'+id), panel=$('pdf-form-panel'), status=$('pdf-form-status'), fields=$('pdf-form-fields'), download=$('pdf-form-download');
   const includeMarks=$('pdf-form-include-marks');
-  let current=null, generation=0, schema=null, values={}, pending=0, exporting=false, failed=false, queue=Promise.resolve();
+  let current=null, generation=0, saveRevision=0, schema=null, values={}, pending=0, exporting=false, failed=false, queue=Promise.resolve();
   const drafts=new Map();
   const explanations={'encrypted':'This encrypted PDF cannot be filled here yet.','form-permission-denied':'This PDF does not permit form filling.','xfa-unsupported':'This dynamic XFA form needs a compatible form application.','calculated-form-unsupported':'This form has automatic calculations that are not supported here yet.','signature-protection':'This PDF has signature protection; export is disabled.','signed-document':'This PDF already has a digital signature; export is disabled.','field-type-unsupported':'This field type is not supported yet.','rich-text-unsupported':'Rich-text formatting is not supported yet.','multi-select-unsupported':'Multiple-choice selections are not supported yet.','field-actions-unsupported':'This field requires document scripts that are not run here.'};
   const explain=code=>code==='shared-checkbox-states-unsupported'?'These linked checkboxes use different values and cannot be edited here yet.':explanations[code] || String(code).replaceAll('-', ' ');
@@ -35,13 +35,13 @@ export function initPdfFormPanel({saveDocument, getRecords, review=initPdfReview
   function controls(){download.disabled=!schema?.canFill || pending>0 || exporting || failed;$('pdf-form-preview').disabled=download.disabled;$('pdf-form-retry').hidden=!failed;$('pdf-form-retry').disabled=pending>0 || exporting;for(const input of fields.querySelectorAll('[data-editable]'))input.disabled=exporting || input.dataset.editable!=='true';if(includeMarks)includeMarks.disabled=download.disabled;download.textContent=includeMarks?.checked?'Download combined copy':'Download filled copy';$('pdf-form-preview').textContent=includeMarks?.checked?'Review combined copy':'Review filled copy';}
   includeMarks?.addEventListener('change',controls);
   function persist(){
-    const doc=current, version=generation, snapshot=structuredClone(values);
+    const doc=current, version=generation, writeRevision=++saveRevision, snapshot=structuredClone(values);
     const draftState={sourceDigest:doc.provenance.contentDigest,values:snapshot,saved:false};drafts.set(doc.id,draftState);
     pending++;failed=false;status.textContent='Saving answers on this device…';controls();
     queue=queue.catch(()=>{}).then(async()=>{
       const draft={sourceDigest:doc.provenance.contentDigest,values:snapshot};
       await saveDocument({...doc,formDraft:draft});doc.formDraft=draft;draftState.saved=true;
-    }).then(()=>{if(version===generation){failed=false;status.textContent='Answers saved on this device. Your original is unchanged.';}},()=>{if(version===generation){failed=true;status.textContent='Answers could not be saved. Retry saving; keep this page open.';}}).finally(()=>{if(version===generation){pending--;controls();}});
+    }).then(()=>{if(version===generation&&writeRevision===saveRevision){failed=false;status.textContent='Answers saved on this device. Your original is unchanged.';}},()=>{if(version===generation&&writeRevision===saveRevision){failed=true;status.textContent='Answers could not be saved. Retry saving; keep this page open.';}}).finally(()=>{if(version===generation){pending--;controls();}});
   }
   function render(){
     fields.replaceChildren();
@@ -102,7 +102,7 @@ export function initPdfFormPanel({saveDocument, getRecords, review=initPdfReview
   }
   download.addEventListener('click',()=>void prepareCopy());
   $('pdf-form-preview').addEventListener('click',()=>void prepareCopy(true));
-  return {async flush(docId=current?.id){
+  return {pending:()=>pending>0||exporting,beforeLeave(){if(pending>0||exporting)throw new Error('Wait for the current form save or copy to finish.');if(failed)throw new Error('Retry saving your form answers before leaving.');},dispose(){generation++;current=null;schema=null;review.close();},async flush(docId=current?.id){
     await queue;
     if(drafts.get(docId)?.saved===false)throw new Error('Answers could not be saved. Retry saving before closing or switching this document.');
   },async setDocument(doc){

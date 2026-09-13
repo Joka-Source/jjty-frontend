@@ -56,3 +56,13 @@ The matrix above records the pre-build gap assessment, not the current implement
 - The guide links real journeys, reference evidence, widget/capsule specimens, accessible input states, voice-to-LaTeX foundations and intended adapters. Working-surface labels mean browser reachability, not native or release parity.
 
 Focused evidence logs: `/tmp/jetty-selection-final.log`, `/tmp/jetty-capabilities-ui-final-2.log`, `/tmp/jetty-integrated-final-focused.log`. The earlier full-suite run began before this integration and is not exact-revision proof of these changes.
+
+### Page and form checkpoint
+
+Studio now exposes supported form fields with draft recovery, verified filled copies, and guarded route changes during failed saves. A real browser test injects storage failure, attempts to leave through hash navigation, verifies the answers stay visible, retries, reopens, and independently reads filled PDF fields. Error feedback stays inside an open control panel so it cannot cover Retry.
+
+Page organization now exposes rotate/reorder/extract/merge through the existing preservation engines. A Studio journey rotates, reorders, extracts, and opens the prior exact version. Extraction now accepts bounded constructor metadata and the native Ink/FreeText/Underline/StrikeOut annotations produced by Studio while preserving them; forms/navigation and unsupported structures remain refused. An opaque page-object reference inside metadata is rejected. A 100 MB preflight bounds merge input before reading files.
+
+Short-height layout uses the same horizontal text row at every width. At 920 × 126 CSS pixels, input and the full 44 px Add button remain within the viewport. Separate Android verification is required for the new layout.
+
+Focused gate: 19 tests pass in `/tmp/jetty-second-checkpoint-final.log`, including form recovery, real page journeys, exact native extraction, native print responder, existing form lifecycle, and paragraph/short-height/guide checks. Subsequent snapshot guards require the refreshed editor gate before packaging.

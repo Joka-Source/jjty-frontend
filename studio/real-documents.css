@@ -67,3 +67,13 @@
 .real-context .pdf-edit-workspace{padding:0;border:0;background:transparent;color:var(--a-ink)}
 .real-context .pdf-edit-workspace h2{display:none}.real-context .pdf-edit-workspace input,.real-context .pdf-edit-workspace select,.real-context .pdf-edit-workspace textarea{font:inherit;color:var(--a-ink);background:var(--a-paper);border:1px solid var(--a-line);border-radius:9px;min-height:44px;max-width:100%}.real-context .pdf-edit-workspace button{min-height:44px;border:1px solid var(--a-line);border-radius:9px;color:var(--a-ink);background:var(--a-paper)}.real-context #pdf-edit-review{background:var(--a-blue);color:white}.real-context #pdf-edit-status{font-size:12px;line-height:1.5}
 @media(max-width:800px){.real-jelly>button[data-doc-action=undo],.real-jelly>button[data-doc-action=redo]{min-width:44px}.real-jelly{max-width:calc(100vw - 16px)}}
+.real-context #pdf-form-fields{display:grid;gap:16px;margin:16px 0}.real-context .pdf-form-field{display:grid;gap:5px}.real-context .pdf-form-field label{font-size:14px}.real-context .pdf-form-field small{font-size:11px;color:var(--a-muted)}.real-context .pdf-form-field input,.real-context .pdf-form-field textarea,.real-context .pdf-form-field select{border:1px solid var(--a-line);border-radius:9px;color:var(--a-ink);background:var(--a-paper);font:inherit;min-height:44px;padding:10px;width:100%;box-sizing:border-box}.real-context .pdf-form-field input[type=checkbox]{width:44px;accent-color:var(--a-blue)}.real-context #pdf-form-status,.real-context #real-form-empty{font-size:12px;line-height:1.5}
+.real-context .studio-page-tools{--ink:var(--a-ink);--muted:var(--a-muted);--line:var(--a-line);--surface:var(--a-paper);--paper:var(--a-paper);--sage:var(--a-blue-pale);--accent:var(--a-blue)}
+@media(max-height:350px){
+.real-context #real-text-form{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:6px}
+.real-context #real-text-form>.a-btn{width:auto;max-width:100px;min-height:44px;margin:0 0 2px;padding:8px 12px}
+.real-context #real-text-form input{min-height:44px}
+.real-context-heading{height:44px;min-height:44px}.real-context-heading .real-close{width:44px;min-width:44px;height:44px;min-height:44px}
+}
+.real-editor.real-panel-open>#real-status[data-error=true]{display:none}
+.real-context #real-context-feedback{padding:10px;border:1px solid var(--a-plum);border-radius:8px;color:var(--a-plum)}
