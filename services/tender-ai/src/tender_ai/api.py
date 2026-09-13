@@ -86,9 +86,11 @@ def create_app(
     selected_parser = parser or LazyDoclingParser()
     selected_reasoner = reasoner or _reasoner_from_environment()
     application = FastAPI(
-        title="JJTY tender intelligence",
-        version="0.1.0",
-        description="Self-hosted, source-grounded advisory analysis for tender documents.",
+        title="JJTY service platform",
+        version="0.2.0",
+        description=(
+            "Service-neutral cases and source-grounded advisory document intelligence."
+        ),
     )
     allowed_origins = [
         value.strip()
@@ -111,6 +113,30 @@ def create_app(
             "X-JJTY-Human-Approval",
         ],
     )
+
+    if platform_engine is None:
+        table_name = os.getenv("SERVICE_PLATFORM_DYNAMODB_TABLE", "").strip()
+        configured_platform_token = os.getenv("SERVICE_PLATFORM_API_TOKEN", "").strip()
+        configured_human_token = os.getenv(
+            "SERVICE_PLATFORM_HUMAN_APPROVAL_TOKEN", ""
+        ).strip()
+        platform_values = [table_name, configured_platform_token, configured_human_token]
+        if any(platform_values):
+            if not all(platform_values):
+                raise RuntimeError(
+                    "SERVICE_PLATFORM_DYNAMODB_TABLE, SERVICE_PLATFORM_API_TOKEN, and "
+                    "SERVICE_PLATFORM_HUMAN_APPROVAL_TOKEN must be configured together"
+                )
+            from .platform.dynamodb_store import DynamoDBPlatformStore
+            from .platform.engine import PlatformEngine
+            from .platform.packs import ServicePackRegistry
+
+            platform_engine = PlatformEngine(
+                ServicePackRegistry.default(),
+                DynamoDBPlatformStore.from_environment(table_name),
+            )
+            platform_token = configured_platform_token
+            human_approval_token = configured_human_token
 
     if platform_engine is not None:
         if not platform_token or not human_approval_token:

@@ -14,11 +14,11 @@ The existing tender document-analysis endpoint remains available and unchanged. 
 
 ## Security boundary
 
-All platform endpoints require `Authorization: Bearer <SERVICE_PLATFORM_API_TOKEN>`. The token is read only from server-side configuration and stored in AWS Secrets Manager in production. Requests also require `X-JJTY-Actor`, a stable actor identifier recorded on every mutation.
+All platform endpoints require `Authorization: Bearer <SERVICE_PLATFORM_API_TOKEN>`. The token is read only from server-side configuration and stored in AWS Secrets Manager in production. Requests also require `X-JJTY-Actor` and `X-JJTY-Actor-Kind`, recorded on every mutation.
 
 The API never accepts executable UI code, shell commands, arbitrary browser scripts, credentials, DSC PINs, OTPs, or payment secrets. A service pack may reference only component types and capability names present in the server-owned catalogs.
 
-Human-gated steps cannot be completed through the generic step-completion endpoint. They require the human-gate endpoint with an explicit acknowledgement. AI and worker actors cannot confirm a human gate. DSC signing, payment confirmation, and final submission are human-gated in the tender pack.
+Human-gated steps cannot be completed through the generic step-completion endpoint. They require the human-gate endpoint with an explicit acknowledgement and a separate `SERVICE_PLATFORM_HUMAN_APPROVAL_TOKEN`. AI and worker actors cannot confirm a human gate even if they present that credential. DSC signing, payment confirmation, and final submission are human-gated in the tender pack.
 
 ## Service packs
 

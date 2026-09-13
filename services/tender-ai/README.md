@@ -1,7 +1,12 @@
-# JJTY tender intelligence
+# JJTY service platform and tender intelligence
 
 This service prepares source-grounded findings for the browser tender workspace.
 It is advisory: it cannot sign, pay, alter the original BOQ, or submit a bid.
+
+The same backend now hosts a service-neutral case engine under `/v1/platform`.
+Tender and visa are the first immutable, versioned service packs. Their screens
+are declarative data from a trusted component catalog; the backend never emits
+executable UI code.
 
 The first working slice uses [Docling](https://github.com/docling-project/docling)
 locally to recover page structure and text. Every source file receives a SHA-256
@@ -59,6 +64,44 @@ assets during the build. It runs as an unprivileged user. Docling receives
 temporary files during conversion and the service removes them when parsing
 finishes. The response contains only document receipts and source-linked
 findings; extracted page text is not returned to the browser.
+
+## Service platform
+
+The platform API is enabled only when all three values are configured:
+
+```sh
+export SERVICE_PLATFORM_DYNAMODB_TABLE='jjty-service-platform'
+export SERVICE_PLATFORM_API_TOKEN='read-from-a-secret-store'
+export SERVICE_PLATFORM_HUMAN_APPROVAL_TOKEN='use-a-separate-protected-secret'
+```
+
+Every request under `/v1/platform` requires an `Authorization: Bearer` token,
+`X-JJTY-Actor`, and `X-JJTY-Actor-Kind` (`human`, `ai`, `worker`, or `system`).
+Case creation and capability requests additionally require `Idempotency-Key`.
+Mutations carry `expected_revision`; stale writes return HTTP 409.
+
+Human-gate confirmation also requires `X-JJTY-Human-Approval`. The approval
+credential is deliberately different from the ordinary platform token. A
+caller identifying as AI or worker is refused even if it somehow presents the
+approval credential.
+
+Platform endpoints:
+
+- `GET /v1/platform/service-packs`
+- `GET /v1/platform/service-packs/{pack_id}?version=1.0.0`
+- `POST /v1/platform/cases`
+- `GET /v1/platform/cases/{case_id}`
+- `POST /v1/platform/cases/{case_id}/artifacts`
+- `POST /v1/platform/cases/{case_id}/evidence`
+- `POST /v1/platform/cases/{case_id}/steps/{step_id}/complete`
+- `POST /v1/platform/cases/{case_id}/capability-runs`
+- `POST /v1/platform/cases/{case_id}/human-gates/{step_id}/confirm`
+- `GET /v1/platform/cases/{case_id}/events`
+
+The DynamoDB store writes each updated case and its audit event in one
+transaction. Case creation atomically records its idempotency key. Artifacts
+are metadata receipts; raw files belong in an encrypted object store and the
+backend accepts only their opaque storage reference and SHA-256.
 
 ## Intended boundaries
 

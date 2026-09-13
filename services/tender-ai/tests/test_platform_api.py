@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
 from tender_ai.api import create_app
 from tender_ai.platform.engine import PlatformEngine
+from tender_ai.platform.dynamodb_store import DynamoDBPlatformStore
 from tender_ai.platform.packs import ServicePackRegistry
 from tender_ai.platform.store import MemoryPlatformStore
 
@@ -208,6 +210,34 @@ class PlatformAPITests(unittest.TestCase):
         payload = events.json()
         self.assertEqual([event["sequence"] for event in payload], list(range(1, len(payload) + 1)))
         self.assertIn("human_gate.confirmed", [event["type"] for event in payload])
+
+    def test_environment_mounts_the_dynamodb_platform(self) -> None:
+        with (
+            patch.dict(
+                "os.environ",
+                {
+                    "SERVICE_PLATFORM_DYNAMODB_TABLE": "jjty-service-platform",
+                    "SERVICE_PLATFORM_API_TOKEN": "platform-secret-test-value",
+                    "SERVICE_PLATFORM_HUMAN_APPROVAL_TOKEN": "human-secret-test-value",
+                },
+                clear=False,
+            ),
+            patch.object(
+                DynamoDBPlatformStore,
+                "from_environment",
+                return_value=MemoryPlatformStore(),
+            ) as factory,
+        ):
+            client = TestClient(
+                create_app(
+                    parser=StaticParser(),
+                    reasoner=lambda _documents: {"summary": "", "findings": []},
+                )
+            )
+
+        response = client.get("/v1/platform/service-packs", headers=self.human_headers)
+        self.assertEqual(response.status_code, 200, response.text)
+        factory.assert_called_once_with("jjty-service-platform")
 
 
 if __name__ == "__main__":
