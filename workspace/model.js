@@ -1,4 +1,4 @@
-export const sections = ['Inbox', 'Messages', 'Library', 'PDF tools', 'Connections', 'Settings'];
+export const sections = ['Inbox', 'Messages', 'Library', 'PDF tools', 'Connections', 'Settings', 'Tenders'];
 export const initial = { drafts: {}, appearance: 'system', reducedMotion: false, density: 'comfortable' };
 export function loadState(storage) {
   try {

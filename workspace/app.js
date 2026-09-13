@@ -1,3 +1,4 @@
+import { renderTender } from './tenders.js';
 import { startPdfHandoff, readPdfHandoff } from './pdf-handoff.js';
 import './style.css';
 import '../src/pwa.js';
@@ -31,6 +32,7 @@ function render() {
  if(section==='Library'||section==='PDF tools') {
   surface.innerHTML=`<div class="document-switch"><p>${section==='Library'?'Notebooks, handwriting and voice cursor':'Existing PDF text editing, forms, annotations and page tools'}</p><a href="${section==='Library'?'/notebooks/index.html':'/#/home'}" target="_blank" rel="noopener">Open full workspace ↗</a></div><iframe title="${section==='Library'?'Notebook workspace':'PDF document workspace'}" src="${section==='Library'?'/notebooks/index.html':'/#/home'}"></iframe>`;
  }
+ if(section==='Tenders') renderTender(surface);
  if(section==='Connections') connections(surface);
  if(section==='Settings') settings(surface);
 }

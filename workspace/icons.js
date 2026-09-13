@@ -6,4 +6,4 @@ const paths = [
  'M9 8l-2-2a3 3 0 00-4 4l4 4a3 3 0 004 0 M15 16l2 2a3 3 0 004-4l-4-4a3 3 0 00-4 0 M8 16l8-8',
  'M4 6h16 M4 12h16 M4 18h16 M8 3v6 M16 9v6 M10 15v6',
 ];
-export function navigationIcon(index) {return `<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="${paths[index]}"/></svg>`;}
+export function navigationIcon(index) {return `<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="${(paths[index] || paths[2])}"/></svg>`;}
