@@ -13,6 +13,7 @@ function pages(ranges){if(!Array.isArray(ranges)||!ranges.length||ranges.length>
 export function beginNativePrint(bytes,filename,{bridge,onStatus=()=>{},eventTarget=globalThis.window}={}){
  if(active)fail('PRINT_BUSY','Finish the current print dialog before starting another.');
  if(!(bytes instanceof Uint8Array||bytes instanceof ArrayBuffer)||!bytes.byteLength)fail('PRINT_SOURCE_INVALID');
+ if(bytes.byteLength>32*1024*1024)fail('PRINT_SOURCE_TOO_LARGE','Choose a PDF smaller than 32 MB.');
  if(typeof filename!=='string'||!filename.trim()||filename.length>255||/[\u0000-\u001F]/.test(filename))fail('PRINT_FILENAME_INVALID');
  if(!bridge||['print','write','fail'].some(name=>typeof bridge[name]!=='function'))fail('PRINT_BRIDGE_UNAVAILABLE');
  let frozen=new Uint8Array(bytes).slice(),terminal=false,generation=0,queue=Promise.resolve();
