@@ -106,7 +106,11 @@ resource "aws_instance" "runner" {
   iam_instance_profile        = aws_iam_instance_profile.runner.name
   get_password_data           = true
   user_data_replace_on_change = true
-  user_data                   = file("${path.module}/windows/bootstrap.ps1")
+  user_data                   = <<-EOT
+    <powershell>
+    ${file("${path.module}/windows/bootstrap.ps1")}
+    </powershell>
+  EOT
 
   metadata_options {
     http_endpoint = "enabled"
