@@ -49,4 +49,11 @@ test('browser checkpoint persists source bytes through reload and real processin
  await page.setViewport({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  await page.screenshot({path:'docs/scan/mobile-review.png',fullPage:true});
  await page.evaluate(()=>window.scanner.destroy());
+ await page.evaluate(async()=>{
+  const {mountScanner}=await import('/packages/jt-scan/ui.js');const c=document.createElement('canvas');c.width=480;c.height=360;const g=c.getContext('2d');g.fillStyle='#222';g.fillRect(0,0,480,360);g.fillStyle='#eee';g.fillRect(60,30,360,300);g.fillStyle='#222';for(let y=70;y<280;y+=25)g.fillRect(95,y,270,3);
+  const root=document.createElement('div');document.body.replaceChildren(root);window.fixtureCanvas=c;window.scanner=await mountScanner({root,id:'auto-after-manual',onSave:async()=>({documentId:'unused'}),mediaDevices:{getUserMedia:async()=>{const stream=c.captureStream(0);window.fixtureTimer=setInterval(()=>{g.fillRect(95,70,1,1);stream.getVideoTracks()[0].requestFrame();},100);return stream;}}});
+ });
+ await page.click('[data-action="start"]');await page.waitForFunction(()=>document.querySelector('[data-guidance]').textContent.includes('Turn the page'),{timeout:8000}).catch(async e=>{throw Error(e.message+' '+await page.evaluate(()=>document.querySelector('[data-guidance]').textContent+' / '+document.querySelector('[data-scan-status]').textContent+' / '+document.querySelector('video').videoWidth));});
+ await page.click('[data-auto]');await page.waitForFunction(()=>document.querySelectorAll('[data-scan-page]').length===1,{timeout:4000});
+ await page.evaluate(()=>{clearInterval(window.fixtureTimer);window.scanner.destroy();});
 });
