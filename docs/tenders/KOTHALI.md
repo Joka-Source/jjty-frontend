@@ -7,8 +7,12 @@ Old Kothali, Muktainagar concrete road and gutter tender, `2026_PWR_1337988_1`.
 
 - Official public listing facts and recorded deadline, checked 13 September 2026.
 - Bidder details, working notes, eligibility and corrigendum review checks.
+- A five-stage preparation journey with one clear next action and separate
+  business, eligibility, document, price/sign and government-submission states.
 - Nine document groups, including separate original and completed BOQs.
 - Local IndexedDB persistence, original-file downloads, SHA-256 receipts and history.
+- Production service-worker caching keeps the tender room available after the
+  network is disconnected; uploaded files and review state reopen from IndexedDB.
 - Replacement uploads retain earlier originals and reset the relevant reviews.
 - Web Locks serialize saves across tabs; document review rejects a stale file version.
 - A preparation ZIP contains the exact current and replaced files plus a manifest
@@ -38,5 +42,5 @@ payment and final portal submission are not implemented by this workspace.
 
 The browser test uses clearly synthetic PDF bytes. It checks reload recovery,
 review reset, stale-tab rejection, cross-tab save preservation, exact exported bytes,
-retained originals, no page errors and a 390px layout. It does not prove official
+retained originals, a network-disabled reload, no page errors and a 390px layout. It does not prove official
 PDF validity, real bidder eligibility, native-device behavior or portal submission.

@@ -11,6 +11,18 @@ export const requirements = [
  ['payment','Tender fee and EMD evidence','','Payment confirmation'],
 ].map(([id,label,expected,note])=>({id,label,expected,note}));
 export const initialBid = ()=>({company:'',registration:'',notes:'',eligibility:false,corrigenda:false,documents:{},history:[]});
+export function journey(bid) {
+ const reviewed=id=>Boolean(bid.documents[id]?.reviewed);
+ const stages=[
+  {id:'business',label:'Business',complete:Boolean(bid.company?.trim()&&bid.registration?.trim()),target:'tender-bidder'},
+  {id:'eligibility',label:'Eligibility',complete:Boolean(bid.eligibility&&bid.corrigenda),target:'eligibility'},
+  {id:'documents',label:'Documents',complete:['nit','terms','registration','capacity','technical'].every(reviewed),target:'document-nit'},
+  {id:'price',label:'Price & sign',complete:['boq','signed','priced','payment'].every(reviewed),target:'document-boq'},
+  {id:'submit',label:'Submit',complete:false,target:'tender-export'},
+ ];
+ const current=stages.findIndex(stage=>!stage.complete);
+ return {stages,current,completed:stages.filter(stage=>stage.complete).length,percent:Math.round(stages.filter(stage=>stage.complete).length/(stages.length-1)*100)};
+}
 export function blockers(bid,now=Date.now()) {
  const result=[];
  if(now>=Date.parse(tender.deadline))result.push('The recorded submission deadline has passed. Verify any extension on MahaTenders.');

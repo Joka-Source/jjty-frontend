@@ -3,3 +3,7 @@ dist
 .npm-cache/
 .env.local
 .env.*.local
+infra/aws-tender-runner/.local/
+infra/aws-tender-runner/*.tfstate
+infra/aws-tender-runner/*.tfstate.*
+infra/aws-tender-runner/.terraform/

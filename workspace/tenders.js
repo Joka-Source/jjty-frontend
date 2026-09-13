@@ -1,6 +1,6 @@
 import {zipSync,strToU8} from 'fflate';
 import {attachmentStore} from './attachments.js';
-import {tender,requirements,initialBid,blockers,fileProblem} from './tender-model.js';
+import {tender,requirements,initialBid,blockers,fileProblem,journey} from './tender-model.js';
 import './tenders.css';
 const key=`tender:${tender.id}`;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -18,6 +18,7 @@ export async function renderTender(surface){
   const form=surface.querySelector('#tender-bidder'),fields=new FormData(form),edits={};
   for(const name of ['company','registration','notes'])if(fields.get(name)!==bid[name])edits[name]=fields.get(name);
   busy=true;surface.querySelectorAll('button,input,textarea').forEach(n=>n.disabled=true);
+  let failure;
   try{
    if(!navigator.locks)throw Error('Safe saving requires a browser with Web Locks support');
    await navigator.locks.request(key,async()=>{
@@ -27,22 +28,29 @@ export async function renderTender(surface){
    });
    draw();status(label+' · saved on this browser');return true;
   }
-  catch(e){status('Could not save: '+e.message+'. Your previously saved data is unchanged.');}
+  catch(e){failure=e;}
   finally{busy=false;surface.querySelectorAll('button,input,textarea').forEach(n=>n.disabled=false);}
+  status('Could not save: '+failure.message+'. Your previously saved data is unchanged.');return false;
  }
  function draw(){
   if(!surface.isConnected)return;
-  const missing=blockers(bid),count=requirements.filter(r=>bid.documents[r.id]?.reviewed).length;
-  surface.innerHTML=`<div class="tender-work"><div class="tender-heading"><div><p class="tender-kicker">PWD NORTH DIVISION · JALGAON</p><h2>${tender.title}</h2><p class="tender-place">${tender.place}</p><code>${tender.id}</code></div><div class="tender-deadline"><span>Submission closes</span><strong>18 September</strong><span>2026 · 5:00 PM IST</span><a href="${tender.source}" target="_blank" rel="noopener">Open MahaTenders ↗</a></div></div>
+  const missing=blockers(bid),count=requirements.filter(r=>bid.documents[r.id]?.reviewed).length,route=journey(bid),current=route.stages[route.current];
+  const rows=ids=>requirements.filter(r=>ids.includes(r.id)).map(r=>{const d=bid.documents[r.id];return `<article class="tender-document" id="document-${r.id}" data-document="${r.id}"><div><h4>${r.label}</h4><p>${r.expected||r.note}</p>${d?`<small><span class="document-state ${d.reviewed?'done':''}">${d.reviewed?'Checked':'Check needed'}</span> ${esc(d.name)} · ${(d.size/1024).toFixed(1)} KB · stored offline</small><details><summary>File receipt</summary><code>SHA-256 ${d.hash}</code><p>Added ${esc(d.added)}</p></details>`:'<small class="document-empty">Not added yet</small>'}</div><div class="tender-actions"><label class="tender-upload">${d?'Replace file':'Add file'}<input aria-label="Add ${r.label.toLowerCase()}" data-upload="${r.id}" type="file" accept=".pdf,.xls,.xlsx,.zip,.rar"></label>${d?`<button data-download="${r.id}">Open original</button><label><input type="checkbox" data-reviewed="${r.id}" ${d.reviewed?'checked':''}> I checked this file</label>`:''}</div></article>`;}).join('');
+  surface.innerHTML=`<div class="tender-work"><div class="tender-heading"><div><div class="tender-badges"><span>Kothali bid</span><span id="offline-state">${navigator.onLine?'Saved on this device':'Offline · changes stay here'}</span></div><h2>${tender.title}</h2><p class="tender-place">Old Kothali, Muktainagar</p><p class="tender-reference">PWD North Division, Jalgaon · ${tender.id}</p></div><div class="tender-deadline"><span>Submit by</span><strong>18 September</strong><span>2026 at 5:00 PM</span><a href="${tender.source}" target="_blank" rel="noopener">View official listing</a></div></div>
+  <section class="tender-journey" aria-label="Tender preparation progress"><header><div><span>Application progress</span><strong>${route.percent}% prepared</strong></div><progress value="${route.percent}" max="100" aria-label="Tender preparation percentage"></progress></header><ol>${route.stages.map((stage,index)=>`<li class="${stage.complete?'complete':index===route.current?'current':''}"><span>${stage.complete?'✓':index+1}</span><small>${stage.label}</small></li>`).join('')}</ol><div class="tender-next"><div><small>Next step</small><strong>${current.label}</strong><p>${current.id==='submit'?'Preparation is complete. Review the packet before opening MahaTenders.':'Your work saves automatically on this device.'}</p></div><button id="tender-continue" class="primary">${current.id==='submit'?'Review packet':'Continue'}</button></div></section>
   <div class="tender-metrics"><div>Estimated value<strong>${money(tender.value)}</strong></div><div>Earnest money<strong>${money(tender.emd)}</strong></div><div>Fee + processing<strong>${money(tender.fee)}</strong></div><div>Work period<strong>${tender.days} days</strong></div></div>
-  <p class="tender-source">Public listing checked 13 Sep 2026 · Official documents must be reviewed before relying on eligibility or pricing.</p>
-  <div class="tender-grid"><section class="tender-docs"><header><div><h3>Build the bid packet</h3><p>${count} of ${requirements.length} document groups reviewed</p></div><progress value="${count}" max="${requirements.length}" aria-label="Documents reviewed"></progress></header>
-  <p>Keep the original BOQ unchanged. Add your priced copy separately.</p>
-  ${requirements.map(r=>{const d=bid.documents[r.id];return `<article class="tender-document" data-document="${r.id}"><div><h4>${r.label}</h4><p>${r.expected||r.note}</p>${d?`<small>${esc(d.name)} · ${(d.size/1024).toFixed(1)} KB · ${d.reviewed?'Reviewed by you':'Needs review'}</small><details><summary>File receipt</summary><code>SHA-256 ${d.hash}</code><p>Added ${esc(d.added)}</p></details>`:'<small>Not added</small>'}</div><div class="tender-actions"><label class="tender-upload">${d?'Add replacement':'Add file'}<input aria-label="Add ${r.label.toLowerCase()}" data-upload="${r.id}" type="file" accept=".pdf,.xls,.xlsx,.zip,.rar"></label>${d?`<button data-download="${r.id}">Download original</button><label><input type="checkbox" data-reviewed="${r.id}" ${d.reviewed?'checked':''}> I reviewed this document</label>`:''}</div></article>`;}).join('')}
+  <p class="tender-source">Public listing checked 13 September 2026. Official documents must be checked before relying on eligibility or pricing.</p>
+  <div class="tender-grid"><section class="tender-docs"><header><div><h3>Documents</h3><p>${count} of ${requirements.length} checked</p></div><progress value="${count}" max="${requirements.length}" aria-label="Documents reviewed"></progress></header>
+  <p>Add each file once. JJTY keeps it here for offline work. Keep the original BOQ unchanged and add the priced copy separately.</p>
+  <div class="document-group"><h4>Official tender files</h4>${rows(['nit','terms','boq'])}</div>
+  <div class="document-group"><h4>Your eligibility files</h4>${rows(['registration','capacity','technical'])}</div>
+  <div class="document-group"><h4>Final bid files</h4>${rows(['signed','priced','payment'])}</div>
   </section><aside class="tender-side"><section><h3>Bidding organisation</h3><form id="tender-bidder"><label>Organisation name<input name="company" value="${esc(bid.company)}" autocomplete="organization"></label><label>MSS Class-A registration reference<input name="registration" value="${esc(bid.registration)}"></label><label>Working notes<textarea name="notes" rows="4" placeholder="Eligibility questions, site visit notes, missing documents…">${esc(bid.notes)}</textarea></label><button type="submit">Save bidder details</button></form><label class="tender-check"><input id="eligibility" type="checkbox" ${bid.eligibility?'checked':''}> I checked MSS Class-A registration and all eligibility conditions against the NIT.</label><label class="tender-check"><input id="corrigenda" type="checkbox" ${bid.corrigenda?'checked':''}> I checked current corrigenda and the submission deadline.</label></section>
-  <section><h3>${missing.length?'Preparation in progress':'Ready for final human review'}</h3><p>This workspace prepares a packet. It does not submit a bid or make payments.</p>${missing.length?`<ul class="tender-blockers">${missing.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:'<p>All tracked checks are marked reviewed. Confirm the complete packet on the portal before submission.</p>'}<button id="tender-export" class="primary">Export preparation packet</button><p class="tender-local">Files stay on this browser. Export a copy before clearing browser storage or changing devices.</p></section>
+  <section class="readiness"><h3>${missing.length?'What is left':'Ready for final review'}</h3><p>This room prepares the bid and works offline. Nothing is submitted or paid from here.</p>${missing.length?`<p class="remaining-count">${missing.length} checks remaining</p><details><summary>See every remaining check</summary><ul class="tender-blockers">${missing.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></details>`:'<p>All tracked checks are complete. Confirm the packet on MahaTenders before submission.</p>'}<button id="tender-export" class="primary">Download preparation packet</button><button id="keep-offline">Keep available offline</button><p class="tender-local">This tender and its files are stored on this device. Download a packet before clearing browser data or changing devices.</p></section>
   <details><summary>Activity · ${bid.history.length}</summary>${bid.history.slice(-15).reverse().map(x=>`<p>${esc(x.action)}<br><small>${esc(x.at)}</small></p>`).join('')||'<p>No changes yet.</p>'}</details></aside></div><p id="tender-status" role="status" aria-live="polite">Local preparation · not submitted</p></div>`;
   surface.querySelector('#tender-bidder').onsubmit=e=>{e.preventDefault();update(()=>{},'Bidder details updated');};
+  surface.querySelector('#tender-continue').onclick=()=>document.getElementById(current.target)?.scrollIntoView({behavior:'smooth',block:'center'});
+  surface.querySelector('#keep-offline').onclick=async()=>{try{const kept=await navigator.storage?.persist?.();status(kept?'This tender is protected for offline use on this device.':'This tender is stored offline. Download a packet for an additional copy.');}catch{status('This tender remains stored on this device. Download a packet for an additional copy.');}};
   for(const id of ['eligibility','corrigenda'])surface.querySelector('#'+id).onchange=e=>{const checked=e.target.checked;update(n=>n[id]=checked,id==='eligibility'?'Eligibility review updated':'Corrigendum review updated');};
   surface.querySelectorAll('[data-upload]').forEach(input=>input.onchange=async()=>{const file=input.files[0];input.value='';if(!file)return;const id=input.dataset.upload,problem=fileProblem(id,file);if(problem){status(problem);return;}
    await update(async n=>{const bytes=await file.arrayBuffer();if(/\.pdf$/i.test(file.name)&&new TextDecoder().decode(bytes.slice(0,5))!=='%PDF-')throw Error('This file is not a valid PDF');const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),x=>x.toString(16).padStart(2,'0')).join('');const previous=n.documents[id];if(previous){n.originals??=[];n.originals.push({...previous,category:id});}n.documents[id]={name:file.name,size:file.size,file,hash,added:new Date().toISOString(),reviewed:false};if(['nit','terms','registration'].includes(id))n.eligibility=false;if(id==='nit')n.corrigenda=false;},requirements.find(r=>r.id===id).label+' added');
@@ -60,4 +68,7 @@ export async function renderTender(surface){
   };
  }
  draw();
+ const connection=()=>{const n=surface.querySelector('#offline-state');if(n)n.textContent=navigator.onLine?'Saved on this device':'Offline · changes stay here';};
+ navigator.serviceWorker?.ready.then(()=>{const n=surface.querySelector('#offline-state');if(n&&navigator.onLine)n.textContent='Available offline';});
+ addEventListener('online',connection,{once:true});addEventListener('offline',connection,{once:true});
 }
