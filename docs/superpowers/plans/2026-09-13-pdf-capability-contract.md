@@ -76,3 +76,7 @@ Write now exposes bounded native PDF image move/resize/replacement, with unsuppo
 Fresh gates: `/tmp/jetty-scan-image-journeys-final.log` (5 pass); `/tmp/jetty-scan-exact-custody.log` (1 pass after exact-byte identity fix); `/tmp/jetty-scan-checkpoint-editor-regression.log` (11 pass). Production build succeeds. Previous broad moving-source suite had 508/510 passing, with both failures passing fresh isolated reruns; this is not an exact-final full-suite claim.
 
 Android checkpoint d504449 separately verifies the full keyboard target, form persistence and field readback, page rotation/reorder/extraction, and original byte equality. Scanner/image/resume changes require a newer package. Native iOS scanner work is separately owned in the current JttyApp target and is not yet claimed complete.
+
+### Android lifecycle follow-up
+
+Actual API 35 testing of e722 found that Android Home did not reliably produce a WebView visibility change, leaving the camera client active. The next frontend handles an explicit native-background event by stopping capture and resetting controls; native onStop must emit it and stop video tracks as a fallback. Permission denial now offers retry or image intake. The mobile rail now fits all five actions in one row. The original native RED is retained; only a fresh package can clear the Android lifecycle gate.
