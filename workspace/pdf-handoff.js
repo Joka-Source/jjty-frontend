@@ -1,7 +1,7 @@
 import { attachmentStore } from './attachments.js';
 const valid = id => /^[a-f0-9-]{36}$/.test(id || '');
 export async function startPdfHandoff(destination, file) {
- if(!['Inbox','Messages'].includes(destination))throw new Error('Unknown draft destination.');
+ if(!['Inbox','Messages','Studio'].includes(destination))throw new Error('Unknown draft destination.');
  if(!file || file.size>100*1048576)throw new Error('Choose a PDF smaller than 100 MB.');
  const signature=new TextDecoder().decode(await file.slice(0,5).arrayBuffer());
  if(signature!=='%PDF-')throw new Error('This attachment is not a PDF.');
@@ -12,7 +12,7 @@ export async function startPdfHandoff(destination, file) {
 export async function readPdfHandoff(id) {
  if(!valid(id))throw new Error('Invalid document session.');
  const session=await attachmentStore(`handoff:${id}`);
- if(!session || !['Inbox','Messages'].includes(session.destination))throw new Error('Document session is unavailable. Return to your draft and reopen the attachment.');
+ if(!session || !['Inbox','Messages','Studio'].includes(session.destination))throw new Error('Document session is unavailable. Return to your draft and reopen the attachment.');
  return session;
 }
 export async function updatePdfHandoff(session) {await attachmentStore(`handoff:${session.id}`,session);}

@@ -9,19 +9,23 @@ export async function mountWorkspaceReturn({importFile,getDocument,openDocument,
  bar.append(receipt,button,back);document.body.prepend(bar);
  try{
   let session=await readPdfHandoff(id);
-  back.href=`/workspace/index.html?review=${id}#${session.destination}`;
-  if(session.status==='returned'){receipt.textContent='This review has already been returned. Open a new review from the draft to make another copy.';return;}
+  const studio=session.destination==='Studio';
+  back.href=studio?`/studio/index.html?review=${id}#files`:`/workspace/index.html?review=${id}#${session.destination}`;
+  if(studio){button.textContent='Save reviewed copy to Jetty';back.textContent='Return to Jetty';}
+  // The back link remains available after saving a separate edited library copy.
+  // Never retarget this session to the new document: custody belongs to its source.
+  if(session.status==='returned'){receipt.textContent=studio?'This review is already saved to Jetty. Open a new review to make another copy.':'This review has already been returned. Open a new review from the draft to make another copy.';return;}
   let doc=session.documentId?await getDocument(session.documentId):null;
   if(!doc){doc=await importFile(session.file);if(!doc)throw new Error('The PDF could not be opened. Your original attachment is unchanged.');session={...session,documentId:doc.id};await updatePdfHandoff(session);}
   else await openDocument(doc);
-  receipt.textContent='Reviewing an independent copy. The original stays in your draft.';button.disabled=false;
+  receipt.textContent=studio?'Reviewing an independent copy. Your original stays in Jetty.':'Reviewing an independent copy. The original stays in your draft.';button.disabled=false;
   button.onclick=async()=>{
    button.disabled=true;receipt.textContent='Preparing reviewed copy…';
    try{
     if(currentDocument()?.id!==session.documentId)throw new Error('Reopen this attachment before returning it. Other documents cannot replace this review.');
     const bytes=await exportDocument(session.documentId);
     await finishPdfHandoff(session,bytes);
-    receipt.textContent='Reviewed copy saved to this draft. Nothing has been sent.';
+    receipt.textContent=studio?'Reviewed copy saved to Jetty. Your original is unchanged.':'Reviewed copy saved to this draft. Nothing has been sent.';
     location.href=back.href;
    }catch(error){receipt.textContent=error.message;button.disabled=false;}
   };
