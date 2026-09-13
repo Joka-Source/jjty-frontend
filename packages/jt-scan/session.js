@@ -1,5 +1,6 @@
 import * as m from 'mupdf';
 import {rectify,validateQuad} from './raster.js';
+import {embedRecognition} from './searchable.js';
 const full=[[0,0],[1,0],[1,1],[0,1]];
 const fail=code=>{throw new Error(`SCAN_${code}`);};
 const clone=v=>structuredClone(v);
@@ -25,7 +26,7 @@ export async function processImage(bytes,edits){
   for(let y=0;y<height;y++)for(let x=0;x<width;x++){const s=y*stride+x*components,d=(y*width+x)*4,alpha=components===4?pixels[s+3]:255;for(let c=0;c<3;c++)data[d+c]=pixels[s+c]+255-alpha;data[d+3]=255;}
   const frame={width,height,data};
   const out=rectify(frame,edits.quad,edits);
-  outPix=new m.Pixmap(m.ColorSpace.DeviceRGB,[0,0,out.width,out.height],true);outPix.getPixels().set(out.data);
+  outPix=new m.Pixmap(m.ColorSpace.DeviceRGB,[0,0,out.width,out.height],false);const rgb=outPix.getPixels();for(let i=0;i<out.width*out.height;i++){rgb[i*3]=out.data[i*4];rgb[i*3+1]=out.data[i*4+1];rgb[i*3+2]=out.data[i*4+2];}
   return {bytes:new Uint8Array(outPix.asPNG()),mime:'image/png',width:out.width,height:out.height};
  }finally{outPix?.destroy();converted?.destroy();pix?.destroy();image.destroy();}
 }
@@ -75,18 +76,18 @@ export async function createScanSession({store,processor=processImage,ocr,id=cry
   cancel(){generation++;processor.cancel?.();},
   finish({title='Scan'}={}){return exclusive(async()=>{
    if(!state.pages.length)fail('EMPTY');if(typeof title!=='string'||title.length>200)fail('TITLE_INVALID');
-   const token=generation,check=()=>{if(token!==generation)fail('CANCELLED');},start=now(),timings=[],diagnostics=[],processed=[],recognition=[];
+   const token=generation,sessionId=state.id,sourceRevision=state.revision??0,check=()=>{if(token!==generation)fail('CANCELLED');},start=now(),timings=[],diagnostics=[],processed=[],recognition=[];
    for(const page of state.pages){
     check();const source=state.assets.find(a=>a.id===page.assetId);if(!source)fail('SOURCE_MISSING');const t=now();
     const out=await processor(source.bytes.slice(),clone(page));check();imageInfo(out.bytes);processed.push(out);timings.push({stage:'processing',pageId:page.id,ms:now()-t});
     if(ocr){const t=now();try{const result=await ocr({...out,bytes:out.bytes.slice()});check();if(!result||typeof result.text!=='string')fail('OCR_RESULT');recognition.push({...result,pageId:page.id,sourceSha256:source.sha256});}catch(error){check();diagnostics.push({code:'OCR_FAILED',pageId:page.id});}timings.push({stage:'ocr',pageId:page.id,ms:now()-t});}
    }
-   check();const t=now(),pdfBytes=pdfFromPages(processed);check();timings.push({stage:'pdf',ms:now()-t},{stage:'total',ms:now()-start});
+   check();const t=now(),basePdf=pdfFromPages(processed),{pdfBytes,embeddedPages}=embedRecognition(basePdf,recognition,state.pages.map(p=>p.id));check();timings.push({stage:'pdf',ms:now()-t},{stage:'total',ms:now()-start});
    const verified=new m.PDFDocument(pdfBytes);try{if(verified.countPages()!==state.pages.length)fail('PDF_READBACK');}finally{verified.destroy();}
    // Original assets remain in the checkpoint even after export. Host commits document + assets.
-   const status=!ocr?'unsupported':recognition.length===state.pages.length?'sidecar-only':recognition.length?'partial':'failed';
-   if(status==='sidecar-only')diagnostics.push({code:'OCR_NOT_EMBEDDED'});
-   return {pdfBytes,title,mime:'application/pdf',sourceAssets:clone(state.assets),ocr:{status,pages:recognition},timings,diagnostics};
+   const status=!ocr?'unsupported':embeddedPages.length===state.pages.length?'searchable':embeddedPages.length?'partially-searchable':recognition.length===state.pages.length?'sidecar-only':recognition.length?'partial':'failed';
+   for(const result of recognition)if(!embeddedPages.includes(result.pageId))diagnostics.push({code:'OCR_NOT_EMBEDDED',pageId:result.pageId});
+   return {sessionId,sourceRevision,pdfBytes,title,mime:'application/pdf',sourceAssets:clone(state.assets),ocr:{status,pages:recognition},timings,diagnostics};
   });}
  };
 }

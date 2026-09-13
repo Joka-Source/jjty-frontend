@@ -44,3 +44,6 @@ test('review gets a custody copy and page ordering persists',async()=>{
  const store=new MemoryScanStore(),s=await createScanSession({store,processor,id:'review'}),a=await s.addPage(image()),b=await s.addPage(image());
  const source=s.source(a);source.bytes.fill(0);assert.notEqual(s.source(a).bytes[0],0);await s.movePage(b,0);assert.deepEqual((await createScanSession({store,processor,id:'review'})).pages.map(p=>p.id),[b,a]);await assert.rejects(s.movePage(a,-1),/SCAN_ORDER/);
 });
+test('export carries stable session revision and changes identity only after committed edits',async()=>{
+ const s=await createScanSession({store:new MemoryScanStore(),id:'identity',processor});const id=await s.addPage(image());const a=await s.finish(),b=await s.finish();assert.equal(a.sessionId,'identity');assert.equal(a.sourceRevision,b.sourceRevision);assert.equal(a.sourceRevision,1);await s.editPage(id,{rotation:90});assert.equal((await s.finish()).sourceRevision,2);
+});
