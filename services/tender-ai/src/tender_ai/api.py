@@ -10,6 +10,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .analysis import AnalysisError, analyze_documents
 
+if False:  # pragma: no cover - typing-only import without eager platform setup
+    from .platform.engine import PlatformEngine
+
 
 SUPPORTED_SUFFIXES = {
     ".pdf", ".docx", ".xlsx", ".pptx", ".html", ".md", ".txt", ".csv",
@@ -76,6 +79,9 @@ def create_app(
     reasoner: Callable[[list[dict[str, Any]]], dict[str, Any]] | None = None,
     max_file_bytes: int = 50 * 1024 * 1024,
     max_documents: int = 20,
+    platform_engine: "PlatformEngine | None" = None,
+    platform_token: str | None = None,
+    human_approval_token: str | None = None,
 ) -> FastAPI:
     selected_parser = parser or LazyDoclingParser()
     selected_reasoner = reasoner or _reasoner_from_environment()
@@ -96,8 +102,30 @@ def create_app(
         CORSMiddleware,
         allow_origins=allowed_origins,
         allow_methods=["GET", "POST"],
-        allow_headers=["Content-Type"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "Idempotency-Key",
+            "X-JJTY-Actor",
+            "X-JJTY-Actor-Kind",
+            "X-JJTY-Human-Approval",
+        ],
     )
+
+    if platform_engine is not None:
+        if not platform_token or not human_approval_token:
+            raise RuntimeError(
+                "Platform and human approval tokens are required when the platform API is enabled"
+            )
+        from .platform.api import create_platform_router
+
+        application.include_router(
+            create_platform_router(
+                platform_engine,
+                token=platform_token,
+                human_approval_token=human_approval_token,
+            )
+        )
 
     @application.get("/health")
     def health() -> dict[str, str]:
