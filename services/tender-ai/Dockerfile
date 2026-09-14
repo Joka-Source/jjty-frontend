@@ -10,20 +10,24 @@ COPY --from=uv /uv /uvx /bin/
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
-COPY src ./src
-RUN uv sync --frozen --no-dev
 
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
+    TENDER_AI_ENVIRONMENT=production \
     HF_HOME=/app/.cache/huggingface \
     XDG_CACHE_HOME=/app/.cache
 
 # Fetch the open OCR/layout assets while the image is built so production
 # readiness never depends on writing into site-packages or a live model host.
+# Keep this before application source so ordinary code changes reuse the model
+# layer instead of downloading the same pinned assets again.
 RUN mkdir -p /app/.cache \
-    && python -c 'from tender_ai.docling_parser import DoclingParser; DoclingParser()' \
+    && python -c 'from docling.datamodel.base_models import InputFormat; from docling.document_converter import DocumentConverter; DocumentConverter().initialize_pipeline(InputFormat.PDF)' \
     && useradd --create-home --uid 10001 --shell /usr/sbin/nologin appuser \
     && chown -R appuser:appuser /app/.cache
+
+COPY src ./src
+RUN uv sync --frozen --no-dev
 
 USER appuser
 EXPOSE 8788

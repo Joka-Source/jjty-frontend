@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import os
+import hmac
+from importlib.metadata import version
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Protocol
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.concurrency import run_in_threadpool
 
 from .analysis import AnalysisError, analyze_documents
+from .document_runs import DocumentRunner, RecipeRegistry
 
 if False:  # pragma: no cover - typing-only import without eager platform setup
     from .platform.engine import PlatformEngine
@@ -26,6 +30,9 @@ class Parser(Protocol):
 
 class LazyDoclingParser:
     """Delay model loading until the first deliberate analysis request."""
+
+    adapter_id = "docling"
+    adapter_version = version("docling")
 
     def __init__(self) -> None:
         self._parser: Parser | None = None
@@ -52,6 +59,10 @@ def parser_only_reasoner(_documents: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+parser_only_reasoner.adapter_id = "parser-only"  # type: ignore[attr-defined]
+parser_only_reasoner.adapter_version = "1.0.0"  # type: ignore[attr-defined]
+
+
 def _callable_name(value: object) -> str:
     return getattr(value, "__name__", value.__class__.__name__)
 
@@ -70,7 +81,22 @@ def _reasoner_from_environment() -> Callable[[list[dict[str, Any]]], dict[str, A
         )
     from .reasoner import HTTPJSONReasoner
 
-    return HTTPJSONReasoner(base_url=base_url, model=model, api_key=api_key)
+    rate_names = (
+        "TENDER_AI_INPUT_COST_PER_MILLION",
+        "TENDER_AI_CACHED_INPUT_COST_PER_MILLION",
+        "TENDER_AI_OUTPUT_COST_PER_MILLION",
+    )
+    rates = [os.getenv(name, "").strip() for name in rate_names]
+    if any(rates) and not all(rates):
+        raise RuntimeError(f"{', '.join(rate_names)} must be configured together")
+    return HTTPJSONReasoner(
+        base_url=base_url,
+        model=model,
+        api_key=api_key,
+        input_cost_per_million=rates[0] or None,
+        cached_input_cost_per_million=rates[1] or None,
+        output_cost_per_million=rates[2] or None,
+    )
 
 
 def create_app(
@@ -78,13 +104,41 @@ def create_app(
     parser: Parser | None = None,
     reasoner: Callable[[list[dict[str, Any]]], dict[str, Any]] | None = None,
     max_file_bytes: int = 50 * 1024 * 1024,
+    max_total_file_bytes: int = 200 * 1024 * 1024,
     max_documents: int = 20,
     platform_engine: "PlatformEngine | None" = None,
     platform_token: str | None = None,
     human_approval_token: str | None = None,
+    document_token: str | None = None,
+    environment: str | None = None,
 ) -> FastAPI:
     selected_parser = parser or LazyDoclingParser()
     selected_reasoner = reasoner or _reasoner_from_environment()
+    recipes = RecipeRegistry.default()
+    document_runner = DocumentRunner(
+        recipes=recipes,
+        parser=selected_parser,
+        reasoner=selected_reasoner,
+    )
+    selected_document_token = (
+        document_token
+        if document_token is not None
+        else os.getenv("TENDER_AI_DOCUMENT_API_TOKEN", "").strip()
+    )
+    selected_environment = (
+        environment
+        if environment is not None
+        else os.getenv("TENDER_AI_ENVIRONMENT", "development").strip().lower()
+    )
+    if selected_environment == "production" and not selected_document_token:
+        raise RuntimeError("A document API token is required in production")
+
+    def require_document_access(authorization: str | None) -> None:
+        if not selected_document_token:
+            return
+        expected = f"Bearer {selected_document_token}"
+        if authorization is None or not hmac.compare_digest(authorization, expected):
+            raise HTTPException(status_code=401, detail="Document API authorization required")
     application = FastAPI(
         title="JJTY service platform",
         version="0.2.0",
@@ -166,7 +220,11 @@ def create_app(
         }
 
     @application.post("/v1/tenders/analyze")
-    async def analyze(files: list[UploadFile] = File(...)) -> dict[str, Any]:
+    async def analyze(
+        files: list[UploadFile] = File(...),
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, Any]:
+        require_document_access(authorization)
         if not files:
             raise HTTPException(status_code=400, detail="At least one tender document is required")
         if len(files) > max_documents:
@@ -176,6 +234,7 @@ def create_app(
             )
 
         sources: list[tuple[str, bytes]] = []
+        total_bytes = 0
         for upload in files:
             filename = upload.filename or "document"
             if Path(filename).suffix.lower() not in SUPPORTED_SUFFIXES:
@@ -197,6 +256,12 @@ def create_app(
                         f"{max_file_bytes} bytes per-file limit"
                     ),
                 )
+            total_bytes += len(data)
+            if total_bytes > max_total_file_bytes:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"Documents exceed the {max_total_file_bytes} bytes total limit",
+                )
             sources.append((filename, data))
 
         try:
@@ -210,10 +275,65 @@ def create_app(
                         f"Document parser could not read {name}"
                     ) from error
 
-            return analyze_documents(
+            return await run_in_threadpool(
+                analyze_documents,
                 sources,
                 parse=parse_source,
                 reason=selected_reasoner,
+            )
+        except AnalysisError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+
+    @application.get("/v1/documents/recipes")
+    def list_document_recipes(
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, Any]:
+        require_document_access(authorization)
+        return {"schema": "jjty-document-recipe-list-v1", "recipes": recipes.list()}
+
+    @application.post("/v1/documents/runs")
+    async def create_document_run(
+        files: list[UploadFile] = File(...),
+        recipe_id: str = Form(...),
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, Any]:
+        require_document_access(authorization)
+        if not files:
+            raise HTTPException(status_code=400, detail="At least one document is required")
+        if len(files) > max_documents:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Choose no more than {max_documents} documents at once",
+            )
+        sources: list[tuple[str, bytes]] = []
+        total_bytes = 0
+        for upload in files:
+            filename = upload.filename or "document"
+            if Path(filename).suffix.lower() not in SUPPORTED_SUFFIXES:
+                raise HTTPException(
+                    status_code=415,
+                    detail=f"{filename} is not supported by the document parser",
+                )
+            data = await upload.read(max_file_bytes + 1)
+            if not data:
+                raise HTTPException(status_code=400, detail=f"{filename} must be non-empty")
+            if len(data) > max_file_bytes:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"{filename} exceeds the {max_file_bytes} bytes per-file limit",
+                )
+            total_bytes += len(data)
+            if total_bytes > max_total_file_bytes:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"Documents exceed the {max_total_file_bytes} bytes total limit",
+                )
+            sources.append((filename, data))
+        try:
+            return await run_in_threadpool(
+                document_runner.run,
+                recipe_id=recipe_id,
+                files=sources,
             )
         except AnalysisError as error:
             raise HTTPException(status_code=422, detail=str(error)) from error

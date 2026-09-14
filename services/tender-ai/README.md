@@ -48,6 +48,25 @@ export TENDER_AI_MODEL='open-model-name'
 export TENDER_AI_API_KEY='read-from-a-secret-store'
 ```
 
+Production deployments must also configure a separate document API token. It
+protects both the compatibility tender route and the generic document routes:
+
+```sh
+export TENDER_AI_DOCUMENT_API_TOKEN='read-from-a-secret-store'
+```
+
+Clients send it as `Authorization: Bearer ...`. An unset token keeps deliberate
+loopback development compatible; never expose that configuration publicly.
+
+When provider prices are known, configure all three rates in USD per million
+tokens. The processing receipt then records token counts and calculated cost:
+
+```sh
+export TENDER_AI_INPUT_COST_PER_MILLION='0.10'
+export TENDER_AI_CACHED_INPUT_COST_PER_MILLION='0.003'
+export TENDER_AI_OUTPUT_COST_PER_MILLION='0.50'
+```
+
 The API key never enters browser storage. `TENDER_AI_ALLOWED_ORIGINS` may contain
 a comma-separated allow-list and defaults to the two local workspace origins on
 port 8793.
@@ -56,14 +75,29 @@ For a containerized deployment:
 
 ```sh
 docker build --platform linux/amd64 -t jjty-tender-ai services/tender-ai
-docker run --rm -p 127.0.0.1:8788:8788 jjty-tender-ai
+docker run --rm -p 127.0.0.1:8788:8788 \
+  -e TENDER_AI_DOCUMENT_API_TOKEN \
+  jjty-tender-ai
 ```
 
 The image contains CPU-only PyTorch and prefetches its open Docling/RapidOCR
 assets during the build. It runs as an unprivileged user. Docling receives
 temporary files during conversion and the service removes them when parsing
-finishes. The response contains only document receipts and source-linked
-findings; extracted page text is not returned to the browser.
+finishes. The compatibility tender response contains only document receipts and
+source-linked findings; its extracted page text is not returned to the browser.
+
+## Generic document runs
+
+`GET /v1/documents/recipes` lists trusted, versioned processing recipes.
+`POST /v1/documents/runs` accepts `multipart/form-data` with `recipe_id` and one
+or more `files`. Its `jjty-document-run-v1` response separates source-object,
+canonical-document, structural-node, and run identities. It includes Docling
+block selectors, evidence links, parser/model versions, token and cost usage,
+and a deterministic SHA-256 processing receipt. The route is advisory and never
+authorizes an external action.
+
+`POST /v1/tenders/analyze` remains available as the existing compatibility
+contract.
 
 ## Service platform
 

@@ -1,5 +1,6 @@
 import hashlib
 from pathlib import Path
+from types import SimpleNamespace
 import unittest
 
 from tender_ai.analysis import AnalysisError, analyze_documents
@@ -30,6 +31,54 @@ class TenderAnalysisTests(unittest.TestCase):
         self.assertGreaterEqual(len(pages), 1)
         self.assertEqual(pages[0]["page"], 1)
         self.assertTrue(pages[0]["text"].strip())
+
+    def test_docling_parser_preserves_block_kind_and_page_geometry(self):
+        class Item:
+            label = "section_header"
+            prov = [
+                SimpleNamespace(
+                    page_no=2,
+                    bbox=SimpleNamespace(l=11.0, t=22.0, r=111.0, b=44.0),
+                )
+            ]
+
+            def export_to_markdown(self, *, doc):
+                self.seen_document = doc
+                return "Eligibility"
+
+        item = Item()
+
+        class Document:
+            def iterate_items(self):
+                return [(item, 0)]
+
+        document = Document()
+
+        class Converter:
+            def initialize_pipeline(self, _source_format):
+                pass
+
+            def convert(self, _source):
+                return SimpleNamespace(document=document)
+
+        pages = DoclingParser(converter=Converter()).parse("notice.pdf", b"pdf")
+
+        self.assertEqual(
+            pages,
+            [
+                {
+                    "page": 2,
+                    "text": "Eligibility",
+                    "blocks": [
+                        {
+                            "kind": "section_header",
+                            "text": "Eligibility",
+                            "bbox": [11.0, 22.0, 111.0, 44.0],
+                        }
+                    ],
+                }
+            ],
+        )
 
     def test_preserves_receipts_and_accepts_only_grounded_findings(self):
         source = b"Tender 2026_PWR_1337988_1\nCompletion period: 90 days\nEMD: Rs 22000"
