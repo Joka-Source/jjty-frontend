@@ -6,8 +6,10 @@ Architecture: start from main6275606, selectively add Studio/notebook/tender mod
 
 Visual direction: spatial document bench, white #ffffff document surfaces, cloud #e8eef4 background, ink #203346, slate #52677d, blue #245c91, amber #976914 experimental accents. System sans for tools, Georgia for the opening work prompt only. Left aligned work surface; vertical switcher on wide screens, horizontal compact switcher on phones. No automatic motion; reduced-motion removes transitions. App state and connection gaps stay explicit.
 
-- [ ] Add selective modules and additive database capabilities; test main backup/sync interfaces remain unchanged.
-- [ ] Build / root, /webx/ alias, /reader/ standalone routing and persistent tool switcher; retain query/hash handoffs inside same-origin panels.
-- [ ] Update browser tests to address standalone reader explicitly; add production workbench test for switch/reload/offline, responsive layout and forbidden foreign messages.
-- [ ] Verify reader source bytes and notebook handoff, scanner recovery, tender offline export, main unit/backup/sync and full regression. Preserve red evidence.
-- [ ] Commit and push exact SHA; open draft PR to main; root promotes only after its own deployment verification.
+- [x] Add selective modules and additive database capabilities; test main backup/sync interfaces remain unchanged.
+- [x] Build / root, /webx/ alias, /reader/ standalone routing and persistent tool switcher; retain query/hash handoffs inside same-origin panels.
+- [x] Update browser tests to address standalone reader explicitly; add production workbench test for switch/reload/offline and responsive layout.
+- [x] Verify reader source bytes and notebook handoff, scanner recovery, tender offline export and main unit/backup/sync. Final release gate: 27/27.
+- [ ] Complete the entire historical regression suite. Initial interrupted run and corrected root-route failures are preserved in local evidence; remote CI remains a separate gate.
+- [x] Commit and push the candidate; open draft PR #6 to main.
+- [ ] Root completes independent deployment verification and promotion.

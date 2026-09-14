@@ -16,7 +16,7 @@ test('PDF attachment review returns an independent copy to its draft', {timeout:
  await page.evaluate(()=>window.__jtApp.perform('highlight',0,{tokenStart:0,tokenEnd:1}));
  await page.evaluate(()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Attach reviewed copy to draft').click());
  await page.waitForFunction(()=>document.querySelector('.reviewed-copy')||[...document.querySelectorAll('aside[aria-label="Attachment review"] button')].some(b=>!b.disabled),{timeout:30000});
- assert.ok(await page.$('.reviewed-copy'),await page.$eval('body',n=>n.querySelector('aside[aria-label="Attachment review"]')?.textContent||'No returned copy')); 
+ assert.ok(await page.$('.reviewed-copy'),await page.$eval('body',n=>n.querySelector('aside[aria-label="Attachment review"]')?.textContent||'No returned copy'));
  assert.equal(await page.$eval('textarea',e=>e.value),'Please review the attached PDF.');
  assert.match(await page.$eval('.reviewed-copy',e=>e.textContent),/Original attachment retained/);
  const result=await page.evaluate(async()=>{const {attachmentStore}=await import('/workspace/attachments.js');const id=new URL(location.href).searchParams.get('review');const session=await attachmentStore(`handoff:${id}`);const a=await attachmentStore('Inbox'),b=await attachmentStore(`result:${session.resultId}`);return {original:a.name,result:b.name,bytes:b.size,fields:(await (await import('/src/pdf-forms.js')).inspectPdfForm(new Uint8Array(await b.arrayBuffer()))).fields.map(f=>({name:f.name,value:f.value}))};});
