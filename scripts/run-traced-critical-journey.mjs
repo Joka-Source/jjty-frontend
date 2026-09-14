@@ -65,7 +65,7 @@ try {
   });
   await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
   const page = await context.newPage();
-  await page.goto(`http://127.0.0.1:${port}/#/home`, { waitUntil: "load" });
+  await page.goto(`http://127.0.0.1:${port}/reader/#/home`, { waitUntil: "load" });
   await page.locator("#app-main").waitFor({ state: "visible" });
   assert.equal(await page.locator("#app-main").count(), 1);
   if (process.env.JT_TRACE_PROBE_FAIL === "1") {
