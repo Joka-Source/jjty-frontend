@@ -2841,6 +2841,14 @@ async function boot() {
   const docs = await getDocs();
   readerTitles=new Map(docs.map(doc=>[doc.id,doc.title]));
   readerSession.reconcile(docs);renderReaderChrome();
+  const requestedDocument = docs.find(doc=>doc.id===params.get('workspaceDocument'));
+  if (requestedDocument) {
+    await openDocument(requestedDocument,{navigate:false,modality:'pointer',returnReason:'opened from workspace'});
+    shell.show('read',{attachmentReview:true});
+    setMicState('off',null,false);
+    window.__jtApp.booted = true;
+    return;
+  }
   const restored=docs.find(doc=>doc.id===readerSession.snapshot().activeId);
   if(restored){await openDocument(restored,{navigate:false,modality:'pointer',returnReason:'page reopened'});}
   else{renderDocHead(null);await refreshLibrary();}

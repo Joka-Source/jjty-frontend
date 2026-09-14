@@ -1,12 +1,13 @@
 import { attachmentStore } from './attachments.js';
 const valid = id => /^[a-f0-9-]{36}$/.test(id || '');
-export async function startPdfHandoff(destination, file) {
+export async function startPdfHandoff(destination, file, draftId = null) {
  if(!['Inbox','Messages'].includes(destination))throw new Error('Unknown draft destination.');
  if(!file || file.size>100*1048576)throw new Error('Choose a PDF smaller than 100 MB.');
  const signature=new TextDecoder().decode(await file.slice(0,5).arrayBuffer());
  if(signature!=='%PDF-')throw new Error('This attachment is not a PDF.');
  const id=crypto.randomUUID();
- await attachmentStore(`handoff:${id}`,{id,destination,file,createdAt:Date.now(),status:'pending'});
+ if(draftId && !valid(draftId))throw new Error('Invalid draft. Return to your saved draft and retry.');
+ await attachmentStore(`handoff:${id}`,{id,destination,draftId,file,createdAt:Date.now(),status:'pending'});
  return id;
 }
 export async function readPdfHandoff(id) {
@@ -22,6 +23,6 @@ export async function finishPdfHandoff(session, bytes) {
  const resultId=crypto.randomUUID();
  await attachmentStore(`result:${resultId}`,file);
  await updatePdfHandoff({...session,status:'returned',resultId});
- await attachmentStore(`review-list:${resultId}`,{id:resultId,destination:session.destination,name:file.name});
+ await attachmentStore(`review-list:${resultId}`,{id:resultId,destination:session.destination,draftId:session.draftId || null,name:file.name});
  return file;
 }

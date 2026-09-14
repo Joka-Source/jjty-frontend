@@ -9,7 +9,7 @@ export async function mountWorkspaceReturn({importFile,getDocument,openDocument,
  bar.append(receipt,button,back);document.body.prepend(bar);
  try{
   let session=await readPdfHandoff(id);
-  back.href=`/workspace/index.html?review=${id}#${session.destination}`;
+  back.href=`/workspace/index.html?review=${id}${session.draftId ? `&draft=${encodeURIComponent(session.draftId)}` : ''}#${session.destination}`;
   if(session.status==='returned'){receipt.textContent='This review has already been returned. Open a new review from the draft to make another copy.';return;}
   let doc=session.documentId?await getDocument(session.documentId):null;
   if(!doc){doc=await importFile(session.file);if(!doc)throw new Error('The PDF could not be opened. Your original attachment is unchanged.');session={...session,documentId:doc.id};await updatePdfHandoff(session);}

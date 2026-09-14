@@ -1,0 +1,30 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createServer } from 'vite';
+import puppeteer from 'puppeteer-core';
+import { root } from './validate.mjs';
+
+test('individual drafts survive navigation, search, archive, restore and mobile back', {timeout:60000}, async t=>{
+  const server=await createServer({root,server:{host:'127.0.0.1',port:0}}); await server.listen();t.after(()=>server.close());
+  const browser=await puppeteer.launch({executablePath:process.env.CHROME_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true});t.after(()=>browser.close());
+  const page=await browser.newPage(),base=`http://127.0.0.1:${server.httpServer.address().port}`;
+  await page.goto(`${base}/workspace/index.html#Inbox`);
+  await page.waitForSelector('#compose');await page.click('#compose');
+  await page.waitForSelector('[name=subject]');await page.type('[name=subject]','First proposal');await page.type('textarea','Keep the first body.');
+  await page.waitForFunction(()=>document.querySelector('#receipt')?.textContent.includes('Saved'));
+  await page.click('#compose');await page.waitForFunction(()=>document.querySelector('[name=subject]')?.value==='');
+  await page.type('[name=subject]','Second proposal');await page.type('textarea','Another independent body.');
+  await page.waitForFunction(()=>document.querySelector('#receipt')?.textContent.includes('Saved'));
+  await page.click('[data-folder="Drafts"]');await page.waitForSelector('#search');await page.type('#search','First');
+  await page.waitForFunction(()=>document.querySelectorAll('[data-draft]').length===1);
+  await page.click('[data-draft]');await page.waitForFunction(()=>document.querySelector('textarea')?.value==='Keep the first body.');
+  await page.click('#archive-draft');await page.click('[data-folder="Archive"]');await page.waitForSelector('[data-draft]');await page.click('[data-draft]');
+  await page.waitForSelector('#restore-draft');await page.click('#restore-draft');
+  await page.reload();await page.waitForSelector('textarea');assert.equal(await page.$eval('textarea',e=>e.value),'Keep the first body.');
+  await page.setViewport({width:390,height:844});await page.click('#back-to-list');await page.waitForSelector('[data-draft]');
+  assert.ok(await page.$eval('[data-draft]',e=>e.getBoundingClientRect().width>0));
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  await page.click('a[href="#Home"]');await page.waitForSelector('[data-home-draft]');
+  await page.click('[data-home-draft]');await page.waitForSelector('textarea');
+  assert.equal(await page.$eval('textarea',e=>e.value),'Keep the first body.');
+});

@@ -75,7 +75,9 @@ try {
 } catch {
   session = reconcileSession(null, data.notebooks);
 }
-current = session.active;
+const requestedNotebook = new URL(location.href).searchParams.get('notebook');
+current = data.notebooks.some(n=>n.id===requestedNotebook) ? requestedNotebook : session.active;
+if (current && !session.tabs.includes(current)) session.tabs.push(current);
 page = current ? session.pages[current] : 0;
 const histories = new Map();
 function holdNotebook() {
