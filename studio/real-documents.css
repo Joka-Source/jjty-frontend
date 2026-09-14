@@ -129,3 +129,23 @@
 @media(max-height:350px){
 .real-editor.real-panel-open .real-context,.real-editor.real-panel-open .real-context:has(details[open]){position:fixed;inset:0;max-height:100%;height:100%;width:100%;border:0;border-radius:0;padding:0 12px 8px;z-index:50}
 }
+/* The document owns the screen; navigation and editing options are contextual. */
+.real-editor .real-document-header{height:62px;border-bottom:1px solid var(--a-line)}
+.real-editor .real-document-name h1{font:600 18px/1.25 -apple-system,BlinkMacSystemFont,sans-serif;letter-spacing:-.02em}
+.real-editor .real-document-meta{display:flex;align-items:center;gap:10px;margin:0;min-height:22px}
+#real-page-summary{font:12px/1.4 -apple-system,BlinkMacSystemFont,sans-serif;color:var(--a-muted);padding:0;font-variant-numeric:tabular-nums}
+.real-editor #real-save-state{margin:0;font-size:11px}.real-editor #real-save-state:not([data-error=true]){color:var(--a-muted)}
+.real-editor .real-export-trigger{width:44px;height:44px;min-width:44px;padding:10px;background:transparent!important;color:var(--a-ink);border:0;border-radius:12px}.real-export-trigger .icon{width:23px;height:23px}
+.real-editor .real-scroll{padding-top:16px;background:#e9ede9}.real-editor .real-stage{padding-bottom:80px;background:#e9ede9}
+.atelier[data-theme=dark] .real-editor :is(.real-scroll,.real-stage){background:#202823}
+.real-editor .real-jelly{padding:5px 8px;gap:8px;border-radius:24px;bottom:12px}.real-editor .real-jelly>button{min-width:62px;min-height:50px;padding:5px 10px;border-radius:18px;font-size:11px}.real-editor .real-jelly .icon{width:21px;height:21px}
+.real-context .real-page-nav{height:auto;display:grid;gap:12px;padding:12px 0 20px;background:transparent}.real-context .real-page-nav>div{justify-content:space-between;gap:4px}.real-context .real-page-nav input{border:1px solid var(--a-line);height:44px;width:56px}.real-context .real-page-nav .a-btn{min-width:44px}
+.real-history{display:flex;gap:8px;margin:8px 0}.real-history .a-btn{flex:1;gap:8px}.real-history .icon{width:18px;height:18px}.real-appearance{margin:8px 0;gap:10px}
+.real-document-header .real-runtime-activity{position:absolute;top:72px;right:16px}.real-document-header .real-activity-capsule[data-phase=complete]{display:none}
+@media(max-width:800px){.real-editor .real-document-header{padding-inline:8px;gap:5px}.real-editor .real-document-name h1{font-size:17px}.real-editor .real-document-meta{gap:8px}.real-editor .real-jelly{width:auto;max-width:calc(100% - 24px);gap:4px}.real-editor .real-jelly>button{min-width:58px;padding:5px 8px}.real-editor .real-scroll{padding:14px 12px 20px}}
+@media(max-width:350px){.real-editor #real-save-state:not([data-error=true]){position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}}
+.real-annotation-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:10px 0 14px}.real-annotation-grid .real-annotation-tool{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:72px;padding:10px 6px;border:1px solid var(--a-line);border-radius:14px;background:var(--a-paper);font-size:12px!important}.real-annotation-tool .icon{width:23px;height:23px}.real-annotation-tool:hover,.real-annotation-tool:active{background:var(--a-green)}
+.real-editor[data-panel=write] .real-context{top:auto;bottom:80px;max-height:60%;padding-bottom:12px}.real-editor[data-panel=write] .real-stage{margin-right:0}.real-history{border-top:1px solid var(--a-line);padding-top:10px}.real-history .a-btn{background:transparent;border:0}
+.real-editor .real-context-heading{background:var(--a-paper)}.real-editor .real-context{scrollbar-width:thin}.real-editor .real-more>summary{font-size:13px}
+@media(max-width:800px){.real-editor[data-panel=write] .real-context{left:12px;right:12px;bottom:78px;max-height:60%;border-radius:22px}.real-editor .real-context-heading{padding-top:10px}.real-editor .real-context-heading h2{font-size:18px}.real-annotation-grid{gap:8px}.real-annotation-grid .real-annotation-tool{min-height:64px}}
+.real-editor[data-panel=images] .real-page-nav{padding:0 0 6px;border-bottom:1px solid var(--a-line)}.real-editor[data-panel=images] .real-page-nav>div:first-child{display:none}.real-editor[data-panel=images] .real-page-nav>div:last-child{justify-content:flex-end}
