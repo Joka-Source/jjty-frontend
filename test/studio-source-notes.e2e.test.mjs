@@ -1,3 +1,4 @@
+import {prepareStudioControl} from './helpers/studio-controls.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
@@ -11,7 +12,7 @@ test('real PDF margin note opens in the notebook and returns to the exact source
  const browser=await puppeteer.launch({executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true});t.after(async()=>{const timer=setTimeout(()=>browser.process()?.kill('SIGKILL'),3000);try{await browser.close();}finally{clearTimeout(timer);}});
  const page=await browser.newPage();await page.setViewport({width:390,height:844});
  const errors=[];page.on('dialog',async dialog=>{t.diagnostic('Unexpected dialog: '+dialog.message());await dialog.dismiss();});page.on('pageerror',e=>errors.push(e.message));
- const click=async selector=>{t.diagnostic('Click '+selector);await page.waitForSelector(selector,{visible:true});await page.$eval(selector,e=>e.scrollIntoView({block:'center',behavior:'instant'}));await page.locator(selector).click();};
+ const click=async selector=>{await prepareStudioControl(page,selector);t.diagnostic('Click '+selector);await page.waitForSelector(selector,{visible:true});await page.$eval(selector,e=>e.scrollIntoView({block:'center',behavior:'instant'}));await page.locator(selector).click();};
  await page.goto('http://127.0.0.1:5195/studio/index.html#files');await page.waitForFunction(()=>document.querySelector('#real-status')?.textContent==='Your PDF will be stored in this browser.');
  await click('[data-doc-action="sample"]');await page.waitForFunction(()=>document.querySelector('#real-status')?.textContent.startsWith('Opened from'));
  const source=await page.evaluate(async()=>{const {getDocs}=await import('/src/db.js');const d=(await getDocs())[0];return{id:d.id,bytes:Array.from(d.sourceBytes)};});

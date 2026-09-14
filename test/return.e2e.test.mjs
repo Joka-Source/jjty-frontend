@@ -39,7 +39,14 @@ async function boot(t) {
     headless: true,
     args: ["--disable-gpu", "--no-first-run", "--no-sandbox", "--disable-setuid-sandbox"],
   });
-  t.after(() => browser.close());
+  t.after(async () => {
+    let timeout;
+    try {
+      await Promise.race([browser.close(), new Promise(resolve => {
+        timeout = setTimeout(() => { browser.process()?.kill("SIGKILL"); browser.disconnect(); resolve(); }, 3000);
+      })]);
+    } finally { clearTimeout(timeout); }
+  });
   const page = await browser.newPage();
   await page.setViewport({ width: 1280, height: 800 });
   await page.evaluateOnNewDocument(() => {
@@ -57,7 +64,7 @@ test("reading place survives reload; home, water return, voice, and ambiguity st
 
   await page.click("#home-sample");
   await page.waitForFunction(() => document.querySelectorAll("#doc p[data-block]").length === 7);
-  await page.click('#doc p[data-block="4"]');
+  await page.locator('#doc p[data-block="4"]').click();
   await new Promise((resolve) => setTimeout(resolve, 850));
   await page.click('.topnav a[data-view-link="home"]');
   await page.waitForFunction(() => document.querySelector(".home-position")?.textContent.includes("block 5 of 7"));
@@ -83,11 +90,11 @@ test("reading place survives reload; home, water return, voice, and ambiguity st
 
   await page.evaluate(() => window.__jtApp.addDocument("survey opening\n\nsurvey remembered line", "River Survey"));
   await page.waitForFunction(() => document.getElementById("doc-title").textContent === "River Survey");
-  await page.click('#doc p[data-block="1"]');
+  await page.locator('#doc p[data-block="1"]').click();
   await new Promise((resolve) => setTimeout(resolve, 850));
   await page.evaluate(() => window.__jtApp.addDocument("summary opening\n\nsummary remembered line", "River Summary"));
   await page.waitForFunction(() => document.getElementById("doc-title").textContent === "River Summary");
-  await page.click('#doc p[data-block="1"]');
+  await page.locator('#doc p[data-block="1"]').click();
   await new Promise((resolve) => setTimeout(resolve, 850));
 
   await page.evaluate(() => window.__jtApp.segment("go back to river survey"));

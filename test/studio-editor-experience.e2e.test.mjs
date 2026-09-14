@@ -1,3 +1,4 @@
+import {prepareStudioControl} from './helpers/studio-controls.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
@@ -11,7 +12,7 @@ test('focused editor keeps page orientation, direct text placement, tools and re
  for(let i=0;i<100;i++){try{if((await fetch('http://127.0.0.1:5193')).ok)break;}catch{}await new Promise(r=>setTimeout(r,100));}
  const browser=await puppeteer.launch({executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true});t.after(async()=>{await Promise.race([browser.close(),new Promise(resolve=>setTimeout(()=>{browser.process()?.kill('SIGKILL');browser.disconnect();resolve();},3000))]);});
  const page=await browser.newPage();await page.setViewport({width:390,height:844});const errors=[];page.on('pageerror',e=>errors.push(e.message));
- const click=async s=>{if(['[data-doc-action="ink"]','[data-doc-action="focus-text"]'].includes(s))await page.locator('[data-doc-action="write-panel"]').click();if(s==='[data-doc-action="page-text"]')await page.locator('[data-doc-action="pages-panel"]').click();await page.waitForSelector(s,{visible:true});await page.$eval(s,e=>e.scrollIntoView({block:'center',behavior:'instant'}));await page.locator(s).click();};
+ const click=async s=>{await prepareStudioControl(page,s);if(['[data-doc-action="ink"]','[data-doc-action="focus-text"]'].includes(s))await page.locator('[data-doc-action="write-panel"]').click();if(s==='[data-doc-action="page-text"]')await page.locator('[data-doc-action="pages-panel"]').click();await page.waitForSelector(s,{visible:true});await page.$eval(s,e=>e.scrollIntoView({block:'center',behavior:'instant'}));await page.locator(s).click();};
  await page.goto('http://127.0.0.1:5193/studio/index.html#files');await page.waitForFunction(()=>document.querySelector('#real-status')?.textContent==='Your PDF will be stored in this browser.');await click('[data-doc-action="sample"]');await page.waitForFunction(()=>document.querySelector('#real-page-num')?.textContent==='Page 1 of 3',{timeout:15000}).catch(async e=>{throw new Error(e.message+' '+await page.$eval('main',e=>e.textContent)+' '+errors.join(','));});
  await mkdir('/tmp/jetty-experience-review',{recursive:true});await page.screenshot({path:'/tmp/jetty-experience-review/after-phone-reading.png'});
  assert.equal(await page.$$eval('.real-jelly',e=>e.length),1);assert.equal(await page.$eval('.real-context',e=>e.hidden),true);assert.ok(await page.$eval('#real-canvas',e=>e.getBoundingClientRect().top<180));assert.equal(await page.$eval('[data-doc-action="undo"]',e=>e.disabled),true);

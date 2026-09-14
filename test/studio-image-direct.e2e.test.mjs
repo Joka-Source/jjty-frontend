@@ -1,3 +1,4 @@
+import {prepareStudioControl} from './helpers/studio-controls.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -46,7 +47,7 @@ test('full-size on-page image drag, reset, resize and saved-copy custody',{timeo
  assert.ok(geometry.frame.bottom+22<geometry.controlsTop,JSON.stringify(geometry));
  assert.equal(await page.$eval('.image-precision',e=>e.open),false);
  await page.screenshot({path:path.join(artifacts,'01-selected-phone.png')});
- await page.click('[data-doc-action=zoom-in]');assert.ok(await page.$eval('.real-paper',e=>e.getBoundingClientRect().width)>geometry.frame.width);await page.click('[data-doc-action=fit]');
+ await prepareStudioControl(page,'[data-doc-action=zoom-in]');await page.click('[data-doc-action=zoom-in]');assert.ok(await page.$eval('.real-paper',e=>e.getBoundingClientRect().width)>geometry.frame.width);await prepareStudioControl(page,'[data-doc-action=fit]');await page.click('[data-doc-action=fit]');
  assert.equal(await page.$eval('[data-doc-action=write-panel]',e=>e.getAttribute('aria-pressed')),'true');
  const frame=await page.$eval('.image-onpage-selection',e=>{const r=e.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};});
  await page.mouse.move(frame.x,frame.y);await page.mouse.down();await page.mouse.move(frame.x+12,frame.y+9,{steps:8});await page.mouse.up();
@@ -62,7 +63,7 @@ test('full-size on-page image drag, reset, resize and saved-copy custody',{timeo
  const saved=await page.evaluate(async id=>{const db=await import('/src/db.js'),copy=await db.getDoc(location.hash.split('/')[1]),source=await db.getDoc(id);return{bytes:Array.from(copy.sourceBytes),original:Array.from(source.sourceBytes),parent:copy.provenance.derivedFrom};},sourceId);
  assert.deepEqual(saved.original,original);const box=bounds(saved.bytes);assert.ok(Math.abs(box[2]-box[0]-expected.w)<.1);assert.ok(Math.abs(box[3]-box[1]-expected.h)<.1);assert.equal(saved.parent.documentId,sourceId);assert.equal(saved.parent.operation,'image-resize');
  await open();await page.screenshot({path:path.join(artifacts,'04-saved-resize.png')});
- await page.click('[data-a=theme]');await page.screenshot({path:path.join(artifacts,'05-dark.png')});
+ await prepareStudioControl(page,'[data-a="theme"]');await page.click('[data-a=theme]');await open();await page.screenshot({path:path.join(artifacts,'05-dark.png')});
  const cdp=await page.createCDPSession();await cdp.send('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'},{name:'prefers-reduced-transparency',value:'reduce'},{name:'prefers-contrast',value:'more'}]});
  assert.deepEqual(await page.evaluate(()=>['(prefers-reduced-motion: reduce)','(prefers-reduced-transparency: reduce)','(prefers-contrast: more)'].map(q=>matchMedia(q).matches)),[true,true,true]);
  await page.screenshot({path:path.join(artifacts,'06-accessible-material.png')});
