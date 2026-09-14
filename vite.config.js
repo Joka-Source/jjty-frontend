@@ -52,7 +52,7 @@ async function networkFirstNavigation(request) {
     const shells = ['reader','webx','studio','notebooks','workspace','playground'].map(part=>new URL('./'+part+'/index.html',self.registration.scope).pathname);
     const shell = shells.find(path=>requested===path || requested.startsWith(path.replace('index.html',''))) || SHELL_URL;
   try {
-    return await fetch(shell === SHELL_URL ? request : new URL(shell, self.location.origin));
+    return await fetch(shell === SHELL_URL ? request : new URL(shell + new URL(request.url).search, self.location.origin));
   } catch {
     return (await caches.match(shell)) || Response.error();
   }

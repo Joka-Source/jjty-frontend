@@ -259,6 +259,7 @@ test("moment-send: pair two pages by spoken words, send a kept act, verify", { t
   ]);
 
   await pageB.reload({ waitUntil: "load" });
+  assert.equal(new URL(pageB.url()).searchParams.get("relay"), relayUrl, "canonical Reader navigation must retain connection parameters");
   await pageB.waitForFunction(() => !!window.__jtApp, { timeout: 20000 });
   assert.equal(
     await pageB.evaluate(() => localStorage.getItem("jt.sync.deviceId")),
