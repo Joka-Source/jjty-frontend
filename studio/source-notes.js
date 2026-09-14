@@ -18,7 +18,7 @@ export function mountSourceNotes(host, doc, {getPage, navigate, activity}) {
   const status = host.querySelector('#source-note-status');
   const label = host.querySelector('#source-note-label');
   const fresh = host.querySelector('#source-note-new');
-  
+
   const live = () => own===session && input.isConnected && host.contains(input);
   function feedback(text,error=false) { if(live()){status.textContent=text;status.dataset.error=String(error);} }
   function sync() {
