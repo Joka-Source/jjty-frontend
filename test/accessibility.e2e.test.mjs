@@ -46,7 +46,7 @@ test("first-run production UI has no axe violations at desktop or phone widths",
     const context = await browser.createBrowserContext();
     const page = await context.newPage();
     await page.setViewport({ width, height: 900 });
-    await page.goto(url, { waitUntil: "load" });
+    await page.goto(new URL("/reader/" + new URL(url).search + new URL(url).hash, url).href, { waitUntil: "load" });
     await page.waitForFunction(() => !!window.__jtApp, { timeout: 20_000 });
     await page.addScriptTag({ content: axeSource });
     const violations = await page.evaluate(async () => {
@@ -81,7 +81,7 @@ test("a recoverable state reflows at a 200% zoom equivalent and works from the k
   // A 1280 CSS-pixel desktop viewport viewed at 200% exposes 640 CSS pixels.
   await page.setViewport({ width: 640, height: 450 });
   await page.evaluateOnNewDocument(() => localStorage.setItem("jt.welcomed", "1"));
-  await page.goto(url, { waitUntil: "load" });
+  await page.goto(new URL("/reader/" + new URL(url).search + new URL(url).hash, url).href, { waitUntil: "load" });
   await page.waitForFunction(() => window.__jtApp?.booted);
   assert.equal(
     await page.$eval("#install-hint", (node) => node.hidden || getComputedStyle(node).display === "none"),

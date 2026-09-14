@@ -87,7 +87,7 @@ function holdNativeInstallEvent() {
 
 test("pwa manifest is linked, standalone, and carries generated maskable 192/512 icons", { timeout: 60000 }, async (t) => {
   const { page, url } = await bootPwa(t, 4940);
-  await page.goto(`${url}/`, { waitUntil: "load" });
+  await page.goto(`${url}/reader/`, { waitUntil: "load" });
 
   assert.equal(
     await page.$eval('link[rel="manifest"]', (link) => link.getAttribute("href")),
@@ -124,7 +124,7 @@ test("pwa manifest is linked, standalone, and carries generated maskable 192/512
 
 test("production app registers and activates its service worker", { timeout: 60000 }, async (t) => {
   const { page, url } = await bootPwa(t, 4941);
-  await page.goto(`${url}/`, { waitUntil: "load" });
+  await page.goto(`${url}/reader/`, { waitUntil: "load" });
   await page.waitForFunction(
     () => navigator.serviceWorker.getRegistration().then(Boolean),
     { timeout: 5000 }
@@ -150,7 +150,7 @@ test("production app registers and activates its service worker", { timeout: 600
 test("offline navigation serves the shell and reopens an IndexedDB document", { timeout: 90000 }, async (t) => {
   const { page, url } = await bootPwa(t, 4942);
   await page.evaluateOnNewDocument(() => localStorage.setItem("jt.welcomed", "1"));
-  await page.goto(`${url}/#/home`, { waitUntil: "load" });
+  await page.goto(`${url}/reader/#/home`, { waitUntil: "load" });
   await page.waitForFunction(() => window.__jtApp?.booted === true);
   await page.waitForFunction(() => !document.getElementById("home-empty").hidden);
   await page.evaluate(() => document.getElementById("home-sample").click());
@@ -180,7 +180,7 @@ test("offline navigation serves the shell and reopens an IndexedDB document", { 
     true,
     "an uncached network request succeeded while offline"
   );
-  await page.goto(`${url}/offline-proof#/read`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}/reader/offline-proof#/read`, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(
     () => window.__jtApp?.booted === true && document.querySelectorAll("#doc p[data-block]").length > 0,
     { timeout: 30000 }
@@ -197,7 +197,7 @@ test("manual install help is platform-specific and the installable hint appears 
   const { page, url } = await bootPwa(t, 4943);
   await page.evaluateOnNewDocument(() => localStorage.setItem("jt.welcomed", "1"));
   await page.evaluateOnNewDocument(holdNativeInstallEvent);
-  await page.goto(`${url}/#/settings`, { waitUntil: "load" });
+  await page.goto(`${url}/reader/#/settings`, { waitUntil: "load" });
   await page.waitForFunction(() => window.__jtApp?.booted === true);
 
   const manual = await page.evaluate(() => ({
@@ -243,7 +243,7 @@ test("manual install help is platform-specific and the installable hint appears 
   );
   await iosPage.evaluateOnNewDocument(() => localStorage.setItem("jt.welcomed", "1"));
   await iosPage.evaluateOnNewDocument(holdNativeInstallEvent);
-  await iosPage.goto(`${url}/#/settings`, { waitUntil: "load" });
+  await iosPage.goto(`${url}/reader/#/settings`, { waitUntil: "load" });
   await iosPage.waitForFunction(() => window.__jtApp?.booted === true);
   const iosManual = await iosPage.$eval("#install-manual", (node) => node.textContent.trim());
   assert.match(iosManual, /Safari/i);

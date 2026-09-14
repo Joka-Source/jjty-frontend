@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 30
 
     steps:
@@ -47,6 +47,11 @@ jobs:
 
       - name: Headless Chrome e2e suites
         run: npm run test:e2e
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
+
+      - name: WebX convergence and document journeys
+        run: node --import tsx --test --test-force-exit --test-concurrency=1 test/webx.e2e.test.mjs test/studio-reader-chrome.e2e.test.mjs test/studio-source-notes.e2e.test.mjs test/studio-scan-journey.e2e.test.mjs test/tender.e2e.test.mjs test/workspace-handoff.e2e.test.mjs
         env:
           CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
 

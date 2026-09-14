@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>JETT · Notebooks</title>
+    <link rel="stylesheet" href="workspace.css" />
+  </head>
+  <body>
+<aside aria-label="Preview status" style="position:relative;z-index:1;padding:6px 12px;background:#fff2cc;color:#493b12;font:12px/1.4 system-ui;text-align:center">Testing preview · Keep a separate copy of important files.</aside>
+    <div id="app"><div class="loading-shell" role="status"><div><strong>JETT</strong><p>Opening your workspace…</p></div></div></div>
+    <dialog id="dialog" aria-labelledby="dialog-title"></dialog>
+    <div id="notice" role="status" aria-live="polite"></div>
+    <input id="restore" type="file" accept="application/json,.json" hidden />
+    <input id="pdf-file" type="file" accept="application/pdf,.pdf" hidden />
+    <input
+      id="image-file"
+      type="file"
+      accept="image/png,image/jpeg,image/webp"
+      hidden
+    />
+    <script type="module" src="workspace.js"></script>
+  </body>
+</html>

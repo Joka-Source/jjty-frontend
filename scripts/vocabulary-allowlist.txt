@@ -9,3 +9,10 @@ src/registry/index.js|drop|./verbs/cross-device-drop.js
 
 # Registry identifier; this existing internal verb ID is not rendered as copy.
 src/registry/verbs/cross-device-drop.js|drop|cross-device-drop
+
+# Internal command identifiers and backward-compatible record schema fields.
+src/command-journal.js|drop|cross-device-drop
+# Backward-compatible record field, never rendered as UI copy.
+src/library-backup.js|receipt|id docId kind act verbId blockIndex blockEnd modality evidence confidence matchedText anchor rangeAnchor arrival targetChoice noteText undone undoes createdAt cursor receipt mathSpeech mathLatex mathUnparsed migration markupColor
+# Backward-compatible record field, never rendered as UI copy.
+src/library-backup.js|receipt|receipt

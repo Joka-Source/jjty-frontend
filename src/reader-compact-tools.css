@@ -1,0 +1,22 @@
+#reader-view-toggle{min-height:44px;min-width:44px;padding:8px 12px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:6px;white-space:nowrap;}
+#reader-view-toggle[hidden]{display:none;}
+#reader-view-popover{position:fixed;inset:var(--reader-view-top,200px) 12px auto 12px;margin:0;padding:0;box-sizing:border-box;width:auto;max-height:calc(100dvh - var(--reader-view-top,200px) - 12px);overflow:auto;overscroll-behavior:contain;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);box-shadow:0 8px 28px #0003;font:14px/1.4 system-ui,sans-serif;}
+#reader-view-popover > header{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid var(--line);}
+#reader-view-popover button,#reader-view-popover summary,#reader-view-popover select,#reader-view-popover input{min-height:44px;min-width:44px;box-sizing:border-box;scroll-margin:0;}
+#reader-view-close{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px 12px;}
+#reader-view-controls{display:grid;gap:12px;padding:12px;}
+#reader-view-controls > section:empty{display:none;}
+#reader-view-popover .pdf-zoom{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+#reader-view-popover .reader-menu-content{position:static;margin-top:8px;width:100%;max-height:none;overflow:visible;box-shadow:none;}
+#reader-view-popover #doc-head,#reader-view-popover #reader-document-menu{width:100%;}
+#reader-view-popover #reader-page-status{position:static;flex-basis:100%;}
+@media(max-width:900px){
+ #reader-toolbar[data-compact="true"]{flex-wrap:wrap;}
+ #reader-toolbar[data-compact="true"] #reader-document-slot:empty{display:none;}
+ #reader-toolbar[data-compact="true"] #reader-pdf-slot{flex:1;min-width:0;}
+ #reader-toolbar[data-compact="true"] #pdf-tools{justify-content:flex-end;}
+}
+
+#reader-view-popover .pdf-zoom button{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px 12px;}
+#reader-view-popover .pdf-zoom button:disabled{opacity:.45;}
+@media(max-width:900px){#reader-toolbar[data-compact="true"] button,#reader-toolbar[data-compact="true"] summary,#reader-toolbar[data-compact="true"] select{min-height:44px;min-width:44px;}}

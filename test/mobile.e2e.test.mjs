@@ -53,10 +53,10 @@ async function bootSim(t, port, viewport) {
   const page = await browser.newPage();
   await page.setViewport(viewport);
   try {
-    await page.goto(`${url}/?sim=1&fast=1`, { waitUntil: "load" });
+    await page.goto(`${url}/reader/?sim=1&fast=1`, { waitUntil: "load" });
   } catch {
     await new Promise((r) => setTimeout(r, 500)); // one honest retry
-    await page.goto(`${url}/?sim=1&fast=1`, { waitUntil: "load" });
+    await page.goto(`${url}/reader/?sim=1&fast=1`, { waitUntil: "load" });
   }
   await page.waitForSelector("#jt-report", { timeout: 60000 });
   return page;

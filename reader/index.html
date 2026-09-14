@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#4c9be8" />
+    <title>jt</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/jt-192.png" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%234c9be8'/%3E%3C/svg%3E"
+    />
+  </head>
+  <body data-view="read" data-booting="true">
+    <header class="bar">
+      <span class="brand">jt</span>
+      <nav class="topnav" id="topnav" aria-label="jt">
+        <a href="#/home" data-view-link="home">home</a>
+        <a href="#/read" data-view-link="read">reading</a>
+        <a href="#/history" data-view-link="history">what happened</a>
+        <a href="#/share" data-view-link="share">sharing</a>
+        <a href="#/spaces" data-view-link="spaces">spaces</a>
+        <a href="#/settings" data-view-link="settings">settings</a>
+        <a href="#/capabilities" data-view-link="capabilities">capabilities</a>
+        <a href="#/rooms" data-view-link="rooms">what&rsquo;s coming</a>
+      </nav>
+      <span class="status">
+        <span id="status-dot" class="dot"></span>
+        <span id="status-text">starting&hellip;</span>
+        <button id="voice-toggle" class="voice-toggle" hidden></button>
+      </span>
+    </header>
+
+    <main id="app-main">
+    <div id="app-loading"></div>
+
+    <!-- first run: one screen of plain words, then the one mic question -->
+    <section class="view view-welcome" id="view-welcome" hidden>
+      <div class="welcome-step" id="welcome-step-1">
+        <h1 class="welcome-brand">jt</h1>
+        <p class="welcome-lede">
+          you open a page and read it aloud. the page follows your voice, and
+          when you say what you want &mdash; &ldquo;highlight this&rdquo;,
+          &ldquo;mark this important&rdquo;, &ldquo;note that&hellip;&rdquo;
+          &mdash; it happens, right where you are.
+        </p>
+        <p class="welcome-lede">
+          every act leaves a record you can open, check, and undo. if jt is
+          not sure what you meant, it asks &mdash; it never guesses. and
+          everything stays on this device unless you choose to send it.
+        </p>
+        <button class="big-btn" id="welcome-next">continue</button>
+      </div>
+      <div class="welcome-step" id="welcome-step-2" hidden>
+        <p class="welcome-brand">one question</p>
+        <p class="welcome-lede">
+          jt works by listening while you read. your browser will ask for the
+          microphone once &mdash; say yes, and from then on speaking is the
+          interface. jt keeps no recordings; your words are handled the moment
+          they are spoken and let go.
+        </p>
+        <button class="big-btn" id="welcome-mic">turn on the microphone</button>
+        <button class="quiet-btn" id="welcome-skip">not now &mdash; I&rsquo;ll read without voice</button>
+        <p class="hint">you can turn voice on any time from settings.</p>
+      </div>
+    </section>
+
+    <!-- home: the library as the front door -->
+    <section class="view" id="view-home" hidden>
+      <h1>your documents</h1>
+      <div class="home-empty" id="home-empty" hidden>
+        <div id="home-empty-state"></div>
+        <input id="home-file-input" class="visually-hidden" type="file" accept=".txt,.md,.pdf,text/plain,text/markdown,application/pdf" aria-label="Open a document" />
+        <button class="quiet-btn" id="home-sample">or start with a sample page</button>
+      </div>
+      <ul id="home-doc-list" class="home-doc-list"></ul>
+      <div id="home-recovery-state" hidden></div>
+      <div id="home-error-state" hidden></div>
+      <div class="home-add" id="home-add-more">
+        <label class="filebtn">
+          open a file
+          <input id="home-file-input-2" type="file" accept=".txt,.md,.pdf,text/plain,text/markdown,application/pdf" hidden />
+        </label>
+        <textarea id="home-paste-box" rows="3" placeholder="or paste text here&hellip;"></textarea>
+        <button id="home-paste-add">add pasted text</button>
+        <p class="hint">files are read here, on this device &mdash; each document keeps its fingerprint (digest, size) so you always know what you opened.</p>
+      </div>
+    </section>
+
+    <!-- what happened: the full record surface -->
+    <section class="view" id="view-history" hidden>
+      <h1>what happened</h1>
+      <p class="hint">every act &mdash; spoken or tapped &mdash; leaves a record with its evidence. undo is itself a record, so the trail never thins.</p>
+      <label class="field">
+        <span>show</span>
+        <select id="history-filter"></select>
+      </label>
+      <ul id="history-all" class="history-all"></ul>
+      <p class="hint" id="history-empty" hidden>
+        nothing yet. open a document, read a line aloud, and say
+        &ldquo;highlight this&rdquo; &mdash; the act will appear here with its evidence.
+      </p>
+    </section>
+
+    <!-- sharing: send + inbox -->
+    <section class="view" id="view-share" hidden>
+      <h1>sharing</h1>
+      <p class="hint">
+        jt pairs two devices with three spoken words &mdash; words you can say
+        across a room, over a call, or into the other device&rsquo;s mic. no
+        codes to squint at, nothing typed twice. what travels is the whole
+        moment: the passage, the act, its evidence, and the document&rsquo;s
+        fingerprint.
+      </p>
+      <div class="share" id="share-panel">
+        <h2>share with another device</h2>
+        <button id="share-start">start sharing</button>
+        <p class="hint" id="share-code" hidden></p>
+        <div class="join">
+          <input id="join-code" placeholder="three words from the other device" />
+          <button id="join-btn">connect</button>
+        </div>
+        <p class="hint" id="share-state"></p>
+        <div id="share-offline-state" hidden></div>
+        <button id="share-forget" hidden>forget pairing</button>
+        <p class="hint">forgetting ends this connection on both devices. arrived moments and saved outbox items stay on this device.</p>
+      </div>
+      <div class="inbox">
+        <h2>arrived from other devices</h2>
+        <ul id="inbox-list"></ul>
+        <p class="hint" id="inbox-empty">nothing has arrived yet. once paired, anything the other device sends lands here.</p>
+      </div>
+      <details class="explain">
+        <summary>what does &ldquo;verified&rdquo; mean?</summary>
+        <p class="hint">
+          when a moment arrives, jt recomputes its content fingerprint and
+          compares it with the one the sender wrote. if they match, the badge
+          says verified: what you see is exactly what was sent, untouched in
+          transit. if they don&rsquo;t, jt says so instead of pretending.
+        </p>
+      </details>
+    </section>
+
+    <!-- spaces: the organizational surface (provisional) -->
+    <section class="view" id="view-spaces" hidden>
+      <h1>spaces <span class="early-badge">PROVISIONAL &middot; early &mdash; the shape may change</span></h1>
+      <p class="hint">
+        jt adopts the real structure of your life at an institution &mdash; your
+        college, your batch, your class, your hostel room &mdash; instead of
+        inventing one.
+      </p>
+      <p class="space-local-note" id="space-local-note">
+        space feeds are local to this device for now. cross-device space sync
+        arrives with the relay; this early surface does not pretend it is here yet.
+      </p>
+      <p class="hint" id="space-person">choose who you are on this device to send moments only to spaces you belong to.</p>
+      <div class="org-forms">
+        <form class="org-form" id="form-institution">
+          <h2>your institution</h2>
+          <label class="field"><span>name</span><input id="inst-name" placeholder="e.g. National Institute of Design" required /></label>
+          <label class="field"><span>what is it</span><input id="inst-kind" placeholder="college, university, school&hellip;" /></label>
+          <button type="submit">add institution</button>
+        </form>
+        <form class="org-form" id="form-space">
+          <h2>a space inside it</h2>
+          <label class="field"><span>institution</span><select id="space-inst"></select></label>
+          <label class="field"><span>kind</span><select id="space-kind"></select></label>
+          <label class="field"><span>name</span><input id="space-name" placeholder="e.g. CSE-A, Hostel 7, Dramatics Club" required /></label>
+          <button type="submit">add space</button>
+        </form>
+        <form class="org-form" id="form-member">
+          <h2>who belongs there</h2>
+          <label class="field"><span>space</span><select id="member-space"></select></label>
+          <label class="field"><span>person</span><input id="member-name" placeholder="a name" required /></label>
+          <label class="field"><span>role</span><select id="member-role"></select></label>
+          <label class="field"><span>roll number</span><input id="member-roll" placeholder="optional, kept verbatim" /></label>
+          <label class="self-choice"><input id="member-self" type="checkbox" checked /><span>this is me on this device</span></label>
+          <button type="submit">add member</button>
+        </form>
+      </div>
+      <p class="hint" id="org-error" hidden></p>
+      <div id="org-tree" class="org-tree"></div>
+      <p class="hint" id="org-empty">
+        no spaces yet. add your institution above &mdash; then the batch, the
+        class, the room &mdash; and the people who belong in each. every record
+        is checked against the jt contracts before it is kept, and it all
+        stays on this device.
+      </p>
+    </section>
+
+    <!-- settings -->
+    <section class="view" id="view-settings" hidden>
+      <h1>settings</h1>
+      <div class="setting">
+        <h2>voice</h2>
+        <label class="field"><span>language</span>
+          <select id="set-lang"></select>
+        </label>
+        <p class="hint" id="set-voice-state"></p>
+        <button id="set-voice-on" hidden>turn on the microphone</button>
+        <div id="voice-permission-state" hidden></div>
+      </div>
+      <div class="setting">
+        <h2>motion</h2>
+        <div class="choices" id="set-motion" role="radiogroup" aria-label="motion"></div>
+        <p class="hint">how much the page moves &mdash; the marker&rsquo;s swim and the little nod when an act lands. same physics, different water.</p>
+      </div>
+      <div class="setting">
+        <h2>matching engine</h2>
+        <div class="choices" id="set-engine" role="radiogroup" aria-label="matching engine"></div>
+        <p class="hint" id="engine-state"></p>
+      </div>
+      <div class="setting">
+        <h2>install jt</h2>
+        <button id="install-button" hidden>install jt</button>
+        <p class="hint" id="install-manual"></p>
+        <p class="hint" id="install-state" aria-live="polite"></p>
+      </div>
+      <div class="setting">
+        <h2>your data</h2>
+        <label class="field"><span>backup passphrase</span><input id="backup-passphrase" type="password" minlength="12" autocomplete="new-password" aria-describedby="backup-state" /></label>
+        <label class="field"><span>confirm backup passphrase</span><input id="backup-passphrase-confirm" type="password" minlength="12" autocomplete="new-password" aria-describedby="backup-state" /></label>
+        <button id="export-btn" disabled>download encrypted backup</button>
+        <p class="hint" id="backup-state" aria-live="polite">use at least 12 characters. the passphrase never leaves this device and cannot be recovered by jt.</p>
+        <p class="hint">documents, records, reading places, arrivals, spaces, space feeds, settings and queued sends &mdash; one encrypted file, yours. queued sends restore only to the device that created them; pairing credentials stay on this device.</p>
+        <label class="filebtn">
+          choose a jt backup
+          <input id="restore-file" type="file" accept="application/json,.json" hidden />
+        </label>
+        <div id="restore-unlock" hidden>
+          <label class="field"><span>backup passphrase</span><input id="restore-passphrase" type="password" minlength="12" autocomplete="current-password" aria-describedby="restore-state" /></label>
+          <button id="unlock-backup-btn">unlock and inspect backup</button>
+        </div>
+        <button id="restore-btn" disabled>restore this backup</button>
+        <p class="hint" id="restore-state" aria-live="polite"></p>
+        <button id="delete-btn" class="danger">delete everything on this device</button>
+        <p class="hint" id="delete-state"></p>
+      </div>
+      <div class="setting">
+        <h2>about</h2>
+        <p class="hint">
+          jt <span id="about-version"></span> &mdash; you read aloud, the thing
+          you meant happens, and a record stays. records stay on this device;
+          nothing is sent anywhere unless you send it.
+        </p>
+      </div>
+    </section>
+
+    <aside class="install-hint" id="install-hint" hidden aria-live="polite">
+      <span>install jt for offline reading.</span>
+      <a id="install-hint-link" href="#/settings">open settings</a>
+      <button id="install-hint-dismiss" type="button">not now</button>
+    </aside>
+
+    <section class="view" id="view-capabilities" hidden>
+      <h1>capabilities</h1>
+      <p class="hint">this page is made from the live verb registry. real, partial, and designed work appears here from the same source the app executes.</p>
+      <div id="capability-list" class="capability-list"></div>
+    </section>
+
+    <section class="view state-evidence" id="view-states" hidden aria-labelledby="state-evidence-heading">
+      <h1 id="state-evidence-heading" class="visually-hidden">JETT system state</h1>
+      <div id="state-evidence"></div>
+      <p id="state-evidence-result" class="visually-hidden" aria-live="polite"></p>
+    </section>
+
+    <!-- honest rooms: designed surfaces for what is not built yet -->
+    <section class="view" id="view-rooms" hidden>
+      <h1>what&rsquo;s coming</h1>
+      <p class="hint">these are designed and on the way. nothing here pretends to work before it does.</p>
+      <div class="room designed-room" id="designed-room">
+        <h2>designed capability rooms</h2>
+        <p class="hint">open a designed entry on the <a href="#/capabilities">capabilities page</a> to see exactly what belongs here.</p>
+        <p class="room-soon">designed &mdash; not built.</p>
+      </div>
+      <div class="room">
+        <h2>spoken mathematics</h2>
+        <p class="hint">
+          say &ldquo;x squared plus one half&rdquo; and jt will write the
+          mathematics properly. math mode now listens on the reading surface;
+          this keyboard field uses the same local rule-based translator.
+        </p>
+        <div class="tryit">
+          <input id="math-input" placeholder="type spoken math, e.g. one half plus x squared" />
+          <button id="math-try">translate</button>
+        </div>
+        <pre id="math-out" class="math-out" hidden></pre>
+        <p class="hint" id="math-note" hidden></p>
+      </div>
+    </section>
+
+    <div class="layout">
+      <aside class="panel library" id="library-panel">
+        <h2>your documents</h2>
+        <ul id="doc-list"></ul>
+        <div class="add">
+          <label class="filebtn">
+            open a file
+            <input id="file-input" type="file" accept=".txt,.md,.pdf,text/plain,text/markdown,application/pdf" hidden />
+          </label>
+          <textarea id="paste-box" rows="4" placeholder="or paste text here&hellip;"></textarea>
+          <button id="paste-add">add pasted text</button>
+          <p class="hint">you can also add a .txt, .md or .pdf file anywhere on this page</p>
+        </div>
+      </aside>
+      <div class="reading-main">
+        <div id="ask" class="ask" hidden role="alertdialog" aria-live="assertive">
+          <p id="ask-title">did you mean&hellip;</p>
+          <div id="ask-options"></div>
+        </div>
+        <div class="doc-head" id="doc-head" hidden>
+          <span id="doc-title" class="doc-title"></span>
+          <button id="doc-prov-btn" class="doc-prov-btn" hidden>where this came from</button>
+          <div id="doc-prov" class="doc-prov" hidden></div>
+        </div>
+        <section class="math-station" id="math-station" aria-labelledby="math-station-title">
+          <div class="math-station-head">
+            <div>
+              <h2 id="math-station-title">spoken mathematics</h2>
+              <p class="hint" id="math-mode-state">math mode is off</p>
+            </div>
+            <button id="math-mode-toggle" class="math-mode-toggle" type="button" aria-pressed="false">
+              start math mode
+            </button>
+          </div>
+          <div id="math-workbench" class="math-workbench" hidden>
+            <div class="math-pair">
+              <label class="math-side math-input-side" for="math-spoken">
+                <span>words heard</span>
+                <textarea id="math-spoken" rows="3" placeholder="say or type: one half plus x squared"></textarea>
+              </label>
+              <div class="math-side math-output-side">
+                <span>mathematics</span>
+                <div id="math-rendered" class="math-rendered" aria-live="polite"></div>
+                <code id="math-latex" class="math-latex"></code>
+              </div>
+            </div>
+            <p id="math-unparsed" class="math-unparsed" hidden></p>
+            <div class="math-actions">
+              <button id="math-keep" type="button" disabled>keep expression</button>
+              <span class="hint">or say &ldquo;keep that&rdquo;</span>
+            </div>
+            <div id="math-session" class="math-session" hidden>
+              <h3>kept this session</h3>
+              <ol id="math-session-list"></ol>
+            </div>
+            <p class="math-disclosure">rule-based translator; 65k dataset untouched pending provenance.</p>
+          </div>
+        </section>
+        <section class="pdf-tools" id="pdf-tools" aria-label="PDF reading tools" hidden>
+          <div class="pdf-zoom" aria-label="PDF zoom">
+            <button id="pdf-zoom-out" type="button" aria-label="zoom out">&minus;</button>
+            <output id="pdf-zoom-value" aria-live="polite">100%</output>
+            <button id="pdf-zoom-in" type="button" aria-label="zoom in">+</button>
+          </div>
+          <label class="pdf-search-label" for="pdf-search-input">find in this PDF</label>
+          <input id="pdf-search-input" type="search" autocomplete="off" />
+          <button id="pdf-search-previous" type="button" aria-label="previous match">previous</button>
+          <button id="pdf-search-next" type="button" aria-label="next match">next</button>
+          <output id="pdf-search-count" aria-live="polite"></output>
+          <p id="pdf-message" class="pdf-message" aria-live="polite"></p>
+        </section>
+        <article id="doc">
+          <div id="marker" aria-hidden="true"></div>
+          <div class="read-empty" id="read-empty" hidden>
+            <p>nothing is open. pick a document on <a href="#/home">home</a>, or add a file anywhere on this page.</p>
+          </div>
+        </article>
+        <p class="hint mic-hint" id="mic-hint">
+          read a line aloud and the page follows you. say
+          &ldquo;highlight this&rdquo;, &ldquo;mark this important&rdquo;,
+          &ldquo;note that &hellip;&rdquo;, &ldquo;math mode&rdquo; or &ldquo;undo&rdquo;.
+        </p>
+      </div>
+      <aside class="panel history" id="history-panel">
+        <h2>what happened</h2>
+        <p class="hint">every act leaves a record you can inspect and undo.</p>
+        <ul id="history-list"></ul>
+      </aside>
+    </div>
+    <div class="scrim" id="sheet-scrim"></div>
+    <aside class="panel more-sheet" id="more-panel">
+      <h2>more of jt</h2>
+      <nav class="more-nav" aria-label="more">
+        <a href="#/share">sharing</a>
+        <a href="#/spaces">spaces</a>
+        <a href="#/settings">settings</a>
+        <a href="#/capabilities">capabilities</a>
+        <a href="#/rooms">what&rsquo;s coming</a>
+      </nav>
+    </aside>
+    <nav class="tabbar" id="tabbar" aria-label="panels">
+      <button id="tab-home">home</button>
+      <button id="tab-library" aria-expanded="false" aria-controls="library-panel">documents</button>
+      <button id="tab-history" aria-expanded="false" aria-controls="history-panel">what happened</button>
+      <button id="tab-more" aria-expanded="false" aria-controls="more-panel">more</button>
+    </nav>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -1,3 +1,7 @@
+import underline from './verbs/underline.js';
+import underlineRange from './verbs/underline-range.js';
+import strikethrough from './verbs/strikethrough.js';
+import strikethroughRange from './verbs/strikethrough-range.js';
 import { assertVerbModule, defineVerb } from "./define.js";
 import highlight from "./verbs/highlight.js";
 import highlightRange from "./verbs/highlight-range.js";
@@ -22,6 +26,7 @@ import crossDeviceDrop from "./verbs/cross-device-drop.js";
 import togetherness from "./verbs/togetherness.js";
 
 const builtInModules = [
+  underline,underlineRange,strikethrough,strikethroughRange,
   highlight,
   highlightRange,
   annotate,

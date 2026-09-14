@@ -47,7 +47,7 @@ async function boot(t) {
     localStorage.setItem("jt.mic", "off");
   });
   await page.setViewport({ width: 1280, height: 800 });
-  await page.goto(`${url}/#/home`, { waitUntil: "load" });
+  await page.goto(`${url}/reader/#/home`, { waitUntil: "load" });
   await page.waitForFunction(() => window.__jtApp?.booted === true, { timeout: 30000 });
   return page;
 }

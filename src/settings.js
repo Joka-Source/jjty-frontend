@@ -1,13 +1,16 @@
+import {normalizeMarkupColor} from './text-markup.js';
 // jt — settings. A tiny typed layer over localStorage. Everything stays on
 // this device; nothing here talks to a network. Values are read once at boot
 // into a live object that the rest of the app consults, and every write goes
 // straight back to storage so a reload sees the same state.
 
 const KEYS = {
+  markupColor: "jt.markupColor",
   welcomed: "jt.welcomed", // "1" once first-run has been seen
   mic: "jt.mic", // "on" | "off" (off = read-only until invited)
   engine: "jt.engine", // "wasm" | "js" (URL ?engine= overrides)
   lang: "jt.lang", // BCP-47 tag for speech recognition
+  voiceProcessing: "jt.voiceProcessing", // "browser" | "local"
   motion: "jt.motion", // "calm" | "usual" | "lively"
   person: "jt.person", // JSON { id, name } — who "you" are in spaces
   installHintSeen: "jt.installHintSeen", // "1" after the installable hint appears
@@ -34,13 +37,24 @@ export const MOTION_PARAMS = {
 
 export function loadSettings(storage = localStorage) {
   const get = (k, fallback) => storage.getItem(KEYS[k]) ?? fallback;
+  let markupColor;
+  try { markupColor=normalizeMarkupColor(get("markupColor","yellow")); }
+  catch { markupColor="yellow"; }
   const s = {
+    markupColor,
     welcomed: get("welcomed", "") === "1",
     mic: get("mic", ""),
     engine: get("engine", "wasm") === "js" ? "js" : "wasm",
     lang: get("lang", "en-US"),
+    voiceProcessing: get("voiceProcessing", "browser") === "local" ? "local" : "browser",
     motion: MOTION_LEVELS.includes(get("motion", "usual")) ? get("motion", "usual") : "usual",
     set(key, value) {
+      if(key==="markupColor") {
+        const color=normalizeMarkupColor(value);
+        storage.setItem(KEYS.markupColor,color);
+        s.markupColor=color;
+        return;
+      }
       s[key] = value;
       if (key === "welcomed") storage.setItem(KEYS.welcomed, value ? "1" : "");
       else storage.setItem(KEYS[key], String(value));

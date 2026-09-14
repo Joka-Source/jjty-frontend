@@ -23,7 +23,7 @@ export function renderCapabilities(container, registry, { openRoom } = {}) {
     card.appendChild(head);
     card.appendChild(textNode("p", "capability-description", verb.description));
     card.appendChild(
-      textNode("p", "capability-spoken", `say: ${verb.spokenForms.join(" · ")}`),
+      textNode("p", "capability-spoken", verb.spokenForms.length ? `say: ${verb.spokenForms.join(" · ")}` : "Use the selection toolbar."),
     );
     card.appendChild(
       textNode(
