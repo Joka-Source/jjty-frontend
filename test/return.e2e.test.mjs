@@ -57,7 +57,7 @@ test("reading place survives reload; home, water return, voice, and ambiguity st
 
   await page.click("#home-sample");
   await page.waitForFunction(() => document.querySelectorAll("#doc p[data-block]").length === 7);
-  await page.click('#doc p[data-block="4"]');
+  await page.locator('#doc p[data-block="4"]').click();
   await new Promise((resolve) => setTimeout(resolve, 850));
   await page.click('.topnav a[data-view-link="home"]');
   await page.waitForFunction(() => document.querySelector(".home-position")?.textContent.includes("block 5 of 7"));
