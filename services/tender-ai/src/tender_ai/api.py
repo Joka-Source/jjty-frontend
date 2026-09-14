@@ -141,7 +141,7 @@ def create_app(
             raise HTTPException(status_code=401, detail="Document API authorization required")
     application = FastAPI(
         title="JJTY service platform",
-        version="0.2.0",
+        version="1.0.0",
         description=(
             "Service-neutral cases and source-grounded advisory document intelligence."
         ),
