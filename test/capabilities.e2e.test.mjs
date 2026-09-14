@@ -51,7 +51,7 @@ test("capability page is generated from the live registry and designed verbs ope
     localStorage.setItem("jt.welcomed", "1");
     localStorage.setItem("jt.mic", "off");
   });
-  await page.goto("http://jt.test/#/capabilities", { waitUntil: "load" });
+  await page.goto("http://jt.test/reader/index.html#/capabilities", { waitUntil: "load" });
   await page.waitForFunction(() => window.__jtApp?.booted && window.__jtApp.view() === "capabilities");
 
   const initial = await page.evaluate(() => ({

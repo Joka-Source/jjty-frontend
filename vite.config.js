@@ -19,7 +19,7 @@ async function listFiles(dir, prefix = "") {
 
 function serviceWorkerSource(files) {
   const precache = files
-    .filter((file) => file !== "sw.js")
+    .filter((file) => file !== "sw.js" && !/^assets\/mupdf(?:-wasm)?-/.test(file))
     .sort()
     .map((file) => `./${file}`);
 
@@ -48,10 +48,13 @@ self.addEventListener("activate", (event) => {
 });
 
 async function networkFirstNavigation(request) {
+  const requested = new URL(request.url).pathname;
+    const shells = ['reader','webx','studio','notebooks','workspace','playground'].map(part=>new URL('./'+part+'/index.html',self.registration.scope).pathname);
+    const shell = shells.find(path=>requested===path || requested.startsWith(path.replace('index.html',''))) || SHELL_URL;
   try {
-    return await fetch(request);
+    return await fetch(shell === SHELL_URL ? request : new URL(shell + new URL(request.url).search, self.location.origin));
   } catch {
-    return (await caches.match(SHELL_URL)) || Response.error();
+    return (await caches.match(shell)) || Response.error();
   }
 }
 
@@ -83,10 +86,13 @@ self.addEventListener("fetch", (event) => {
 }
 
 function emitVersionedServiceWorker() {
+  let failed = false;
   return {
     name: "jt-versioned-service-worker",
     apply: "build",
+    buildEnd(error) { failed = Boolean(error); },
     async closeBundle() {
+      if (failed) return;
       const files = await listFiles(outDir);
       await writeFile(path.join(outDir, "sw.js"), serviceWorkerSource(files));
     },
@@ -94,5 +100,7 @@ function emitVersionedServiceWorker() {
 }
 
 export default defineConfig({
+  worker: { format: "es" },
   plugins: [emitVersionedServiceWorker()],
+  build: { rollupOptions: { input: { main: path.join(root,"index.html"), reader: path.join(root,"reader/index.html"), webx: path.join(root,"webx/index.html"), studio: path.join(root,"studio/index.html"), notebooks: path.join(root,"notebooks/index.html"), workspace: path.join(root,"workspace/index.html"), playground: path.join(root,"playground/index.html") } } },
 });

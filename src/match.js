@@ -34,7 +34,7 @@ export function tokenize(text) {
 export function tokenizeWithSpans(text) {
   const source = String(text ?? "");
   const spans = [];
-  const words = /[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*|&/gu;
+  const words = /[\p{L}\p{N}][\p{L}\p{N}\p{M}]*(?:['’][\p{L}\p{N}][\p{L}\p{N}\p{M}]*)*|&/gu;
   for (const match of source.matchAll(words)) {
     const normalized = tokenize(match[0]);
     if (normalized.length !== 1) continue;

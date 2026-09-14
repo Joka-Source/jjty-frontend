@@ -81,6 +81,120 @@ test("pdf ingestion: per-page blocks, page locators, provenance from raw bytes",
   assert.equal(shortDigest(r.provenance.contentDigest).length, 10);
 });
 
+test("pdf ingestion preserves the selected engine report and gives the adapter an owned copy", async () => {
+  const bytes = new TextEncoder().encode("%PDF adapter source");
+  const originalFirstByte = bytes[0];
+  const report = {
+    contractVersion: 1,
+    targetEngine: "mupdf",
+    activeEngine: "mupdf",
+    activeLineage: "mupdf-test-provider@1",
+    state: "selected",
+  };
+  const engine = {
+    report,
+    async open(ownedSource) {
+      ownedSource[0] = 0;
+      const document = {
+        numPages: 1,
+        getMetadata: async () => ({ info: {} }),
+        getPage: async () => ({
+          getTextContent: async () => ({ items: [{ str: "MuPDF page", hasEOL: false }] }),
+        }),
+      };
+      return { document, report };
+    },
+  };
+
+  const result = await ingestPdfBrowser(engine, bytes, { name: "adapter.pdf" });
+
+  assert.deepEqual(result.pdfEngine, report);
+  assert.equal(result.blocks[0].text, "MuPDF page");
+  assert.equal(bytes[0], originalFirstByte);
+  assert.equal(result.sourceBytes[0], originalFirstByte);
+});
+
+test("pdf ingestion uses engine-native page text when the provider supplies it", async () => {
+  const bytes = new TextEncoder().encode("%PDF native extraction");
+  const engine = {
+    report: {
+      contractVersion: 1,
+      targetEngine: "mupdf",
+      activeEngine: "mupdf",
+      activeLineage: "mupdf-test-provider@1",
+      state: "selected",
+    },
+    async open() {
+      return {
+        document: {
+          numPages: 1,
+          getMetadata: async () => ({ info: {} }),
+          getPage: async () => ({
+            getTextContent: async () => ({
+              nativeText: "MuPDF native page text",
+              items: [{ str: "fallback item text", hasEOL: false }],
+            }),
+          }),
+        },
+      };
+    },
+  };
+
+  const result = await ingestPdfBrowser(engine, bytes, { name: "native.pdf" });
+
+  assert.equal(result.blocks[0].text, "MuPDF native page text");
+});
+
+test("pdf ingestion releases a provider page after inspecting it", async () => {
+  const bytes = new TextEncoder().encode("%PDF native page lifecycle");
+  let cleaned = false;
+  const engine = {
+    report: {
+      contractVersion: 1,
+      targetEngine: "mupdf",
+      activeEngine: "mupdf",
+      activeLineage: "mupdf-test-provider@1",
+      state: "selected",
+    },
+    async open() {
+      return {
+        document: {
+          numPages: 1,
+          getMetadata: async () => ({ info: {} }),
+          getPage: async () => ({
+            getTextContent: async () => ({ items: [{ str: "page text", hasEOL: false }] }),
+            cleanup: () => { cleaned = true; },
+          }),
+        },
+      };
+    },
+  };
+
+  await ingestPdfBrowser(engine, bytes, { name: "lifecycle.pdf" });
+
+  assert.equal(cleaned, true);
+});
+
+test("primary-required ingestion preserves source provenance while refusing an unavailable MuPDF engine", async () => {
+  const bytes = new TextEncoder().encode("%PDF primary required");
+  let parserTouched = false;
+  const result = await ingestPdfBrowser(
+    { getDocument: () => { parserTouched = true; } },
+    bytes,
+    { name: "primary.pdf", requirePrimary: true },
+  );
+
+  assert.equal(parserTouched, false);
+  assert.deepEqual(result.refusal, {
+    kind: "engine-unavailable",
+    message: "this PDF needs MuPDF, but MuPDF is not available on this device.",
+  });
+  assert.equal(result.provenance.name, "primary.pdf");
+  assert.match(result.provenance.contentDigest, /^sha256:[0-9a-f]{64}$/);
+  assert.deepEqual(result.sourceBytes, bytes);
+  assert.equal(result.pdfEngine.activeEngine, "pdfjs");
+});
+
 test("encrypted PDF ingestion refuses explicitly and preserves provenance", async () => {
   const loadingTask = {
     promise: Promise.reject(Object.assign(new Error("No password given"), { name: "PasswordException" })),
@@ -175,4 +289,25 @@ test("PDF ingestion does not call all-page read failures image-only", async () =
   assert.equal(result.blocks.length, 0);
   assert.ok(result.warnings.some((warning) => warning.includes("page 1 could not be read")));
   assert.ok(result.warnings.some((warning) => warning.includes("page 2 could not be read")));
+});
+
+test('Markdown retains exact original bytes separately from structured reading blocks', async () => {
+  const source = '\uFEFF# Field notes\r\n\r\n> Keep the original.\r\n\r\n```js\r\nconst answer = 42;\r\n```\r\n';
+  const bytes = new TextEncoder().encode(source);
+  const result = await ingestText(new TextDecoder().decode(bytes), { name: 'notes.md', rawBytes: bytes });
+  assert.deepEqual(result.sourceBytes, bytes);
+  assert.equal(result.provenance.byteSize, bytes.length);
+  assert.equal(result.provenance.sourceKind, 'markdown');
+  assert.deepEqual(result.blocks.map(b => b.kind), ['heading', 'quote', 'code']);
+});
+
+test('paste retains the exact selected source flavor without rendering original markup', async () => {
+  const html = '<h1>Notes</h1><p>A useful thought.</p>';
+  const rich = await ingestPaste({ html, text: 'Notes\nA useful thought.' });
+  assert.equal(new TextDecoder().decode(rich.sourceBytes), html);
+  assert.equal(rich.sourceMime, 'text/html');
+  assert.equal(rich.blocks[0].text, 'Notes');
+  const fallback = await ingestPaste({ html: '   ', text: '\uFEFFKeep this\r\nexactly.' });
+  assert.equal(new TextDecoder('utf-8', { ignoreBOM: true }).decode(fallback.sourceBytes), '\uFEFFKeep this\r\nexactly.');
+  assert.equal(fallback.sourceMime, 'text/plain');
 });

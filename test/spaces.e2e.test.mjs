@@ -32,7 +32,7 @@ async function boot(t) {
     { cwd: root, stdio: ["ignore", "pipe", "pipe"] },
   );
   t.after(() => server.kill("SIGTERM"));
-  await waitFor(`http://127.0.0.1:${port}/`);
+  await waitFor(`http://127.0.0.1:${port}/reader/`);
 
   const browser = await puppeteer.launch({
     executablePath: CHROME,
@@ -42,7 +42,7 @@ async function boot(t) {
   t.after(() => browser.close());
   const page = await browser.newPage();
   await page.setViewport({ width: 1280, height: 800 });
-  await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: "load" });
+  await page.goto(`http://127.0.0.1:${port}/reader/`, { waitUntil: "load" });
   await page.waitForFunction(() => window.__jtApp?.booted === true, { timeout: 30000 });
   return page;
 }

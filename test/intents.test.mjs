@@ -73,3 +73,59 @@ test("return phrases map to current and named document commands", () => {
     { type: "return", documentName: "river survey" }
   );
 });
+
+
+test("courtesy beside a command is not reading, while actual prose remains reading", () => {
+  assert.deepEqual(events('Please highlight this').map(toCommand).map(c=>c.type), ['act']);
+  assert.deepEqual(events('Highlight this please').map(toCommand).map(c=>c.type), ['act']);
+  assert.deepEqual(events('Please read this passage').map(toCommand).map(c=>c.type), ['reading']);
+  assert.deepEqual(events('Purple elephants highlight this').map(toCommand).map(c=>c.type), ['reading','act']);
+});
+
+test('named highlight preserves the entire heard phrase instead of current-passage ambiguity', () => {
+  for (const phrase of ['a lead charge', 'a late charge']) {
+    const text = `Highlight ${phrase}`;
+    const commands = events(text).map(toCommand);
+    assert.equal(commands.length, 1);
+    assert.equal(commands[0].type, 'act');
+    assert.equal(commands[0].verbId, 'highlight');
+    assert.equal(commands[0].targetPhrase, phrase);
+    assert.equal(commands[0].evidence, text);
+  }
+});
+
+test('named highlight does not reinterpret prose, partial commands, ranges or compound instructions', () => {
+  assert.equal(events('the report will highlight the risks').map(toCommand).some(c => c.targetPhrase), false);
+  for (const text of ['highlight', 'highlight from rent', 'highlight this', 'highlight a late charge undo that']) {
+    assert.equal(events(text).map(toCommand).some(c => c.targetPhrase), false, text);
+  }
+  assert.equal(first('highlight from rent is due to the deposit').type, 'range');
+  const stream = new IntentStream();
+  assert.deepEqual(stream.push({text:'Highlight a late charge',final:false}), []);
+  assert.equal(stream.push({text:'Highlight a late charge',final:true}).map(toCommand)[0].targetPhrase, 'a late charge');
+});
+
+
+test('markup finals consume interim speech without replaying a different command',()=>{
+ for(const [text,act] of [['underline this','underline'],['strike through that','strikethrough'],['strikethrough this','strikethrough']]){
+  const stream=new IntentStream();assert.deepEqual(stream.push({text,final:false}),[]);
+  assert.equal(stream.push({text,final:true}).map(toCommand)[0].act,act);
+  assert.deepEqual(stream.flush(),[]);
+ }
+});
+test('unsupported markup phrases cannot silently become highlight or another action',()=>{
+ for(const text of ['underline from this to that','underline this range','strike through this range','underline the orchard','please underline this','underline this and undo that']){
+  const stream=new IntentStream();stream.push({text,final:false});
+  assert.ok(stream.push({text,final:true}).map(toCommand).every(command=>command.type==='reading'),text);
+  assert.deepEqual(stream.flush(),[]);
+  const held=new IntentStream();held.push({text,final:false});
+  assert.ok(held.flush().map(toCommand).every(command=>command.type==='reading'),text+' held flush');
+ }
+});
+test('markup respects word-event authority and final boundary defaults',()=>{
+ const stream=new IntentStream();
+ assert.equal(stream.push({text:'highlight this',words:[{text:'underline'},{text:'this'}]}).map(toCommand)[0].act,'underline');
+ assert.deepEqual(stream.flush(),[]);
+ const held=new IntentStream();held.push({text:'underline that',final:false});
+ assert.equal(held.flush().map(toCommand)[0].act,'underline');assert.deepEqual(held.flush(),[]);
+});

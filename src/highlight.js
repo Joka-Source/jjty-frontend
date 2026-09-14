@@ -1,3 +1,4 @@
+import {isTextMarkup,markupColorRgb,MARKUP_OPACITY} from './text-markup.js';
 import { tokenizeWithSpans } from "./match.js";
 
 function readableTextNodes(block) {
@@ -99,15 +100,45 @@ export function measureTokenRange(block, tokenStart, tokenEnd) {
   return range ? unionClientRects(range.getClientRects()) : null;
 }
 
-export function applyInlineHighlight(block, entryId, tokenStart, tokenEnd) {
+export function applyInlineHighlight(block, entryId, tokenStart, tokenEnd, {act='highlight',markupColor}={}) {
+  if(!isTextMarkup(act))throw new TypeError('Invalid text markup act.');
+  const rgb=markupColorRgb(markupColor).map(value=>Math.round(value*255));
+  const style=mark=>{
+    mark.dataset.markup=act;
+    if(act==='highlight')mark.style.backgroundColor=`rgba(${rgb.join(', ')}, ${MARKUP_OPACITY})`;
+    else {
+      mark.style.backgroundColor='transparent';
+      mark.style.textDecorationLine=act==='underline'?'underline':'line-through';
+      mark.style.textDecorationColor=`rgba(${rgb.join(', ')}, ${MARKUP_OPACITY})`;
+      mark.style.textDecorationThickness='1.5px';
+      mark.style.textUnderlineOffset='.12em';
+    }
+  };
   if (block.querySelector(`mark.jt-highlight[data-entry="${entryId}"]`)) {
     return block.querySelector(`mark.jt-highlight[data-entry="${entryId}"]`);
+  }
+  if (block.classList.contains('pdf-text-layer')) {
+    // Keep PDF.js item spans (and their stable offsets/transforms) intact.
+    // Extracting a range across items clones partial spans with stale metadata.
+    const {text,positions}=textMap(block),tokens=tokenizeWithSpans(text);
+    const first=tokens[tokenStart],last=tokens[tokenEnd];
+    if(!first||!last||tokenEnd<tokenStart)return null;
+    let firstMark=null;
+    for(const {node,start,end} of positions){
+      const a=Math.max(first.start,start)-start,b=Math.min(last.end,end)-start;
+      if(b<=a)continue;
+      const part=document.createRange();part.setStart(node,a);part.setEnd(node,b);
+      const mark=document.createElement('mark');mark.className='jt-highlight';mark.dataset.entry=entryId;style(mark);
+      mark.appendChild(part.extractContents());part.insertNode(mark);firstMark??=mark;
+    }
+    return firstMark;
   }
   const range = domRangeForTokens(block, tokenStart, tokenEnd);
   if (!range || range.collapsed) return null;
   const mark = document.createElement("mark");
   mark.className = "jt-highlight";
   mark.dataset.entry = entryId;
+  style(mark);
   mark.appendChild(range.extractContents());
   range.insertNode(mark);
   return mark;

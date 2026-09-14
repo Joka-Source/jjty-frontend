@@ -47,7 +47,7 @@ async function boot(t) {
     localStorage.setItem("jt.mic", "off");
   });
   await page.setViewport({ width: 1280, height: 800 });
-  await page.goto(`${url}/#/home`, { waitUntil: "load" });
+  await page.goto(`${url}/reader/#/home`, { waitUntil: "load" });
   await page.waitForFunction(() => window.__jtApp?.booted === true, { timeout: 30000 });
   return page;
 }
@@ -57,7 +57,7 @@ test("reading place survives reload; home, water return, voice, and ambiguity st
 
   await page.click("#home-sample");
   await page.waitForFunction(() => document.querySelectorAll("#doc p[data-block]").length === 7);
-  await page.click('#doc p[data-block="4"]');
+  await page.locator('#doc p[data-block="4"]').click();
   await new Promise((resolve) => setTimeout(resolve, 850));
   await page.click('.topnav a[data-view-link="home"]');
   await page.waitForFunction(() => document.querySelector(".home-position")?.textContent.includes("block 5 of 7"));

@@ -90,7 +90,7 @@ test("moment-send: pair two pages by spoken words, send a kept act, verify", { t
   const receiverContext = await browser.createBrowserContext();
   const pageA = await senderContext.newPage();
   await pageA.goto(
-    `http://127.0.0.1:${PORT}/?sim=1&fast=1&relay=${encodeURIComponent(relayUrl)}`,
+    `http://127.0.0.1:${PORT}/reader/?sim=1&fast=1&relay=${encodeURIComponent(relayUrl)}`,
     { waitUntil: "load" }
   );
   await pageA.waitForSelector("#jt-report", { timeout: 60000 });
@@ -98,7 +98,7 @@ test("moment-send: pair two pages by spoken words, send a kept act, verify", { t
 
   // Device B: a second, plain page on the same relay.
   const pageB = await receiverContext.newPage();
-  await pageB.goto(`http://127.0.0.1:${PORT}/?relay=${encodeURIComponent(relayUrl)}`, {
+  await pageB.goto(`http://127.0.0.1:${PORT}/reader/?relay=${encodeURIComponent(relayUrl)}`, {
     waitUntil: "load",
   });
   await pageB.waitForFunction(() => !!window.__jtApp, { timeout: 20000 });
@@ -259,6 +259,7 @@ test("moment-send: pair two pages by spoken words, send a kept act, verify", { t
   ]);
 
   await pageB.reload({ waitUntil: "load" });
+  assert.equal(new URL(pageB.url()).searchParams.get("relay"), relayUrl, "canonical Reader navigation must retain connection parameters");
   await pageB.waitForFunction(() => !!window.__jtApp, { timeout: 20000 });
   assert.equal(
     await pageB.evaluate(() => localStorage.getItem("jt.sync.deviceId")),

@@ -1,0 +1,21 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createServer } from 'vite';
+import puppeteer from 'puppeteer-core';
+import { root } from './validate.mjs';
+test('unified shell preserves drafts, reveals provider boundary and exposes editors', {timeout:60000}, async t=>{
+ const server=await createServer({root,server:{host:'127.0.0.1',port:0}});await server.listen();t.after(()=>server.close());
+ const browser=await puppeteer.launch({executablePath:process.env.CHROME_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true});
+ t.after(async()=>{const timer=setTimeout(()=>browser.process()?.kill('SIGKILL'),3000);try{await browser.close();}finally{clearTimeout(timer);}});
+ const page=await browser.newPage();await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/workspace/index.html`);
+ await page.type('[name=to]','example@example.test');await page.type('[name=subject]','Synthetic review');await page.type('textarea','Keep this draft across navigation.');
+ await page.click('a[href="#Messages"]');await page.waitForSelector('textarea');await page.type('textarea','Independent message draft.');
+ await page.click('a[href="#Inbox"]');await page.waitForFunction(()=>document.querySelector('textarea')?.value==='Keep this draft across navigation.');
+ await page.evaluate(async()=>{const {attachmentStore}=await import('/workspace/attachments.js');await attachmentStore('Inbox',new File(['synthetic attachment'],'review.txt',{type:'text/plain'}));});
+ await page.reload();await page.waitForSelector('textarea');assert.equal(await page.$eval('textarea',e=>e.value),'Keep this draft across navigation.');
+ await page.waitForFunction(()=>document.querySelector('#attachment')?.textContent.includes('review.txt'));
+ await page.click('button[type=submit]');await page.waitForSelector('dialog[open]');assert.match(await page.$eval('dialog',e=>e.textContent),/Nothing has been sent/);await page.keyboard.press('Escape');
+ await page.click('a[href="#Settings"]');await page.waitForSelector('[data-setting="Accessibility"]');await page.click('[data-setting="Accessibility"]');await page.click('#motion');assert.equal(await page.$eval('html',e=>e.dataset.motion),'reduce');
+ await page.click('a[href="#PDF%20tools"]');await page.waitForSelector('iframe');assert.equal(await page.$eval('iframe',e=>e.getAttribute('src')),'/#/home');
+ await page.click('a[href="#Inbox"]');await page.setViewport({width:390,height:844});await page.waitForSelector('textarea');assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+});

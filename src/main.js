@@ -2052,6 +2052,15 @@ async function boot() {
     await refreshLibrary();
   }
 
+  if (params.has('workspaceSession')) {
+    const {mountWorkspaceReturn} = await import('./workspace-return.js');
+    await mountWorkspaceReturn({importFile:ingestFile,getDocument:getDoc,openDocument,currentDocument:()=>state.doc,exportDocument:async id=>{
+      const source=await getDoc(id),records=await getRecords(id);
+      const {exportAnnotatedPdf}=await import('./pdf-annotations.js');
+      try{return await exportAnnotatedPdf(source,records);}catch(error){if(error.code==='NO_EXPORTABLE_ANNOTATIONS')return new Uint8Array(source.sourceBytes).slice();throw error;}
+    }});
+    shell.show('read',{silent:true});window.__jtApp.booted=true;return;
+  }
   if (!settings.welcomed) {
     shell.show("welcome", { silent: true });
     setStatus(false, "welcome");
@@ -2067,3 +2076,5 @@ boot().finally(() => {
   appLoading.hidden = true;
   document.body.removeAttribute("data-booting");
 });
+
+addEventListener("webx:pause", () => { if (["listening", "starting"].includes(mic.state)) pauseMic(); void positionMemory.flushAll(); });

@@ -1,0 +1,34 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {preview} from 'vite';
+import puppeteer from 'puppeteer-core';
+import {mkdtemp,writeFile,readFile,readdir,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import path from 'node:path';
+import {unzipSync,strFromU8} from 'fflate';
+const root=path.resolve(import.meta.dirname,'..');
+test('Kothali saves originals, resets reviews on replacement, exports exact bytes and fits mobile',{timeout:180000},async t=>{
+ const server=await preview({root,preview:{host:'127.0.0.1',port:0}});t.after(()=>new Promise(r=>{server.httpServer.closeAllConnections?.();server.httpServer.close(r);}));
+ const browser=await puppeteer.launch({executablePath:process.env.CHROME_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true});t.after(async()=>{const timer=setTimeout(()=>browser.process()?.kill('SIGKILL'),3000);try{await browser.close();}finally{clearTimeout(timer);}});
+ const dir=await mkdtemp(path.join(tmpdir(),'kothali-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const source=Buffer.from('%PDF-1.4\nSynthetic test fixture, not an official tender\n%%EOF');const file=path.join(dir,'Tendernotice_1.pdf');await writeFile(file,source);
+ const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.setViewport({width:1440,height:1000});
+ const cdp=await page.createCDPSession();await cdp.send('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:dir});
+ await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/workspace/index.html#Tenders`);await page.waitForSelector('#tender-bidder');
+ const desk=await page.$eval('#open-signing-desk',a=>({text:a.textContent.trim(),href:a.getAttribute('href'),status:document.querySelector('.signing-desk-kicker strong').textContent}));assert.equal(desk.text,'Open Windows signing desk');assert.equal(desk.href,'dcv://Administrator@3.6.60.38:8443/#console');assert.equal(desk.status,'Ready now');
+ await page.type('[name=company]','Synthetic test society');await page.type('[name=registration]','TEST-ONLY');await page.click('#tender-bidder button');await page.waitForFunction(()=>document.querySelector('#tender-status').textContent.includes('Bidder details updated'));
+ await (await page.$('[data-upload=nit]')).uploadFile(file);await page.waitForSelector('[data-reviewed=nit]');await page.click('[data-reviewed=nit]');await page.waitForFunction(()=>document.querySelector('#tender-status').textContent.includes('Document review updated'));
+ await page.reload();await page.waitForSelector('[data-reviewed=nit]');assert.equal(await page.$eval('[name=company]',e=>e.value),'Synthetic test society');assert.equal(await page.$eval('[data-reviewed=nit]',e=>e.checked),true);
+ await page.type('[name=notes]','Keep this unsaved note');await page.click('#eligibility');await page.waitForFunction(()=>document.querySelector('#tender-status').textContent.includes('Eligibility review updated'));
+ const stale=await browser.newPage();await stale.goto(page.url());await stale.waitForSelector('[data-reviewed=nit]');
+ const revised=Buffer.from('%PDF-1.4\nSynthetic replacement\n%%EOF');await writeFile(file,revised);await (await page.$('[data-upload=nit]')).uploadFile(file);await page.waitForFunction(()=>document.querySelector('#tender-status').textContent.includes('Notice inviting tender added'),{polling:100});
+ assert.equal(await page.$eval('[data-reviewed=nit]',e=>e.checked),false);assert.equal(await page.$eval('#eligibility',e=>e.checked),false);
+ await stale.bringToFront();await stale.click('[data-reviewed=nit]');await stale.waitForFunction(()=>document.querySelector('#tender-status').textContent.includes('changed in another tab'),{polling:100});
+ await stale.$eval('[name=company]',e=>e.setSelectionRange(e.value.length,e.value.length));await stale.type('[name=company]',' revised');assert.equal(await stale.$eval('[name=company]',e=>e.value),'Synthetic test society revised');await stale.$eval('#tender-bidder',form=>form.requestSubmit());await stale.waitForFunction(()=>document.querySelector('#tender-status').textContent.includes('Bidder details updated'),{polling:100});await stale.close();
+ await page.bringToFront();await page.click('#tender-export');let zip;for(let i=0;i<60;i++){const names=await readdir(dir);const name=names.find(x=>x.endsWith('.zip'));if(name){zip=unzipSync(await readFile(path.join(dir,name)));break;}await new Promise(r=>setTimeout(r,100));}
+ assert.ok(zip);assert.deepEqual(Buffer.from(zip['documents/nit/Tendernotice_1.pdf']),revised);assert.deepEqual(Buffer.from(zip['previous-originals/0/Tendernotice_1.pdf']),source);
+ const manifest=JSON.parse(strFromU8(zip['manifest.json']));assert.equal(manifest.state,'preparation-only-not-submitted');assert.equal(manifest.bidder.notes,'Keep this unsaved note');assert.equal(manifest.bidder.company,'Synthetic test society revised');assert.ok(manifest.blockers.length>0);assert.equal(manifest.documents[0].hash.length,64);
+ await page.screenshot({path:'/tmp/kothali-desktop.png',fullPage:true});await page.setViewport({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.screenshot({path:'/tmp/kothali-mobile.png',fullPage:true});assert.deepEqual(errors,[]);
+ await page.evaluate(()=>navigator.serviceWorker.ready);await page.reload();await page.waitForSelector('[data-reviewed=nit]');await page.setOfflineMode(true);await page.reload({waitUntil:'domcontentloaded'});await page.waitForSelector('#tender-bidder');
+ assert.match(await page.$eval('#offline-state',e=>e.textContent),/Offline|Available offline|Saved on this device/);assert.equal(await page.$eval('[name=company]',e=>e.value),'Synthetic test society revised');assert.equal(await page.$eval('[data-document=nit] small',e=>e.textContent.includes('stored offline')),true);
+});

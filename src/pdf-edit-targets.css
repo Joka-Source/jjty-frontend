@@ -1,0 +1,10 @@
+.pdf-edit-targets{position:absolute;inset:0;z-index:3;pointer-events:none;}
+.pdf-edit-target{position:absolute;box-sizing:border-box;pointer-events:auto;margin:0;padding:0;min-width:0;min-height:0;border:1px solid color-mix(in srgb,var(--accent,#315dd7) 60%,transparent);border-radius:2px;background:transparent;color:var(--ink,#17202a);cursor:text;}
+.pdf-edit-target:hover,.pdf-edit-target[aria-pressed="true"]{background:color-mix(in srgb,var(--accent,#315dd7) 12%,transparent);border:2px solid var(--accent,#315dd7);}
+.pdf-edit-target:focus-visible{outline:3px solid var(--accent,#315dd7);outline-offset:2px;background:color-mix(in srgb,var(--accent,#315dd7) 15%,transparent);}
+.pdf-edit-target:disabled{pointer-events:none;cursor:default;}
+
+.pdf-edit-target-quad,.pdf-edit-target-quad:hover,.pdf-edit-target-quad[aria-pressed="true"]{border:0;background:transparent;}
+.pdf-edit-target-quad svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;}
+.pdf-edit-target-quad polygon{fill:transparent;stroke:var(--accent,#315dd7);stroke-width:2px;}
+.pdf-edit-target-quad:hover polygon,.pdf-edit-target-quad[aria-pressed="true"] polygon,.pdf-edit-target-quad:focus-visible polygon{fill:color-mix(in srgb,var(--accent,#315dd7) 15%,transparent);stroke-width:4px;}

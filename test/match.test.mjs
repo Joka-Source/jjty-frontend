@@ -3,7 +3,7 @@
 // test/intents.test.mjs for the full intent surface).
 import test from "node:test";
 import assert from "node:assert/strict";
-import { tokenize, matchTranscript } from "../src/match.js";
+import { tokenize, tokenizeWithSpans, matchTranscript } from "../src/match.js";
 import { IntentStream, toCommand } from "../src/intents.js";
 import { splitParagraphs, STARTER_DOC } from "../src/doc.js";
 
@@ -65,4 +65,11 @@ test("matcher ranks repeated target spans instead of collapsing them to one bloc
       { start: 6, end: 8, score: 1 },
     ],
   );
+});
+
+test('display spans retain combining marks and agree with normalized Hindi and decomposed words', () => {
+  const text='Read नमस्ते दुनिया and cafe\u0301.';
+  const spans=tokenizeWithSpans(text);
+  assert.deepEqual(spans.map(span=>span.token),tokenize(text));
+  assert.deepEqual(spans.map(span=>text.slice(span.start,span.end)),['Read','नमस्ते','दुनिया','and','cafe\u0301']);
 });

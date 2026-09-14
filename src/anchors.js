@@ -62,13 +62,15 @@ function occurrenceSpan(text, charStart, quotedText) {
   return { tokenStart, tokenEnd };
 }
 
-export function resolveAnchor(anchor, { blockTexts }) {
+export function resolveAnchor(anchor, { blockTexts, docDigest, allowSourceChange = false }) {
+  const changedSource = docDigest !== undefined && anchor?.docDigest !== docDigest;
+  if (changedSource && !allowSourceChange) return { arrival: "lost" };
   if (!anchor?.quotedText) return { arrival: "lost" };
   const storedText = String(blockTexts[anchor.blockIndex] ?? "");
   const storedQuote = quoteAt(storedText, anchor.tokenStart, anchor.tokenEnd);
   if (storedQuote?.quotedText === anchor.quotedText) {
     return {
-      arrival: "exact",
+      arrival: changedSource ? "refound" : "exact",
       blockIndex: anchor.blockIndex,
       tokenStart: anchor.tokenStart,
       tokenEnd: anchor.tokenEnd,
@@ -138,4 +140,31 @@ export function migrateLegacyEntry(entry, { blockTexts, docDigest }) {
       quotedText: text,
     },
   };
+}
+
+/** Derive exact clipped anchors from two validated source-bound endpoints. */
+export function deriveRangeSegments(rangeAnchor, { blockTexts, docDigest }) {
+  const invalid = () => { const error = new Error('RANGE_ANCHOR_INVALID'); error.code = 'RANGE_ANCHOR_INVALID'; throw error; };
+  if (rangeAnchor?.version !== 1 || !Array.isArray(blockTexts) || typeof docDigest !== 'string' || !docDigest) invalid();
+  const { start, end } = rangeAnchor;
+  for (const endpoint of [start, end]) {
+    if (!endpoint || !Number.isInteger(endpoint.blockIndex) || endpoint.blockIndex < 0 || endpoint.blockIndex >= blockTexts.length
+      || !Number.isInteger(endpoint.tokenStart) || !Number.isInteger(endpoint.tokenEnd) || endpoint.tokenStart < 0 || endpoint.tokenEnd < endpoint.tokenStart
+      || endpoint.docDigest !== docDigest) invalid();
+    const exact = createAnchor({ blockTexts, blockIndex: endpoint.blockIndex, tokenStart: endpoint.tokenStart, tokenEnd: endpoint.tokenEnd, docDigest });
+    if (!exact || ['quotedText','prefix','suffix','docDigest'].some(key => exact[key] !== endpoint[key])) invalid();
+  }
+  if (start.blockIndex > end.blockIndex || (start.blockIndex === end.blockIndex && (start.tokenStart > end.tokenStart || start.tokenEnd > end.tokenEnd))) invalid();
+  const segments = [];
+  for (let blockIndex = start.blockIndex; blockIndex <= end.blockIndex; blockIndex++) {
+    const count = tokenizeWithSpans(String(blockTexts[blockIndex] ?? '')).length;
+    if (!count) continue;
+    const segment = createAnchor({ blockTexts, blockIndex,
+      tokenStart: blockIndex === start.blockIndex ? start.tokenStart : 0,
+      tokenEnd: blockIndex === end.blockIndex ? end.tokenEnd : count - 1, docDigest });
+    if (!segment) invalid();
+    segments.push(segment);
+  }
+  if (!segments.length) invalid();
+  return segments;
 }

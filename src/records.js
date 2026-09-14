@@ -1,3 +1,4 @@
+import {isTextMarkup,normalizeMarkupColor} from './text-markup.js';
 // jt — record factories. Pure functions, no DOM, no storage: importable from
 // both the browser app and node tests. The objects returned by makeCursor and
 // makeReceipt conform to contracts/cursor.schema.json and
@@ -126,10 +127,13 @@ export function makeActEntry({
   confidence = null,
   matchedText = "",
   noteText = "",
+  markupColor,
   mathSpeech = "",
   mathLatex = "",
   mathUnparsed = [],
   anchor = null,
+  rangeAnchor = null,
+  resolvedSegments = null,
   arrival = null,
   targetChoice = null,
   undoes = null,
@@ -143,7 +147,9 @@ export function makeActEntry({
     blockEnd != null && blockEnd !== blockIndex
       ? `blocks ${blockIndex} to ${blockEnd}`
       : `block ${blockIndex}`;
-  const target = anchor?.quotedText
+  const target = rangeAnchor
+    ? `from “${rangeAnchor.start.quotedText}” to “${rangeAnchor.end.quotedText}”`
+    : anchor?.quotedText
     ? `“${anchor.quotedText}” in block ${blockIndex}`
     : span;
   const wording = { target, span, undoes, noteText, mathLatex };
@@ -179,6 +185,7 @@ export function makeActEntry({
     docId,
     kind: verb.historyKind ?? "act",
     act: storedAct,
+    ...(isTextMarkup(storedAct)?{markupColor:normalizeMarkupColor(markupColor)}:{}),
     verbId: verb.id,
     blockIndex,
     blockEnd,
@@ -186,8 +193,9 @@ export function makeActEntry({
     evidence,
     confidence,
     matchedText,
-    anchor,
-    resolvedAnchor: anchor,
+    anchor: rangeAnchor ? structuredClone(anchor) : anchor,
+    resolvedAnchor: resolvedSegments?.[0] ? structuredClone(resolvedSegments[0]) : anchor,
+    ...(rangeAnchor ? { rangeAnchor: structuredClone(rangeAnchor), resolvedSegments: structuredClone(resolvedSegments) } : {}),
     arrival: resolvedArrival,
     targetChoice,
     noteText,

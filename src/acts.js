@@ -1,11 +1,12 @@
+import {isTextMarkup,isTextMarkupRangeVerb,normalizeMarkupColor} from './text-markup.js';
 // jt — the act engine. Applies acts to the open document's DOM, writes the
 // paired cursor + receipt records to IndexedDB, and reverses acts on undo
 // (undo itself is an act with its own records — the trail never thins).
 
 import { makeActEntry, makeReturnEntry } from "./records.js";
-import { putRecord, getRecords } from "./db.js";
+import { putRecord, putRecords, getRecords } from "./db.js";
 import { contentDigest } from "./ingest.js";
-import { createAnchor, migrateLegacyEntry, resolveAnchor } from "./anchors.js";
+import { createAnchor, deriveRangeSegments, migrateLegacyEntry, resolveAnchor } from "./anchors.js";
 import { verbRegistry } from "./registry/index.js";
 import { emitGlass } from "./glass-tap.js";
 
@@ -23,6 +24,7 @@ export function createActEngine({
 
   async function load(docId) {
     entries = await getRecords(docId);
+    for(const entry of entries)if(isTextMarkup(entry.act))normalizeMarkupColor(entry.markupColor);
     const doc = getDoc();
     const blockTexts = getBlockTexts();
     const docDigest =
@@ -33,13 +35,33 @@ export function createActEngine({
       let entry = original.anchor
         ? { ...original }
         : migrateLegacyEntry(original, { blockTexts, docDigest });
-      if (entry.migration !== "legacy" && entry.anchor) {
-        const resolved = resolveAnchor(entry.anchor, { blockTexts, docDigest });
+      if (entry.rangeAnchor) {
+        try {
+          entry.resolvedSegments = deriveRangeSegments(entry.rangeAnchor, { blockTexts, docDigest });
+          entry.anchor = structuredClone(entry.rangeAnchor.start);
+          entry.resolvedAnchor = entry.resolvedSegments[0];
+          entry.blockIndex = entry.resolvedSegments[0].blockIndex;
+          entry.blockEnd = entry.resolvedSegments.at(-1).blockIndex;
+          entry.arrival = "exact";
+        } catch {
+          entry.arrival = "lost";
+          delete entry.resolvedSegments;
+          delete entry.resolvedAnchor;
+        }
+      } else if (entry.migration !== "legacy" && entry.anchor) {
+        const revisionMatch = /^r(\d+)$/.exec(String(entry.receipt?.sourceRevision ?? ""));
+        const sourceRevision = revisionMatch ? Number(revisionMatch[1]) : NaN;
+        const currentRevision = doc?.revision;
+        const allowSourceChange = !entry.rangeAnchor && !isTextMarkupRangeVerb(entry.verbId)
+          && Number.isSafeInteger(sourceRevision) && Number.isSafeInteger(currentRevision)
+          && currentRevision > sourceRevision;
+        const resolved = resolveAnchor(entry.anchor, { blockTexts, docDigest, allowSourceChange });
         entry.arrival = resolved.arrival;
         if (resolved.arrival === "lost") {
           delete entry.resolvedAnchor;
         } else {
           entry.resolvedAnchor = {
+            ...(resolved.arrival === "exact" ? entry.anchor : {}),
             blockIndex: resolved.blockIndex,
             tokenStart: resolved.tokenStart,
             tokenEnd: resolved.tokenEnd,
@@ -63,6 +85,10 @@ export function createActEngine({
   function* affectedBlocks(entry) {
     if (entry.arrival === "lost") return;
     const blocks = getBlocks();
+    if (entry.rangeAnchor && entry.resolvedSegments) {
+      for (const segment of entry.resolvedSegments) if (blocks[segment.blockIndex]) yield blocks[segment.blockIndex];
+      return;
+    }
     const from = entry.blockIndex;
     const to = entry.blockEnd ?? entry.blockIndex;
     for (let i = from; i <= to; i++) {
@@ -102,6 +128,7 @@ export function createActEngine({
       confidence,
       matchedText,
       noteText,
+      markupColor,
       blockEnd,
       mathSpeech,
       mathLatex,
@@ -110,16 +137,18 @@ export function createActEngine({
       tokenEnd,
       targetChoice,
       arrival: requestedArrival,
+      rangeAnchor,
     } = {}
   ) {
     const verb = verbRegistry.resolve(verbId);
     if (!verb?.recordAct) throw new TypeError(`verb cannot create an act: ${verbId}`);
+    if(isTextMarkup(verb.recordAct))markupColor=normalizeMarkupColor(markupColor);
     const doc = getDoc();
     if (!doc || blockIndex < 0) return null;
     const blockTexts = getBlockTexts();
     const docDigest =
       doc.provenance?.contentDigest ?? (await contentDigest(doc.text ?? blockTexts.join("\n\n")));
-    const anchor =
+    let anchor =
       Number.isInteger(tokenStart) && Number.isInteger(tokenEnd)
         ? createAnchor({
             blockTexts,
@@ -130,7 +159,23 @@ export function createActEngine({
             geometry: getAnchorGeometry(blockIndex, tokenStart, tokenEnd),
           })
         : null;
-    const arrival = requestedArrival ?? (anchor ? "exact" : "approximate");
+    let resolvedSegments, storedRange;
+    if (rangeAnchor) {
+      if (!isTextMarkup(verb.recordAct)) throw new Error("RANGE_ACT_UNSUPPORTED");
+      resolvedSegments = deriveRangeSegments(rangeAnchor, { blockTexts, docDigest });
+      if (blockIndex !== resolvedSegments[0].blockIndex || (blockEnd != null && blockEnd !== resolvedSegments.at(-1).blockIndex)) throw new Error("RANGE_ANCHOR_INVALID");
+      blockEnd = resolvedSegments.at(-1).blockIndex;
+      if (resolvedSegments.length === 1) {
+        anchor = resolvedSegments[0];
+        resolvedSegments = undefined;
+        blockEnd = null;
+      } else {
+        storedRange = structuredClone(rangeAnchor);
+        anchor = structuredClone(storedRange.start);
+      }
+    }
+    if(isTextMarkup(verb.recordAct)&&verb.recordAct!=='highlight'&&!anchor)throw new Error('TEXT_MARKUP_TARGET_NOT_EXACT');
+    const arrival = rangeAnchor ? "exact" : requestedArrival ?? (anchor ? "exact" : "approximate");
     const entry = makeActEntry({
       docId: doc.id,
       revision: doc.revision,
@@ -143,15 +188,19 @@ export function createActEngine({
       confidence,
       matchedText: anchor?.quotedText ?? matchedText,
       noteText,
+      markupColor,
       mathSpeech,
       mathLatex,
       mathUnparsed,
       anchor,
+      rangeAnchor: storedRange,
+      resolvedSegments,
       arrival,
       targetChoice,
     });
-    applyEffect(entry, { confirm: true });
     await putRecord(entry);
+    const stillOpen = getDoc()?.id === doc.id;
+    if (stillOpen) applyEffect(entry, { confirm: true });
     emitGlass({
       kind: "actCommitted",
       act: verb.id,
@@ -164,8 +213,10 @@ export function createActEngine({
         ...(anchor?.quotedText ? { text: anchor.quotedText } : {}),
       },
     });
-    entries.push(entry);
-    onChange?.(entries);
+    if (stillOpen) {
+      entries.push(entry);
+      onChange?.(entries);
+    }
     return entry;
   }
 
@@ -179,11 +230,9 @@ export function createActEngine({
     } else {
       target = [...entries].reverse().find((e) => e.kind === "act" && !e.undone);
     }
-    if (!target) return null;
-    reverseEffect(target);
-    target.undone = true;
-    target.cursor = { ...target.cursor, undoAvailable: false };
-    await putRecord(target);
+    if (!target || target.docId !== doc.id) return null;
+    const updated = { ...target, undone: true,
+      cursor: { ...target.cursor, undoAvailable: false } };
     const undoEntry = makeActEntry({
       docId: doc.id,
       revision: doc.revision,
@@ -195,15 +244,20 @@ export function createActEngine({
       evidence,
       undoes: target.id,
     });
-    await putRecord(undoEntry);
+    await putRecords([updated, undoEntry]);
+    Object.assign(target, updated);
+    const stillOpen = getDoc()?.id === doc.id;
+    if (stillOpen) reverseEffect(target);
     emitGlass({
       kind: "actCommitted",
       act: "undo",
       input: evidence,
       target: { blockId: `${doc.id}-block-${target.blockIndex}`, blockIndex: target.blockIndex },
     });
-    entries.push(undoEntry);
-    onChange?.(entries);
+    if (stillOpen) {
+      entries.push(undoEntry);
+      onChange?.(entries);
+    }
     return undoEntry;
   }
 

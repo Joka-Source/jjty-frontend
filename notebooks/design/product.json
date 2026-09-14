@@ -1,0 +1,13 @@
+{
+  "product":"JETT",
+  "principle":"Your documents, handwriting and voice share one place.",
+  "platformContract":"Reuse semantic tokens, original vector paths, state names and outcomes. Adapt navigation and input to each platform; do not copy browser pixels blindly.",
+  "surfaces":{
+    "library":{"states":["loading","documents","favorites","folder","trash","empty","search-empty","grid","list"],"outcomes":["open notebook at saved page","create notebook","import document","organize","restore from trash"]},
+    "editor":{"states":["editing","reading","selection","tool-options","page-options","search","export","saving","saved","save-failed"],"outcomes":["change page content","undo or redo","navigate without losing work","export selected format"]},
+    "voice":{"states":["off","starting","listening","paused","heard","matched","ambiguous","not-found","denied","unavailable"],"outcomes":["go to matching text or page","ask user to choose ambiguous page","highlight selected typed text","stop capture on navigation"]},
+    "settings":{"states":["appearance","paper-default","motion","storage","shortcuts"],"outcomes":["save local preferences","export backup","restore backup"]}
+  },
+  "interaction":{"escape":"dismiss foreground menu or dialog","focus":"return to invoking control after dismissal where it remains present","motion":"respond to user action; honor reduced motion","destructive":"Trash is reversible; no permanent deletion control","network":"do not claim sharing or cloud delivery without a backend receipt"},
+  "integrationBoundary":{"pdf":"current import/export retained; native editable PDF engine wiring is a later adapter","voice":"browser recognition is real when supported; text rehearsal is explicitly labelled; never label injected input as microphone proof"}
+}

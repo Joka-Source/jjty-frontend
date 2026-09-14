@@ -51,10 +51,10 @@ async function bootShell(t, port, viewport) {
   const page = await browser.newPage();
   await page.setViewport(viewport);
   try {
-    await page.goto(`${url}/`, { waitUntil: "load" });
+    await page.goto(`${url}/reader/`, { waitUntil: "load" });
   } catch {
     await new Promise((r) => setTimeout(r, 500)); // one honest retry
-    await page.goto(`${url}/`, { waitUntil: "load" });
+    await page.goto(`${url}/reader/`, { waitUntil: "load" });
   }
   await page.waitForFunction(() => window.__jtApp?.booted === true, { timeout: 30000 });
   return page;

@@ -48,7 +48,7 @@ test("sim replay: records created, schema-valid, undo works", { timeout: 120000 
   });
   t.after(() => browser.close());
   const page = await browser.newPage();
-  await page.goto(`http://127.0.0.1:${PORT}/?sim=1&fast=1`, { waitUntil: "load" });
+  await page.goto(`http://127.0.0.1:${PORT}/reader/?sim=1&fast=1`, { waitUntil: "load" });
   await page.waitForSelector("#jt-report", { timeout: 60000 });
   const report = JSON.parse(
     await page.$eval("#jt-report", (n) => n.textContent)

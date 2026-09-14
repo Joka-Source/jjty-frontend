@@ -1,10 +1,17 @@
+/** Actual rendering scale, shared by PDF canvas and selectable text. */
+export function fitPdfScale(availableWidth, pageWidths) {
+  const widths = pageWidths.filter(width => Number.isFinite(width) && width > 0);
+  if (!Number.isFinite(availableWidth) || availableWidth <= 0 || !widths.length) return null;
+  return Math.max(0.05, Math.min(2.5, availableWidth / Math.max(...widths)));
+}
+
 const MIN_ZOOM = 0.75;
 const MAX_ZOOM = 2.5;
 
-function clampZoom(value) {
+function clampZoom(value, minZoom = MIN_ZOOM) {
   const zoom = Number(value);
   if (!Number.isFinite(zoom)) return 1;
-  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
+  return Math.min(MAX_ZOOM, Math.max(minZoom, zoom));
 }
 
 export function normalizePdfGeometry(rect, pageRect, page) {
@@ -51,7 +58,7 @@ function annotateTextItems(textLayer, stableText) {
   }
 }
 
-/** Render real PDF canvases with PDF.js selectable text overlays. */
+/** Render provider-backed PDF canvases with PDF.js selectable text overlays. */
 export async function renderPdfPages({
   pdfjs,
   pdfDocument,
@@ -72,62 +79,66 @@ export async function renderPdfPages({
 
   for (let pageNumber = 1; pageNumber <= pdfDocument.numPages; pageNumber++) {
     const pdfPage = await pdfDocument.getPage(pageNumber);
-    const viewport = pdfPage.getViewport({ scale });
-    const page = document.createElement("section");
-    page.className = "pdf-page";
-    page.dataset.page = String(pageNumber);
-    page.setAttribute("aria-label", `page ${pageNumber}`);
-    page.style.setProperty("--pdf-page-width", `${viewport.width}px`);
-    page.style.setProperty("--pdf-page-height", `${viewport.height}px`);
-    const scaleVariables = pdfScaleVariables(viewport, scale);
-    page.style.setProperty("--scale-factor", String(scaleVariables.scaleFactor));
-    page.style.setProperty("--user-unit", String(scaleVariables.userUnit));
-    page.style.setProperty("--total-scale-factor", String(scaleVariables.totalScaleFactor));
-    page.style.setProperty("--scale-round-x", "1px");
-    page.style.setProperty("--scale-round-y", "1px");
+    try {
+      const viewport = pdfPage.getViewport({ scale });
+      const page = document.createElement("section");
+      page.className = "pdf-page";
+      page.dataset.page = String(pageNumber);
+      page.setAttribute("aria-label", `page ${pageNumber}`);
+      page.style.setProperty("--pdf-page-width", `${viewport.width}px`);
+      page.style.setProperty("--pdf-page-height", `${viewport.height}px`);
+      const scaleVariables = pdfScaleVariables(viewport, scale);
+      page.style.setProperty("--scale-factor", String(scaleVariables.scaleFactor));
+      page.style.setProperty("--user-unit", String(scaleVariables.userUnit));
+      page.style.setProperty("--total-scale-factor", String(scaleVariables.totalScaleFactor));
+      page.style.setProperty("--scale-round-x", "1px");
+      page.style.setProperty("--scale-round-y", "1px");
 
-    const canvas = document.createElement("canvas");
-    canvas.className = "pdf-canvas";
-    canvas.setAttribute("aria-hidden", "true");
-    const outputScale = globalThis.devicePixelRatio || 1;
-    canvas.width = Math.max(1, Math.floor(viewport.width * outputScale));
-    canvas.height = Math.max(1, Math.floor(viewport.height * outputScale));
-    canvas.style.width = `${viewport.width}px`;
-    canvas.style.height = `${viewport.height}px`;
-    page.appendChild(canvas);
+      const canvas = document.createElement("canvas");
+      canvas.className = "pdf-canvas";
+      canvas.setAttribute("aria-hidden", "true");
+      const outputScale = globalThis.devicePixelRatio || 1;
+      canvas.width = Math.max(1, Math.floor(viewport.width * outputScale));
+      canvas.height = Math.max(1, Math.floor(viewport.height * outputScale));
+      canvas.style.width = `${viewport.width}px`;
+      canvas.style.height = `${viewport.height}px`;
+      page.appendChild(canvas);
 
-    const context = canvas.getContext("2d", { alpha: false });
-    if (!context) throw new Error("PDF canvas is unavailable");
-    const transform = outputScale === 1 ? null : [outputScale, 0, 0, outputScale, 0, 0];
-    await pdfPage.render({ canvasContext: context, viewport, transform }).promise;
+      const context = canvas.getContext("2d", { alpha: false });
+      if (!context) throw new Error("PDF canvas is unavailable");
+      const transform = outputScale === 1 ? null : [outputScale, 0, 0, outputScale, 0, 0];
+      await pdfPage.render({ canvasContext: context, viewport, transform }).promise;
 
-    const content = await pdfPage.getTextContent({
-      includeMarkedContent: true,
-      disableNormalization: true,
-    });
-    const textContainer = document.createElement("div");
-    textContainer.className = "textLayer pdf-text-layer";
-    const def = pageDefs.get(pageNumber);
-    if (def) {
-      textContainer.dataset.block = String(def.blockIndex);
-      textContainer.dataset.blockText = def.text;
+      const content = await pdfPage.getTextContent({
+        includeMarkedContent: true,
+        disableNormalization: true,
+      });
+      const textContainer = document.createElement("div");
+      textContainer.className = "textLayer pdf-text-layer";
+      const def = pageDefs.get(pageNumber);
+      if (def) {
+        textContainer.dataset.block = String(def.blockIndex);
+        textContainer.dataset.blockText = def.text;
+      }
+      page.appendChild(textContainer);
+      const textLayer = new pdfjs.TextLayer({
+        textContentSource: content,
+        container: textContainer,
+        viewport,
+      });
+      await textLayer.render();
+      if (def) {
+        annotateTextItems(textLayer, def.text);
+        textContainer.addEventListener("click", () => onBlockClick?.(def.blockIndex));
+        blocks[def.blockIndex] = textContainer;
+      }
+      const end = document.createElement("div");
+      end.className = "endOfContent";
+      textContainer.appendChild(end);
+      fragment.appendChild(page);
+    } finally {
+      await pdfPage.cleanup?.();
     }
-    page.appendChild(textContainer);
-    const textLayer = new pdfjs.TextLayer({
-      textContentSource: content,
-      container: textContainer,
-      viewport,
-    });
-    await textLayer.render();
-    if (def) {
-      annotateTextItems(textLayer, def.text);
-      textContainer.addEventListener("click", () => onBlockClick?.(def.blockIndex));
-      blocks[def.blockIndex] = textContainer;
-    }
-    const end = document.createElement("div");
-    end.className = "endOfContent";
-    textContainer.appendChild(end);
-    fragment.appendChild(page);
   }
 
   container.appendChild(fragment);
@@ -138,7 +149,7 @@ export async function renderPdfPages({
  * Stable text state for one PDF. Page text is captured once at ingestion;
  * visual scale changes never rewrite the quote/context address space.
  */
-export function createPdfReadingModel({ pages, zoom = 1 }) {
+export function createPdfReadingModel({ pages, zoom = 1, minZoom = MIN_ZOOM }) {
   const stablePages = Object.freeze(
     (pages ?? []).map((page, index) =>
       Object.freeze({
@@ -148,7 +159,7 @@ export function createPdfReadingModel({ pages, zoom = 1 }) {
     ),
   );
   const blockTexts = Object.freeze(stablePages.map((page) => page.text));
-  let currentZoom = clampZoom(zoom);
+  let currentZoom = clampZoom(zoom, minZoom);
   let query = "";
   let hits = [];
   let activeIndex = -1;
@@ -177,7 +188,7 @@ export function createPdfReadingModel({ pages, zoom = 1 }) {
       return currentZoom;
     },
     setZoom(nextZoom) {
-      currentZoom = clampZoom(nextZoom);
+      currentZoom = clampZoom(nextZoom, minZoom);
       return currentZoom;
     },
     setSearchQuery(nextQuery) {

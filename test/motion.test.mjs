@@ -4,7 +4,44 @@
 // and a strictly decaying confirmation ripple.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createGlider, createReturnMotion, MARKER_MEDIUM, disturb, comeToRest } from "../src/motion.js";
+import { createGlider, createMarkerDriver, createReturnMotion, MARKER_MEDIUM, disturb, comeToRest } from "../src/motion.js";
+
+test("rapid cursor updates keep one animation loop and stopping cancels all movement", t => {
+  let nextId = 1;
+  const frames = new Map();
+  const originalRequest = Object.getOwnPropertyDescriptor(globalThis, 'requestAnimationFrame');
+  const originalCancel = Object.getOwnPropertyDescriptor(globalThis, 'cancelAnimationFrame');
+  t.after(() => {
+    if (originalRequest) Object.defineProperty(globalThis, 'requestAnimationFrame', originalRequest);
+    else delete globalThis.requestAnimationFrame;
+    if (originalCancel) Object.defineProperty(globalThis, 'cancelAnimationFrame', originalCancel);
+    else delete globalThis.cancelAnimationFrame;
+  });
+  globalThis.requestAnimationFrame = callback => {
+    const id = nextId++;
+    frames.set(id, callback);
+    return id;
+  };
+  globalThis.cancelAnimationFrame = id => frames.delete(id);
+  const element = { style: {}, parentElement: { clientWidth: 100 } };
+  const driver = createMarkerDriver(element);
+  driver.moveTo({ top: 0, left: 0, width: 100, height: 20 });
+  assert.equal(element.style.width, '100.00px', 'initial placement must be immediate');
+  for (let top = 10; top <= 100; top += 10) {
+    driver.moveTo({ top, left: 0, width: 100, height: 20 });
+    assert.equal(frames.size, 1, 'an interim update must not fork the animation loop');
+  }
+  const [id, callback] = frames.entries().next().value;
+  frames.delete(id);
+  callback();
+  assert.equal(frames.size, 1, 'the delivered frame must schedule only one successor');
+  driver.stop();
+  assert.equal(frames.size, 0, 'document changes must leave no old animation frames');
+  driver.moveTo({ top: 500, left: 0, width: 100, height: 20 });
+  assert.equal(element.style.top, '500.00px', 'a new document must start at its own position');
+  driver.stop();
+  assert.equal(frames.size, 0);
+});
 
 test("glide approaches the target monotonically and never overshoots", () => {
   let t = 0;

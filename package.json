@@ -47,6 +47,11 @@
     "jt-core": "file:packages/jt-core/pkg",
     "jt-sync": "file:packages/jt-sync",
     "jt-water": "file:packages/jt-water",
-    "pdfjs-dist": "^6.2.108"
+    "pdfjs-dist": "^6.2.108",
+    "bentopdf-pdfium": "file:vendor/bento-editcore/bentopdf-pdfium-8ff5002c6cd5.tgz",
+    "css-tree": "3.2.1",
+    "dompurify": "3.4.15",
+    "fflate": "0.8.3",
+    "mupdf": "1.28.0"
   }
 }
